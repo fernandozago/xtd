@@ -2,7 +2,9 @@
 A header-only C++ library (namespace xtd) with two concurrency primitives:
 
 - [Channel API reference](src/channel/channel.md)
-## Benchmarks
+- [Pipeline API reference](src/pipeline/pipeline.md)
+
+## Benchmarks (Channel)
 
 **Machine spec:**
 ```
@@ -22,5 +24,6 @@ Memory: 14.4626 GiB total
 |               14.31 |       69,864,820.46 |    0.4% |     11.50 | `(STACK OBJECT, HEAP-BACKED DEQUE) unbounded_channel / push / read` |
 |               14.51 |       68,940,101.85 |    0.4% |     11.63 | `(HEAP OBJECT, HEAP-BACKED DEQUE) unbounded_channel / push / read` |
 
-- [Pipeline API reference](src/pipeline/pipeline.md)
-## Benchmarks (soon)
+## Benchmarks (Pipeline)
+
+**Soon**
