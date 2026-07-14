@@ -32,19 +32,17 @@ Primary use cases:
 
 ## 2) Headers and Types
 
+### Namespace
+
+```cpp
+namespace xtd { /* ... */ }
+```
+
 ### Main headers
 
 ```cpp
 #include "channel/bounded_channel.h"
 #include "channel/unbounded_channel.h"
-#include "channel/channel_writer.h"
-#include "channel/channel_reader.h"
-```
-
-### Namespace
-
-```cpp
-namespace xtd { /* ... */ }
 ```
 
 ### Public types

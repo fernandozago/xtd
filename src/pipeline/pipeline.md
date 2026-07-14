@@ -38,30 +38,18 @@ Typical use cases:
 
 ## 2) Headers and Types
 
-### Main headers
-
-```cpp
-#include "pipeline/pipeline.h"
-#include "pipeline/pipe_utils.h"
-```
-
-### Secondary public headers
-
-```cpp
-#include "pipeline/pipe_options.h"
-#include "pipeline/pipe_writer.h"
-#include "pipeline/pipe_reader.h"
-#include "pipeline/read_result.h"
-#include "pipeline/segmented_byte_view.h"
-#include "pipeline/position.h"
-```
-
 ### Namespace
 
 ```cpp
 namespace xtd { /* ... */ }
 ```
 
+### Main headers
+
+```cpp
+#include "pipeline/pipeline.h"
+#include "pipeline/pipe_utils.h"
+```
 ## 3) `xtd::pipe_options`
 
 ### Synopsis
