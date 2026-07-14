@@ -52,7 +52,7 @@ public:
     /// <summary>
     /// Advances the reader using the sequence boundaries as consumed and examined positions.
     /// </summary>
-    /// <param name="sequence">The sequence whose start/end define consumed/examined.</param>
+    /// <param name="sequence">The sequence whose begin/end define consumed/examined.</param>
     void advance(const segmented_byte_view& sequence);
 
     /// <summary>

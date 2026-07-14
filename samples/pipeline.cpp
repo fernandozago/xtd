@@ -60,7 +60,7 @@ int main()
 		}
 	
 		std::println("segmented_byte_view (size: {}) (segments: {})", size, segments_size);
-		reader.advance(readOnlySequence.start(), readOnlySequence.end()); // Advance the reader to the end of the processed read-only sequence, marking it as consumed and examined
+		reader.advance(readOnlySequence.begin(), readOnlySequence.end()); // Advance the reader to the end of the processed read-only sequence, marking it as consumed and examined
 
 		// Uncomment line below to simulate processing time for each read operation
 		// and force backpressure on xtd::pipe_writer when full

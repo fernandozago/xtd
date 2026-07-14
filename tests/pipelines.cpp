@@ -78,11 +78,11 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
         while (seq.position_of('\n', pos))
         {
             pos += 1;
-            CHECK(expected[index++] == seq.slice(seq.start(), pos).to_string());
+            CHECK(expected[index++] == seq.slice(seq.begin(), pos).to_string());
             seq = seq.slice(pos, seq.end());
         }
 
-        reader.advance(seq.start(), seq.end());
+        reader.advance(seq.begin(), seq.end());
 
         if (result.completed()) break;
     }
@@ -132,7 +132,7 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
             ros = ros.slice(pos + 1, ros.end());
         }
 
-        reader.advance(ros.start(), ros.end());
+        reader.advance(ros.begin(), ros.end());
 
         if (result.completed()) break;
     }
@@ -167,7 +167,7 @@ TEST_CASE("pipeline: isCompleted set only after all data is consumed")
         const xtd::read_result result = reader.read();
         xtd::segmented_byte_view ros = result.buffer();
         
-        reader.advance(ros.start(), ros.end());
+        reader.advance(ros.begin(), ros.end());
 
         if (result.completed()) {
             sawCompleted = true;
@@ -345,7 +345,7 @@ TEST_CASE("Reader: advance rejects consumed greater than examined")
     const xtd::segmented_byte_view examinedSlice = buffer.slice(1, 0);
 
     CHECK_THROWS_AS(
-        reader.advance(consumedSlice.start(), examinedSlice.start()),
+        reader.advance(consumedSlice.begin(), examinedSlice.begin()),
         std::invalid_argument
     );
 
@@ -374,12 +374,12 @@ TEST_CASE("Reader: advance rejects positions from another read buffer")
     const xtd::read_result otherResult = reader2.read();
 
     CHECK_THROWS_AS(
-        reader1.advance(result.buffer().start(), otherResult.buffer().start()),
+        reader1.advance(result.buffer().begin(), otherResult.buffer().begin()),
         std::invalid_argument
     );
 
-    reader1.advance(result.buffer().end(), result.buffer().end());
-    reader2.advance(otherResult.buffer().end(), otherResult.buffer().end());
+    reader1.advance(result.buffer().begin(), result.buffer().end());
+    reader2.advance(otherResult.buffer().begin(), otherResult.buffer().end());
 }
 
 TEST_CASE("Reader: advance rejects examined offset beyond most recent read size")
@@ -395,11 +395,11 @@ TEST_CASE("Reader: advance rejects examined offset beyond most recent read size"
     const xtd::segmented_byte_view buffer = result.buffer();
 
     CHECK_THROWS_AS(
-        reader.advance(buffer.start(), buffer.end() + 1),
+        reader.advance(buffer.begin(), buffer.end() + 1),
         std::invalid_argument
     );
 
-    reader.advance(buffer.end(), buffer.end());
+    reader.advance(buffer.begin(), buffer.end());
     reader.complete();
 }
 
@@ -446,7 +446,7 @@ TEST_CASE("segmented_byte_view: slice can span multiple segments")
 
     CHECK(buffer.segment_count() == 3);
     const xtd::segmented_byte_view middle = buffer.slice(2, 5);
-    CHECK(middle.start() == buffer.slice(0, 2).end());
+    CHECK(middle.begin() == buffer.slice(0, 2).end());
     CHECK(middle.to_string() == "cdefg");
 
     reader.advance(buffer.end());
@@ -474,7 +474,7 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
     CHECK(pos == buffer.slice(0, 2).end());
     CHECK(buffer.slice(pos).to_string() == "ab");
     CHECK(buffer.slice(0, pos).to_string() == "ab");
-    CHECK(buffer.slice(buffer.start(), pos).to_string() == "ab");
+    CHECK(buffer.slice(buffer.begin(), pos).to_string() == "ab");
 
     reader.advance(buffer.end());
 }
@@ -497,11 +497,11 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         xtd::position pos{};
         REQUIRE(seq.position_of('\n', pos));
 
-        CHECK(seq.slice(seq.start(), pos).to_string() == "hello");
+        CHECK(seq.slice(seq.begin(), pos).to_string() == "hello");
         CHECK(seq.slice(0, pos).to_string() == "hello");
         CHECK(seq.slice(pos).to_string() == "hello");
 
-        const xtd::position consumed = seq.slice(pos + 1, seq.end()).start();
+        const xtd::position consumed = seq.slice(pos + 1, seq.end()).begin();
         reader.advance(consumed, seq.end());
     }
 
@@ -515,9 +515,9 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         xtd::position pos{};
         REQUIRE(seq.position_of('\n', pos));
 
-        CHECK(seq.slice(seq.start(), pos).to_string() == "world");
+        CHECK(seq.slice(seq.begin(), pos).to_string() == "world");
 
-        reader.advance(seq.end(), seq.end());
+        reader.advance(seq.begin(), seq.end());
     }
 }
 
@@ -531,7 +531,7 @@ TEST_CASE("pipeline: not examining everything allows immediate reread of same da
         const xtd::read_result result = reader.read();
         const xtd::segmented_byte_view buffer = result.buffer();
         CHECK(buffer.to_string() == "abc");
-        reader.advance(buffer.start(), buffer.start());
+        reader.advance(buffer.begin(), buffer.begin());
     }
 
     {
@@ -557,7 +557,7 @@ TEST_CASE("pipeline: examined-all without consuming waits for data change before
     CHECK(firstBuffer.to_string() == "abcd");
 
     // Consume nothing and examine all so the next read waits for a size change.
-    reader.advance(firstBuffer.start(), firstBuffer.end());
+    reader.advance(firstBuffer.begin(), firstBuffer.end());
 
     auto nextRead = std::async(std::launch::async, [&]()
     {
@@ -581,7 +581,7 @@ TEST_CASE("pipeline: examined-all without consuming waits for data change before
     CHECK(done.completed());
     CHECK(doneBuffer.empty());
 
-    reader.advance(doneBuffer.start(), doneBuffer.end());
+    reader.advance(doneBuffer.begin(), doneBuffer.end());
     reader.complete();
 }
 
@@ -598,7 +598,7 @@ TEST_CASE("pipeline: read does not block when data arrives between read and adva
 
     writer.write("def");
 
-    reader.advance(buffer.start(), buffer.end());
+    reader.advance(buffer.begin(), buffer.end());
 
     auto nextRead = std::async(std::launch::async, [&]()
     {
@@ -618,7 +618,7 @@ TEST_CASE("pipeline: read does not block when data arrives between read and adva
     const xtd::segmented_byte_view doneBuffer = done.buffer();
     CHECK(doneBuffer.empty());
     CHECK(done.completed());
-    reader.advance(doneBuffer.start(), doneBuffer.end());
+    reader.advance(doneBuffer.begin(), doneBuffer.end());
 }
 
 // ---------------------------------------------------------------------------
@@ -762,7 +762,7 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
             //     So, if you need to get any data from the buffer, do it before calling advance().
         }
         
-        reader.advance(buffer.start(), buffer.end());
+        reader.advance(buffer.begin(), buffer.end());
         if (result.completed()) break;
     }
 
@@ -815,7 +815,7 @@ TEST_CASE("pipeline: writer complete wakes blocked reader")
     CHECK(buffer.empty());
 
     auto& reader = pipeline.reader();
-    reader.advance(buffer.start(), buffer.end());
+    reader.advance(buffer.begin(), buffer.end());
     reader.complete();
 }
 
@@ -876,7 +876,7 @@ TEST_CASE("Reader: advance after complete throws")
     reader.complete();
 
     CHECK_THROWS_AS(
-        reader.advance(buffer.start(), buffer.end()),
+        reader.advance(buffer.begin(), buffer.end()),
         std::runtime_error
     );
 }
@@ -995,7 +995,7 @@ TEST_CASE("pipeline: examined-all without consuming unblocks paused writer")
     // Writer must still be allowed to produce more data, otherwise delimiter-based
     // parsers can deadlock while waiting for the rest of a message.
     const xtd::segmented_byte_view firstBuffer = first.buffer();
-    reader.advance(firstBuffer.start(), firstBuffer.end()); // this is the key: all bytes examined, none consumed
+    reader.advance(firstBuffer.begin(), firstBuffer.end()); // this is the key: all bytes examined, none consumed
 
     REQUIRE(producer.wait_for(1s) == std::future_status::ready);
     producer.get();
@@ -1120,7 +1120,7 @@ TEST_CASE("Writer: write before advance appends into the same segment when space
         writer.write("more");
 
         // consume nothing, examine nothing → next read returns all buffered data
-        reader.advance(buffer.start(), buffer.start());
+        reader.advance(buffer.begin(), buffer.begin());
     }
 
     writer.complete();
@@ -1131,7 +1131,7 @@ TEST_CASE("Writer: write before advance appends into the same segment when space
         // both writes are visible as a single contiguous segment
         CHECK(buffer.to_string() == "testmore");
         CHECK(buffer.segment_count() == 1);
-        reader.advance(buffer.end(), buffer.end());
+        reader.advance(buffer.begin(), buffer.end());
     }
 }
 
@@ -1154,7 +1154,7 @@ TEST_CASE("Writer: write before advance allocates a new segment when current seg
 
         writer.write("more"); // segment A is full → new segment B is allocated
 
-        reader.advance(buffer.start(), buffer.start());
+        reader.advance(buffer.begin(), buffer.begin());
     }
 
     writer.complete();
@@ -1299,7 +1299,7 @@ TEST_CASE("Utility: threaded_copy_from_socket completes when recv fails with non
     CHECK(result.completed());
     CHECK(buffer.empty());
 
-    reader.advance(buffer.start(), buffer.end());
+    reader.advance(buffer.begin(), buffer.end());
     reader.complete();
 
     copier.join();
@@ -1409,7 +1409,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
                 seq = seq.slice(pos + 1, seq.end());
             }
 
-            reader.advance(seq.start(), seq.end());
+            reader.advance(seq.begin(), seq.end());
 
             if (result.completed()) break;
         }
@@ -1459,7 +1459,7 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
                 const xtd::read_result result = reader.read();
                 const xtd::segmented_byte_view buffer = result.buffer();
                 bytesRead += buffer.size();
-                reader.advance(buffer.start(), buffer.end());
+                reader.advance(buffer.begin(), buffer.end());
 
                 if (result.completed())
                     break;
@@ -1684,7 +1684,7 @@ TEST_CASE("segmented_byte_view: Slicing with offset returns correct size")
     CHECK(seq.size() == 30);
     xtd::segmented_byte_view sliced = seq.slice(5, 20);
     CHECK(sliced.size() == 20);
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(sliced) == 5);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(sliced) == 5);
 }
 
 TEST_CASE("segmented_byte_view: Slicing preserves segment count when crossing boundaries")
@@ -1704,7 +1704,7 @@ TEST_CASE("segmented_byte_view: Slicing preserves segment count when crossing bo
         5
     );
 
-    // Slice that uses (offset, size) - starting at offset 8, size 10
+    // Slice that uses (offset, size) - begin at offset 8, size 10
     xtd::segmented_byte_view sliced = seq.slice(8, 10);
     CHECK(sliced.size() == 10);
     CHECK(sliced.segment_count() >= 1);
@@ -1940,7 +1940,7 @@ TEST_CASE("segmented_byte_view: segments_size returns correct count")
     CHECK(seq.segment_count() == 2);
 }
 
-TEST_CASE("segmented_byte_view: start() and end() positions are obtainable")
+TEST_CASE("segmented_byte_view: begin() and end() positions are obtainable")
 {
     std::vector<std::byte> data(20, std::byte{0x44});
 
@@ -1951,11 +1951,8 @@ TEST_CASE("segmented_byte_view: start() and end() positions are obtainable")
         13
     );
 
-    const auto& start_pos = seq.start();
-    const auto& end_pos = seq.end();
-
     // Verify positions can be used (e.g., in slicing)
-    xtd::segmented_byte_view sliced = seq.slice(start_pos, end_pos);
+    xtd::segmented_byte_view sliced = seq.slice(seq.begin(), seq.end());
     CHECK(sliced.size() == 20);
 }
 
@@ -1976,13 +1973,13 @@ TEST_CASE("segmented_byte_view: Slicing across multiple segments maintains bound
         15
     );
 
-    // Slice using (startOffset, size) - from offset 3 spanning 12 bytes
+    // Slice using (beginOffset, size) - from offset 3 spanning 12 bytes
     xtd::segmented_byte_view sliced = seq.slice(3, 12);
     CHECK(sliced.size() == 12);
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(sliced) == 3);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(sliced) == 3);
 }
 
-TEST_CASE("segmented_byte_view: First segment start offset after slicing")
+TEST_CASE("segmented_byte_view: First segment begin offset after slicing")
 {
     std::vector<std::byte> seg1(10, std::byte{0xAA});
     std::vector<std::byte> seg2(10, std::byte{0xBB});
@@ -1997,10 +1994,10 @@ TEST_CASE("segmented_byte_view: First segment start offset after slicing")
         14
     );
 
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(seq) == 0);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(seq) == 0);
 
     xtd::segmented_byte_view sliced = seq.slice(7, 10);
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(sliced) == 7);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(sliced) == 7);
 }
 
 TEST_CASE("segmented_byte_view: copy_to with null pointer and zero size is safe")
@@ -2104,8 +2101,8 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
 
     CHECK(slice1.size() == 15);
     CHECK(slice2.size() == 15);
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(slice1) == 5);
-    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_start(slice2) == 10);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice1) == 5);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice2) == 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -2153,7 +2150,7 @@ TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
             seq = seq.slice(pos + 1, seq.end());
         }
 
-        reader.advance(seq.start(), seq.end());
+        reader.advance(seq.begin(), seq.end());
         if (rr.completed()) break;
     }
 
@@ -2201,7 +2198,7 @@ TEST_CASE("pipeline docs example C: backpressure with producer thread")
     reader.complete();
 }
 
-TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consumed=start examined=end")
+TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consumed=begin examined=end")
 {
     xtd::pipeline pipe;
     auto& writer = pipe.writer();
@@ -2214,7 +2211,7 @@ TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consume
         const xtd::segmented_byte_view seq = rr.buffer();
 
         const xtd::segmented_byte_view tail = seq.slice(2, seq.end());
-        reader.advance(tail); // equivalent to advance(tail.start(), tail.end())
+        reader.advance(tail); // equivalent to advance(tail.begin(), tail.end())
     }
 
     writer.complete();
@@ -2243,7 +2240,7 @@ TEST_CASE("pipeline docs reader complete invalidates pending read")
     // Completing the reader clears pending-read state and invalidates this read context.
     reader.complete();
 
-    CHECK_THROWS_AS(reader.advance(seq.start(), seq.end()), std::runtime_error);
+    CHECK_THROWS_AS(reader.advance(seq.begin(), seq.end()), std::runtime_error);
     CHECK_THROWS_AS(static_cast<void>(reader.read()), std::runtime_error);
     CHECK_THROWS_AS(writer.write("z"), std::runtime_error);
 }

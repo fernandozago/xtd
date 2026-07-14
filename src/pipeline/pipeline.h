@@ -126,7 +126,7 @@ private:
                 continue;
             }
 
-            const std::span<const std::byte> segment_bytes(segment.m_buffer.data() + segment.m_start, available);
+            const std::span<const std::byte> segment_bytes(segment.m_buffer.data() + segment.m_begin, available);
             readSegments.emplace_back(segment_bytes);
         }
 
@@ -151,7 +151,7 @@ private:
             const std::size_t readable = head.readable_size();
 
             if (readable > l_consumedOffset) {
-                head.m_start += l_consumedOffset;
+                head.m_begin += l_consumedOffset;
                 m_buffered_size -= l_consumedOffset;
                 l_consumedOffset = 0;
                 break;
@@ -263,9 +263,9 @@ private:
                     m_segments.push_back(m_data_segment_pool.rent_segment());
                 }
 
-                const std::byte* startOffset = data + offset;
+                const std::byte* beginOffset = data + offset;
                 const std::size_t size = length - offset;
-                const std::size_t copiedSize = m_segments.back().copy_from(startOffset, size);
+                const std::size_t copiedSize = m_segments.back().copy_from(beginOffset, size);
 
                 offset += copiedSize;
                 m_buffered_size += copiedSize;
@@ -399,7 +399,7 @@ inline void pipe_reader::advance(const position& consumed) {
 }
 
 inline void pipe_reader::advance(const segmented_byte_view& sequence) {
-    advance(sequence.start(), sequence.end());
+    advance(sequence.begin(), sequence.end());
 }
 
 inline void pipe_reader::complete() noexcept {

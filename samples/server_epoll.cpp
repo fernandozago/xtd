@@ -251,7 +251,7 @@ private:
                     ros = ros.slice(newLinePos + 1, ros.end());
                 }
 
-                reader.advance(ros.start(), ros.end());
+                reader.advance(ros.begin(), ros.end());
 
                 if (result.completed()) {
                     break;

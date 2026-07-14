@@ -24,9 +24,9 @@ friend class test_helper_segmented_byte_view;
 private:
     std::vector<std::span<const std::byte>> m_segments;
     std::uint64_t m_sequence_id;
-    std::size_t m_first_segment_start;
+    std::size_t m_first_segment_begin;
     std::size_t m_size;
-    position m_start;
+    position m_begin;
     position m_end;
 
     position position_at_offset(const std::size_t& offset) const
@@ -35,18 +35,18 @@ private:
             return position(offset, 0, m_sequence_id);
         }
 
-        std::size_t segmentStart = m_first_segment_start;
+        std::size_t segmentBegin = m_first_segment_begin;
         for (std::size_t i = 0; i < m_segments.size(); ++i) {
             const std::span<const std::byte>& segment = m_segments[i];
-            const std::size_t segmentEnd = segmentStart + segment.size();
+            const std::size_t segmentEnd = segmentBegin + segment.size();
             const bool isLastSegment = i == m_segments.size() - 1;
 
-            if (offset >= segmentStart &&
+            if (offset >= segmentBegin &&
                 (offset < segmentEnd || (isLastSegment && offset == segmentEnd))) {
-                return position(segmentStart, offset - segmentStart, m_sequence_id);
+                return position(segmentBegin, offset - segmentBegin, m_sequence_id);
             }
 
-            segmentStart = segmentEnd;
+            segmentBegin = segmentEnd;
         }
 
         throw std::out_of_range("position offset is out of range");
@@ -58,85 +58,85 @@ private:
         }
     }
 
-    std::size_t validate_size(const std::size_t& startOffset, const std::size_t& endOffset) const {
-        if (startOffset > endOffset) {
+    std::size_t validate_size(const std::size_t& beginOffset, const std::size_t& endOffset) const {
+        if (beginOffset > endOffset) {
             throw std::out_of_range("Sequence range is invalid");
         }
 
-        return endOffset - startOffset;
+        return endOffset - beginOffset;
     }
    
-    void validate_slice_range(const std::size_t& sliceStart, const std::size_t& sliceEnd) const {
-        const std::size_t currentStart = m_first_segment_start;
+    void validate_slice_range(const std::size_t& sliceBegin, const std::size_t& sliceEnd) const {
+        const std::size_t currentBegin = m_first_segment_begin;
         const std::size_t currentEnd = m_end.offset_in_sequence();
 
-        if (sliceStart < currentStart || sliceStart > currentEnd) {
-            throw std::out_of_range("slice start is out of range");
+        if (sliceBegin < currentBegin || sliceBegin > currentEnd) {
+            throw std::out_of_range("slice begin is out of range");
         }
 
-        if (sliceEnd < currentStart || sliceEnd > currentEnd) {
+        if (sliceEnd < currentBegin || sliceEnd > currentEnd) {
             throw std::out_of_range("slice end is out of range");
         }
 
-        if (sliceStart > sliceEnd) {
+        if (sliceBegin > sliceEnd) {
             throw std::out_of_range("slice range is invalid");
         }
     }
 
-    void validate_relative_slice(const std::size_t& startOffset, const std::size_t& size) const {
-        if (startOffset > m_size) {
-            throw std::out_of_range("slice start offset is out of range");
+    void validate_relative_slice(const std::size_t& beginOffset, const std::size_t& size) const {
+        if (beginOffset > m_size) {
+            throw std::out_of_range("slice begin offset is out of range");
         }
 
-        if (size > m_size - startOffset) {
+        if (size > m_size - beginOffset) {
             throw std::out_of_range("slice size is out of range");
         }
     }
 
-    segmented_byte_view slice_range_multi_segments(const std::size_t& sliceStart, const std::size_t& sliceEnd) const {
+    segmented_byte_view slice_range_multi_segments(const std::size_t& sliceBegin, const std::size_t& sliceEnd) const {
         std::vector<std::span<const std::byte>> slicedSegments;
         slicedSegments.reserve(m_segments.size());
 
-        std::size_t segmentStart = m_first_segment_start;
+        std::size_t segmentBegin = m_first_segment_begin;
         for (const std::span<const std::byte>& segment : m_segments) {
-            const std::size_t segmentEnd = segmentStart + segment.size();
+            const std::size_t segmentEnd = segmentBegin + segment.size();
 
-            if (segmentEnd <= sliceStart) {
-                segmentStart = segmentEnd;
+            if (segmentEnd <= sliceBegin) {
+                segmentBegin = segmentEnd;
                 continue;
             }
-            if (segmentStart >= sliceEnd) break;
+            if (segmentBegin >= sliceEnd) break;
 
-            const std::size_t overlapStart = std::max(sliceStart, segmentStart);
-            const std::size_t readable_size = std::min(sliceEnd, segmentEnd) - overlapStart;
-            slicedSegments.emplace_back(segment.subspan(overlapStart - segmentStart, readable_size));
-            segmentStart = segmentEnd;
+            const std::size_t overlapBegin = std::max(sliceBegin, segmentBegin);
+            const std::size_t readable_size = std::min(sliceEnd, segmentEnd) - overlapBegin;
+            slicedSegments.emplace_back(segment.subspan(overlapBegin - segmentBegin, readable_size));
+            segmentBegin = segmentEnd;
         }
 
         slicedSegments.shrink_to_fit();
         return {
             std::move(slicedSegments),
-            sliceStart,
+            sliceBegin,
             sliceEnd,
             m_sequence_id
         };
     }
 
-    segmented_byte_view slice_range(const std::size_t& sliceStart, const std::size_t& sliceEnd) const {
-        validate_slice_range(sliceStart, sliceEnd);
+    segmented_byte_view slice_range(const std::size_t& sliceBegin, const std::size_t& sliceEnd) const {
+        validate_slice_range(sliceBegin, sliceEnd);
 
         const std::span<const std::byte>& firstSegment = m_segments.front();
-        const std::size_t firstSegmentEnd = m_first_segment_start + firstSegment.size();
+        const std::size_t firstSegmentEnd = m_first_segment_begin + firstSegment.size();
 
         // Check if is required to slice across multiple segments
-        if (sliceStart < m_first_segment_start || sliceEnd > firstSegmentEnd) {
-            return slice_range_multi_segments(sliceStart, sliceEnd);
+        if (sliceBegin < m_first_segment_begin || sliceEnd > firstSegmentEnd) {
+            return slice_range_multi_segments(sliceBegin, sliceEnd);
         }
         
         // Slice is fully contained within the first segment
         return segmented_byte_view(
-            firstSegment.subspan(sliceStart - m_first_segment_start, sliceEnd - sliceStart),
-            sliceStart,
+            firstSegment.subspan(sliceBegin - m_first_segment_begin, sliceEnd - sliceBegin),
+            sliceBegin,
             sliceEnd,
             m_sequence_id
         );
@@ -181,19 +181,19 @@ private:
     }
 
     // Initializes a read-only sequence with explicit segment and range metadata.
-    segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, const std::size_t& startOffset, const std::size_t& endOffset, const std::uint64_t& sequenceId)
+    segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, const std::size_t& beginOffset, const std::size_t& endOffset, const std::uint64_t& sequenceId)
         : m_segments(std::move(segments))
         , m_sequence_id(sequenceId)
-        , m_first_segment_start(startOffset)
-        , m_size(validate_size(startOffset, endOffset))
-        , m_start(position_at_offset(startOffset))
+        , m_first_segment_begin(beginOffset)
+        , m_size(validate_size(beginOffset, endOffset))
+        , m_begin(position_at_offset(beginOffset))
         , m_end(position_at_offset(endOffset))
     {
     }
 
     // Initializes a read-only sequence with a single segment and explicit range metadata.
-    segmented_byte_view(std::span<const std::byte>&& segment, const std::size_t& startOffset, const std::size_t& endOffset, const std::uint64_t& sequenceId) 
-    : segmented_byte_view(std::vector{std::move(segment)}, startOffset, endOffset, sequenceId)
+    segmented_byte_view(std::span<const std::byte>&& segment, const std::size_t& beginOffset, const std::size_t& endOffset, const std::uint64_t& sequenceId) 
+    : segmented_byte_view(std::vector{std::move(segment)}, beginOffset, endOffset, sequenceId)
     {
     }
 
@@ -201,11 +201,11 @@ public:
     segmented_byte_view() = delete;
 
     /// <summary>
-    /// Gets the inclusive start position of this sequence.
+    /// Gets the inclusive begin position of this sequence.
     /// </summary>
-    /// <returns>The start position.</returns>
+    /// <returns>The begin position.</returns>
     [[nodiscard]] 
-    const position& start() const noexcept { return m_start; }
+    const position& begin() const noexcept { return m_begin; }
 
     /// <summary>
     /// Gets the exclusive end position of this sequence.
@@ -246,55 +246,55 @@ public:
     }
 
     /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, from the sequence start up to end (exclusive).
+    /// Forms a slice out of the current segmented_byte_view, from the sequence begin up to end (exclusive).
     /// </summary>
     /// <param name="end">The ending position of the slice (exclusive).</param>
     /// <returns>A new segmented_byte_view representing everything before end.</returns>
     [[nodiscard]] 
     segmented_byte_view slice(const position& end) const {
         ensure_position_belongs_to_sequence(end, "end");
-        return slice_range(m_start.offset_in_sequence(), end.offset_in_sequence());
+        return slice_range(m_begin.offset_in_sequence(), end.offset_in_sequence());
     }
 
     /// <summary>
-    /// Forms a slice out of the current segmented_byte_view<T>, beginning at start and ending at end (exclusive).
+    /// Forms a slice out of the current segmented_byte_view<T>, from the sequence begin and ending at end (exclusive).
     /// </summary>
-    /// <param name="start">The starting position of the slice.</param>
+    /// <param name="begin">The begin position of the slice.</param>
     /// <param name="end">The ending position of the slice.</param>
     /// <returns>A new segmented_byte_view representing the specified slice.</returns>
     [[nodiscard]] 
-    segmented_byte_view slice(const position& start, const position& end) const {
-        ensure_position_belongs_to_sequence(start, "start");
+    segmented_byte_view slice(const position& begin, const position& end) const {
+        ensure_position_belongs_to_sequence(begin, "begin");
         ensure_position_belongs_to_sequence(end, "end");
-        return slice_range(start.offset_in_sequence(), end.offset_in_sequence());
+        return slice_range(begin.offset_in_sequence(), end.offset_in_sequence());
     }
 
     /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, beginning at start and ending at end (exclusive).
+    /// Forms a slice out of the current segmented_byte_view, beginning at beginOffset and ending at end (exclusive).
     /// </summary>
-    /// <param name="startOffset">The starting offset of the slice relative to the current sequence start.</param>
+    /// <param name="beginOffset">The begin offset of the slice relative to the current sequence begin.</param>
     /// <param name="end">The ending position of the slice.</param>
     /// <returns>A new segmented_byte_view representing the specified slice.</returns>
     [[nodiscard]] 
-    segmented_byte_view slice(std::size_t startOffset, const position& end) const {
+    segmented_byte_view slice(std::size_t beginOffset, const position& end) const {
         ensure_position_belongs_to_sequence(end, "end");
-        validate_relative_slice(startOffset, end.offset_in_sequence() - (m_start.offset_in_sequence() + startOffset));
+        validate_relative_slice(beginOffset, end.offset_in_sequence() - (m_begin.offset_in_sequence() + beginOffset));
 
-        return slice_range(m_start.offset_in_sequence() + startOffset, end.offset_in_sequence());
+        return slice_range(m_begin.offset_in_sequence() + beginOffset, end.offset_in_sequence());
     }
 
     /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, beginning at startOffset and spanning size bytes.
+    /// Forms a slice out of the current segmented_byte_view, beginning at beginOffset and spanning size bytes.
     /// </summary>
-    /// <param name="startOffset">The starting offset of the slice relative to the current sequence start.</param>
+    /// <param name="beginOffset">The begin offset of the slice relative to the current sequence begin.</param>
     /// <param name="size">The number of bytes to include in the slice.</param>
     /// <returns>A new segmented_byte_view representing the specified slice.</returns>
     [[nodiscard]] 
-    segmented_byte_view slice(const std::size_t& startOffset, const std::size_t& size) const {
-        validate_relative_slice(startOffset, size);
+    segmented_byte_view slice(const std::size_t& beginOffset, const std::size_t& size) const {
+        validate_relative_slice(beginOffset, size);
 
-        const std::size_t sliceEnd = m_start.offset_in_sequence() + startOffset + size;
-        return slice_range(m_start.offset_in_sequence() + startOffset, sliceEnd);
+        const std::size_t sliceEnd = m_begin.offset_in_sequence() + beginOffset + size;
+        return slice_range(m_begin.offset_in_sequence() + beginOffset, sliceEnd);
     }
 
     /// <summary>
@@ -307,7 +307,7 @@ public:
     bool position_of(const std::byte& value, position& pos) const {
         if (empty()) return false;
 
-        std::size_t segmentStart = m_first_segment_start;
+        std::size_t segmentBegin = m_first_segment_begin;
         for (const std::span<const std::byte>& segment : m_segments) {
             const std::size_t count = segment.size();
             if (count == 0) continue;
@@ -319,14 +319,14 @@ public:
 
             if (found != last) {
                 pos = position(
-                    segmentStart,
+                    segmentBegin,
                     static_cast<std::size_t>(found - first),
                     m_sequence_id
                 );
                 return true;
             }
 
-            segmentStart += count;
+            segmentBegin += count;
         }
 
         return false;
@@ -419,12 +419,12 @@ public:
 // Test helper struct to access private members of segmented_byte_view
 class test_helper_segmented_byte_view {
 public:
-    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::size_t startOffset, std::size_t endOffset, std::uint64_t sequenceId) {
-        return segmented_byte_view(std::move(segments), startOffset, endOffset, sequenceId);
+    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::size_t beginOffset, std::size_t endOffset, std::uint64_t sequenceId) {
+        return segmented_byte_view(std::move(segments), beginOffset, endOffset, sequenceId);
     }
 
-    static std::size_t get_first_segment_start(const segmented_byte_view& seq) {
-        return seq.m_first_segment_start;
+    static std::size_t get_first_segment_begin(const segmented_byte_view& seq) {
+        return seq.m_first_segment_begin;
     }
 
     static std::uint64_t get_sequence_id(const segmented_byte_view& seq) {
@@ -434,4 +434,4 @@ public:
 
 } // namespace xtd
 
-#endif // PIPELINE_READONLYSEQUENCE_H
+#endif // PIPELINE_SEGMENTED_BYTE_VIEW_H

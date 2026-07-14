@@ -16,11 +16,11 @@ friend class pipeline;
 
 private:
     std::vector<std::byte> m_buffer;
-    std::size_t m_start = 0;
+    std::size_t m_begin = 0;
     std::size_t m_end = 0;
     
     std::size_t readable_size() const noexcept {
-        return m_end - m_start;
+        return m_end - m_begin;
     }
     
     std::size_t writable_size() const noexcept {
@@ -45,7 +45,7 @@ private:
             throw std::logic_error("data_segment capacity mismatch");
         }
         
-        m_start = 0;
+        m_begin = 0;
         m_end = 0;
     }
 

@@ -304,8 +304,8 @@ Behavioral meaning:
 
 - `advance(consumed)` is shorthand for `advance(consumed, consumed)`.
 - Semantic meaning: bytes up to `consumed` were consumed, and nothing beyond `consumed` was examined.
-- `advance(sequence)` is shorthand for `advance(sequence.start(), sequence.end())`.
-- Semantic meaning: consume up to `sequence.start()` and mark up to `sequence.end()` as examined.
+- `advance(sequence)` is shorthand for `advance(sequence.begin(), sequence.end())`.
+- Semantic meaning: consume up to `sequence.begin()` and mark up to `sequence.end()` as examined.
 
 ### `complete()`
 
@@ -373,7 +373,7 @@ Represents a logical byte range that may span multiple segments.
 ### Key members
 
 ```cpp
-const position& start() const noexcept;
+const position& begin() const noexcept;
 const position& end() const noexcept;
 std::size_t size() const noexcept;
 bool empty() const noexcept;
@@ -382,9 +382,9 @@ std::size_t segment_count() const;
 std::span<const std::span<const std::byte>> segments() const noexcept;
 
 segmented_byte_view slice(const position& end) const;
-segmented_byte_view slice(const position& start, const position& end) const;
-segmented_byte_view slice(std::size_t startOffset, const position& end) const;
-segmented_byte_view slice(std::size_t startOffset, std::size_t size) const;
+segmented_byte_view slice(const position& begin, const position& end) const;
+segmented_byte_view slice(std::size_t beginOffset, const position& end) const;
+segmented_byte_view slice(std::size_t beginOffset, std::size_t size) const;
 
 bool position_of(std::byte value, position& pos) const;
 bool position_of(char value, position& pos) const;
@@ -400,9 +400,9 @@ std::string to_string() const;
 
 ### Slicing semantics
 
-- `slice(const position& end)` returns `[start, end)`.
-- `slice(const position& start, const position& end)` returns `[start, end)`.
-- `slice(startOffset, size)` uses offsets relative to current sequence start.
+- `slice(const position& end)` returns `[begin, end)`.
+- `slice(const position& begin, const position& end)` returns `[begin, end)`.
+- `slice(beginOffset, size)` uses offsets relative to current sequence begin.
 - Position-based slicing requires positions from the same sequence identity.
 
 ### Copying semantics
@@ -593,7 +593,7 @@ while (true) {
         seq = seq.slice(pos + 1, seq.end());
     }
 
-    reader.advance(seq.start(), seq.end());
+    reader.advance(seq.begin(), seq.end());
     if (rr.completed()) {
         if (!seq.empty()) {
             // Trailing data without a final delimiter.
@@ -628,7 +628,7 @@ while (true) {
         seq = seq.slice(sizeof(Header), seq.end());
     }
 
-    reader.advance(seq.start(), seq.end());
+    reader.advance(seq.begin(), seq.end());
     if (rr.completed()) {
         if (!seq.empty()) {
             throw std::runtime_error("Incomplete frame at end of stream");
@@ -669,7 +669,7 @@ while (true) {
     } else {
         // No full message yet: keep all bytes, but mark all examined.
         // This can make the next read wait for new data/size change.
-        reader.advance(seq.start(), seq.end());
+        reader.advance(seq.begin(), seq.end());
     }
 
     if (rr.completed()) break;
@@ -736,7 +736,7 @@ while (true) {
         seq = seq.slice(delimiter + 1, seq.end());
     }
 
-    reader.advance(seq.start(), seq.end());
+    reader.advance(seq.begin(), seq.end());
     if (rr.completed()) break;
 }
 ```
@@ -762,7 +762,7 @@ int main() {
         xtd::segmented_byte_view seq = rr.buffer();
 
         result += seq.to_string();
-        reader.advance(seq.start(), seq.end());
+        reader.advance(seq.begin(), seq.end());
 
         if (rr.completed()) break;
     }
@@ -800,7 +800,7 @@ int main() {
             seq = seq.slice(pos + 1, seq.end());
         }
 
-        reader.advance(seq.start(), seq.end());
+        reader.advance(seq.begin(), seq.end());
         if (rr.completed()) {
             if (!seq.empty()) {
                 // Final trailing bytes without '\n'.

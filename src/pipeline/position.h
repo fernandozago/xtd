@@ -13,16 +13,16 @@ friend struct segmented_byte_view;
 friend class pipeline;
 
 private:
-    std::size_t m_segment_start_offset = 0;
+    std::size_t m_segment_begin_offset = 0;
     std::size_t m_segment_offset = 0;
     std::uint64_t m_sequence_id = 0;
     
     std::size_t offset_in_sequence() const noexcept {
-        return m_segment_start_offset + m_segment_offset;
+        return m_segment_begin_offset + m_segment_offset;
     }
     
-    position(const std::size_t& segmentStartOffset, const std::size_t& segmentOffset, const std::uint64_t& sequenceId)
-        : m_segment_start_offset(segmentStartOffset)
+    position(const std::size_t& segmentBeginOffset, const std::size_t& segmentOffset, const std::uint64_t& sequenceId)
+        : m_segment_begin_offset(segmentBeginOffset)
         , m_segment_offset(segmentOffset)
         , m_sequence_id(sequenceId)
     {}   
@@ -33,14 +33,14 @@ private:
   
 public:
     position() 
-        : m_segment_start_offset(0)
+        : m_segment_begin_offset(0)
         , m_segment_offset(0)
         , m_sequence_id(0)
     {}
     
     // Returns a new position advanced by the given offset.
     position operator+(const std::size_t& offset) const noexcept {
-        return {m_segment_start_offset, m_segment_offset + offset, m_sequence_id};
+        return {m_segment_begin_offset, m_segment_offset + offset, m_sequence_id};
     }
 
     // Advances this position by the given offset.
