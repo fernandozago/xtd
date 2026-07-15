@@ -24,12 +24,12 @@
 namespace xtd {
 class test_helper_segmented_byte_view {
 public:
-    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::size_t beginOffset, std::size_t endOffset, std::uint64_t sequenceId) {
-        return segmented_byte_view(std::move(segments), beginOffset, endOffset, sequenceId);
+    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequenceId) {
+        return segmented_byte_view(std::move(segments), sequenceId);
     }
 
     static std::size_t get_first_segment_begin(const segmented_byte_view& seq) {
-        return seq.m_first_segment_begin;
+        return seq.m_begin_offset;
     }
 
     static std::uint64_t get_sequence_id(const segmented_byte_view& seq) {
@@ -1777,9 +1777,7 @@ TEST_CASE("segmented_byte_view: Construction with segments from test helper")
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        45,
-        42
+        45
     );
 
     CHECK(seq.size() == 45);
@@ -1792,9 +1790,7 @@ TEST_CASE("segmented_byte_view: Empty sequence construction")
     std::vector<std::byte> seg(0);
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(seg.data(), seg.size())},
-        0,
-        0,
-        1
+        0
     );
 
     CHECK(seq.size() == 0);
@@ -1806,9 +1802,7 @@ TEST_CASE("segmented_byte_view: Single segment sequence")
     std::vector<std::byte> data(50, std::byte{0xAA});
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        50,
-        99
+        50
     );
 
     CHECK(seq.size() == 50);
@@ -1827,9 +1821,7 @@ TEST_CASE("segmented_byte_view: Slicing with offset returns correct size")
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        30,
-        0
+        30
     );
 
     CHECK(seq.size() == 30);
@@ -1850,9 +1842,7 @@ TEST_CASE("segmented_byte_view: Slicing preserves segment count when crossing bo
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        30,
-        5
+        30
     );
 
     // Slice that uses (offset, size) - begin at offset 8, size 10
@@ -1866,9 +1856,7 @@ TEST_CASE("segmented_byte_view: Nested slicing maintains consistency")
     std::vector<std::byte> data(100, std::byte{0xFF});
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        100,
-        10
+        100
     );
 
     xtd::segmented_byte_view slice1 = seq.slice(10, 80);
@@ -1887,9 +1875,7 @@ TEST_CASE("segmented_byte_view: position_of finds byte in single segment")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        5,
-        1
+        5
     );
 
     xtd::position pos{};
@@ -1905,9 +1891,7 @@ TEST_CASE("segmented_byte_view: position_of finds char in sequence")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        5,
-        2
+        5
     );
 
     xtd::position pos{};
@@ -1920,8 +1904,6 @@ TEST_CASE("segmented_byte_view: position_of returns false when not found")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        3,
         3
     );
 
@@ -1935,9 +1917,7 @@ TEST_CASE("segmented_byte_view: position_of in empty sequence returns false")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(empty_data.data(), empty_data.size())},
-        0,
-        0,
-        4
+        0
     );
 
     xtd::position pos{};
@@ -1952,9 +1932,7 @@ TEST_CASE("segmented_byte_view: copy_to with raw byte buffer")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(source.data(), source.size())},
-        0,
-        4,
-        5
+        4
     );
 
     std::vector<std::byte> dest(4);
@@ -1970,9 +1948,7 @@ TEST_CASE("segmented_byte_view: copy_to truncates when destination smaller than 
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(source.data(), source.size())},
-        0,
-        10,
-        6
+        10
     );
 
     std::vector<std::byte> dest(5);
@@ -1990,9 +1966,7 @@ TEST_CASE("segmented_byte_view: copy_to with vector destination")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(source.data(), source.size())},
-        0,
-        8,
-        7
+        8
     );
 
     std::vector<std::byte> dest(8);
@@ -2007,9 +1981,7 @@ TEST_CASE("segmented_byte_view: copy_to with trivially copyable type")
     std::uint32_t value = 0x12345678;
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(reinterpret_cast<const std::byte*>(&value), sizeof(value))},
-        0,
-        sizeof(value),
-        8
+        0
     );
 
     std::uint32_t dest = 0;
@@ -2027,9 +1999,7 @@ TEST_CASE("segmented_byte_view: to_string converts single segment correctly")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        5,
-        9
+        5
     );
 
     CHECK(seq.to_string() == "Hello");
@@ -2041,9 +2011,7 @@ TEST_CASE("segmented_byte_view: to_string for empty sequence")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(empty_data.data(), empty_data.size())},
-        0,
-        0,
-        10
+        0
     );
 
     CHECK(seq.to_string() == "");
@@ -2061,9 +2029,7 @@ TEST_CASE("segmented_byte_view: segments() provides span of segment views")
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        15,
-        11
+        15
     );
 
     auto segments = seq.segments();
@@ -2083,9 +2049,7 @@ TEST_CASE("segmented_byte_view: segments_size returns correct count")
             std::span<const std::byte>(seg1.data(), seg1.size()),
             std::span<const std::byte>(seg2.data(), seg2.size())
         },
-        0,
-        8,
-        12
+        8
     );
 
     CHECK(seq.segment_count() == 2);
@@ -2097,9 +2061,7 @@ TEST_CASE("segmented_byte_view: begin() and end() positions are obtainable")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        20,
-        13
+        20
     );
 
     // Verify positions can be used (e.g., in slicing)
@@ -2119,9 +2081,7 @@ TEST_CASE("segmented_byte_view: Slicing across multiple segments maintains bound
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        18,
-        15
+        18
     );
 
     // Slice using (beginOffset, size) - from offset 3 spanning 12 bytes
@@ -2140,8 +2100,6 @@ TEST_CASE("segmented_byte_view: First segment begin offset after slicing")
             std::span<const std::byte>(seg1.data(), seg1.size()),
             std::span<const std::byte>(seg2.data(), seg2.size())
         },
-        0,
-        20,
         14
     );
 
@@ -2157,9 +2115,7 @@ TEST_CASE("segmented_byte_view: copy_to with null pointer and zero size is safe"
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        10,
-        16
+        10
     );
 
     std::size_t copied = seq.copy_to(nullptr, 0);
@@ -2172,9 +2128,7 @@ TEST_CASE("segmented_byte_view: Relative slicing works correctly")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        20,
-        17
+        20
     );
 
     // Slice(offset, size) - from byte 5 for 10 bytes
@@ -2189,8 +2143,6 @@ TEST_CASE("segmented_byte_view: Slicing maintains sequence ID")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        50,
         original_sequence_id
     );
 
@@ -2216,8 +2168,6 @@ TEST_CASE("segmented_byte_view: Multiple slices maintain same sequence ID")
             std::span<const std::byte>(seg2.data(), seg2.size()),
             std::span<const std::byte>(seg3.data(), seg3.size())
         },
-        0,
-        24,
         sequence_id
     );
 
@@ -2240,8 +2190,6 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
 
     xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
         {std::span<const std::byte>(data.data(), data.size())},
-        0,
-        30,
         18
     );
 

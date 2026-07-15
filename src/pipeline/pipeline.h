@@ -128,12 +128,10 @@ private:
         m_pending_read_size = m_buffered_size;
         m_pending_read_sequence_id = next_read_sequence_id();
         m_has_pending_read = true;
-        return read_result{segmented_byte_view{
-            std::move(readSegments),
-            0,
-            m_pending_read_size,
-            m_pending_read_sequence_id
-        }, m_writer_completed};
+
+        return read_result{
+            segmented_byte_view{std::move(readSegments), m_pending_read_sequence_id},
+            m_writer_completed};
     }
 
     bool advance_core(const std::size_t consumedOffset, const std::size_t examinedOffset) {
