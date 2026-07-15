@@ -10,15 +10,12 @@
 #include <span>
 #include <stdexcept>
 #include <utility>
-#include <vector>
-#include <ranges>
 
 #include "data_segment.h"
 #include "data_segment_pool.h"
 #include "pipe_reader.h"
 #include "pipe_writer.h"
 #include "position.h"
-#include "segmented_byte_view.h"
 #include "read_result.h"
 
 namespace xtd
@@ -125,26 +122,15 @@ private:
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
 
-        std::vector<std::span<const std::byte>> read_segments = m_segments // From Segments
-            | std::views::filter([](const data_segment& segment) noexcept {
-                return segment.readable_size() > 0; // Only include segments with readable data
-            })
-            | std::views::transform([](const data_segment& segment) noexcept {
-                return segment.readable_bytes(); // Select the readable bytes from each segment
-            })
-            | std::ranges::to<std::vector>(); // Collect the results into a vector
-
-        segmented_byte_view buffer(
-            std::move(read_segments),
-            m_pending_read_sequence_id = next_read_sequence_id()
+        xtd::read_result result(
+            m_segments,
+            m_pending_read_sequence_id = next_read_sequence_id(),
+            m_writer_completed
         );
 
-        m_pending_read_size = buffer.size();
+        m_pending_read_size = result.buffer().size();
         m_has_pending_read = true;
-        return read_result(
-            std::move(buffer), 
-            m_writer_completed 
-        );
+        return result;
     }
 
     bool advance_core(const std::size_t consumed_offset, const std::size_t examined_offset)

@@ -18,12 +18,12 @@
 namespace xtd
 {
 
-class pipeline;
+struct read_result;
 class test_helper_segmented_byte_view;
 
 struct segmented_byte_view
 {
-friend class pipeline;
+friend struct read_result;
 friend class test_helper_segmented_byte_view;
 
 private:
@@ -166,7 +166,7 @@ private:
     {
     }
 
-public:
+    public:
     segmented_byte_view() = delete;
     segmented_byte_view(const segmented_byte_view&) = default;
     segmented_byte_view& operator=(const segmented_byte_view&) = default;
