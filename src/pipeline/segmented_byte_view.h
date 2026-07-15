@@ -114,7 +114,7 @@ private:
         }
 
         slicedSegments.shrink_to_fit();
-        return segmented_byte_view (
+        return segmented_byte_view(
             std::move(slicedSegments),
             sliceBegin,
             sliceEnd,
@@ -314,8 +314,8 @@ public:
     // pos: The position of the found character, if any.
     // Returns true if the character is found; otherwise, false.
     [[nodiscard]] 
-    bool position_of(const char& value, position& pos) const {
-        return position_of(std::byte{static_cast<unsigned char>(value)}, pos);
+    bool position_of(const char value, position& pos) const {
+        return position_of(static_cast<std::byte>(value), pos);
     }
 
     // Copies the contents of the sequence to the specified destination byte buffer.
