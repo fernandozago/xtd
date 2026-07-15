@@ -20,7 +20,6 @@ namespace xtd
 struct segmented_byte_view
 {
 friend class pipeline;
-friend class test_helper_segmented_byte_view;
 private:
     std::vector<std::span<const std::byte>> m_segments;
     std::uint64_t m_sequence_id;
@@ -114,12 +113,12 @@ private:
         }
 
         slicedSegments.shrink_to_fit();
-        return {
+        return segmented_byte_view (
             std::move(slicedSegments),
             sliceBegin,
             sliceEnd,
             m_sequence_id
-        };
+        );
     }
 
     segmented_byte_view slice_range(const std::size_t& sliceBegin, const std::size_t& sliceEnd) const {
@@ -382,22 +381,9 @@ public:
         const char* ptr = reinterpret_cast<const char*>(firstSegment.data());
         return std::string(ptr, m_size);
     }
-};
 
-// Test helper struct to access private members of segmented_byte_view
-class test_helper_segmented_byte_view {
-public:
-    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::size_t beginOffset, std::size_t endOffset, std::uint64_t sequenceId) {
-        return segmented_byte_view(std::move(segments), beginOffset, endOffset, sequenceId);
-    }
-
-    static std::size_t get_first_segment_begin(const segmented_byte_view& seq) {
-        return seq.m_first_segment_begin;
-    }
-
-    static std::uint64_t get_sequence_id(const segmented_byte_view& seq) {
-        return seq.m_sequence_id;
-    }
+    
+friend class test_helper_segmented_byte_view;
 };
 
 } // namespace xtd

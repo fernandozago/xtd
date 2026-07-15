@@ -20,6 +20,23 @@
 #include "pipeline/pipe_utils.h"
 
 
+namespace xtd {
+class test_helper_segmented_byte_view {
+public:
+    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::size_t beginOffset, std::size_t endOffset, std::uint64_t sequenceId) {
+        return segmented_byte_view(std::move(segments), beginOffset, endOffset, sequenceId);
+    }
+
+    static std::size_t get_first_segment_begin(const segmented_byte_view& seq) {
+        return seq.m_first_segment_begin;
+    }
+
+    static std::uint64_t get_sequence_id(const segmented_byte_view& seq) {
+        return seq.m_sequence_id;
+    }
+};
+}
+
 std::size_t readCurrentRssKb()
 {
     std::ifstream status("/proc/self/status");
