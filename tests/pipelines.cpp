@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "pipeline/data_segment.h"
 #include "pipeline/position.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
@@ -1624,6 +1625,140 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
 
     reader.advance(secondBuffer.end(), secondBuffer.end());
     reader.complete();
+}
+
+
+// ---------------------------------------------------------------------------
+// data_segment
+// ---------------------------------------------------------------------------
+
+TEST_CASE("data_segment: starts empty with full writable capacity")
+{
+    xtd::data_segment segment(8);
+
+    CHECK(segment.capacity() == 8);
+    CHECK(segment.readable_size() == 0);
+    CHECK(segment.writable_size() == 8);
+    CHECK(segment.readable_bytes().empty());
+    CHECK(segment.writable_bytes().size() == 8);
+    CHECK_FALSE(segment.full());
+}
+
+TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
+{
+    xtd::data_segment segment(5);
+    const std::array<std::byte, 7> source = {
+        std::byte{'A'},
+        std::byte{'B'},
+        std::byte{'C'},
+        std::byte{'D'},
+        std::byte{'E'},
+        std::byte{'F'},
+        std::byte{'G'},
+    };
+
+    CHECK(segment.copy_from(source.data(), 3) == 3);
+    CHECK(segment.readable_size() == 3);
+    CHECK(segment.writable_size() == 2);
+
+    const std::span<const std::byte> firstReadable = segment.readable_bytes();
+    REQUIRE(firstReadable.size() == 3);
+    CHECK(firstReadable[0] == std::byte{'A'});
+    CHECK(firstReadable[1] == std::byte{'B'});
+    CHECK(firstReadable[2] == std::byte{'C'});
+
+    CHECK(segment.copy_from(source.data() + 3, 4) == 2);
+    CHECK(segment.readable_size() == 5);
+    CHECK(segment.writable_size() == 0);
+    CHECK(segment.full());
+
+    const std::span<const std::byte> readable = segment.readable_bytes();
+    REQUIRE(readable.size() == 5);
+    CHECK(readable[0] == std::byte{'A'});
+    CHECK(readable[1] == std::byte{'B'});
+    CHECK(readable[2] == std::byte{'C'});
+    CHECK(readable[3] == std::byte{'D'});
+    CHECK(readable[4] == std::byte{'E'});
+}
+
+TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consume")
+{
+    xtd::data_segment segment(6);
+    const std::array<std::byte, 4> source = {
+        std::byte{'x'},
+        std::byte{'y'},
+        std::byte{'z'},
+        std::byte{'!'},
+    };
+
+    REQUIRE(segment.copy_from(source.data(), source.size()) == source.size());
+    REQUIRE(segment.readable_size() == 4);
+
+    segment.advance(2);
+
+    CHECK(segment.readable_size() == 2);
+    const std::span<const std::byte> readable = segment.readable_bytes();
+    REQUIRE(readable.size() == 2);
+    CHECK(readable[0] == std::byte{'z'});
+    CHECK(readable[1] == std::byte{'!'});
+    CHECK_THROWS_AS(segment.advance(3), std::out_of_range);
+    segment.advance(2);
+    CHECK(segment.readable_bytes().empty());
+}
+
+TEST_CASE("data_segment: reset restores empty readable span and full writable span")
+{
+    xtd::data_segment segment(4);
+    const std::array<std::byte, 4> source = {
+        std::byte{0x01},
+        std::byte{0x02},
+        std::byte{0x03},
+        std::byte{0x04},
+    };
+
+    REQUIRE(segment.copy_from(source.data(), source.size()) == source.size());
+    segment.advance(2);
+
+    segment.reset();
+
+    CHECK(segment.capacity() == 4);
+    CHECK(segment.readable_size() == 0);
+    CHECK(segment.writable_size() == 4);
+    CHECK(segment.readable_bytes().empty());
+    CHECK_FALSE(segment.full());
+}
+
+TEST_CASE("data_segment: move operations transfer readable state")
+{
+    xtd::data_segment source(5);
+    const std::array<std::byte, 3> bytes = {
+        std::byte{'1'},
+        std::byte{'2'},
+        std::byte{'3'},
+    };
+
+    REQUIRE(source.copy_from(bytes.data(), bytes.size()) == bytes.size());
+
+    xtd::data_segment moved(std::move(source));
+    CHECK(source.readable_size() == 0);
+    CHECK(source.writable_size() == 0);
+    CHECK(moved.capacity() == 5);
+    CHECK(moved.readable_size() == 3);
+
+    xtd::data_segment assigned(5);
+    assigned = std::move(moved);
+
+    CHECK(moved.readable_size() == 0);
+    CHECK(moved.writable_size() == 0);
+    CHECK(assigned.capacity() == 5);
+    CHECK(assigned.readable_size() == 3);
+    CHECK(assigned.writable_size() == 2);
+
+    const std::span<const std::byte> readable = assigned.readable_bytes();
+    REQUIRE(readable.size() == 3);
+    CHECK(readable[0] == std::byte{'1'});
+    CHECK(readable[1] == std::byte{'2'});
+    CHECK(readable[2] == std::byte{'3'});
 }
 
 

@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <ranges>
 
 #include "data_segment.h"
 #include "data_segment_pool.h"
@@ -117,18 +118,12 @@ private:
         }
 
         m_wait_for_data_change = false;
-        std::vector<std::span<const std::byte>> readSegments;
-        readSegments.reserve(m_segments.size());
-
-        for (const data_segment& segment : m_segments) {
-            const std::size_t available = segment.readable_size();
-            if (available == 0) {
-                continue;
-            }
-
-            const std::span<const std::byte> segment_bytes(segment.m_buffer.data() + segment.m_begin, available);
-            readSegments.emplace_back(segment_bytes);
-        }
+        std::vector<std::span<const std::byte>> readSegments = m_segments
+            | std::views::filter([](const data_segment& segment) noexcept {
+                return segment.readable_size() > 0;
+            })
+            | std::views::transform(&data_segment::readable_bytes)
+            | std::ranges::to<std::vector>();
 
         m_pending_read_size = m_buffered_size;
         m_pending_read_sequence_id = next_read_sequence_id();
@@ -151,7 +146,7 @@ private:
             const std::size_t readable = head.readable_size();
 
             if (readable > l_consumedOffset) {
-                head.m_begin += l_consumedOffset;
+                head.advance(l_consumedOffset);
                 m_buffered_size -= l_consumedOffset;
                 l_consumedOffset = 0;
                 break;

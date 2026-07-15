@@ -3,62 +3,122 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
+#include <span>
 #include <stdexcept>
-#include <vector>
+#include <utility>
 
 namespace xtd
 {
 
 struct data_segment
 {
-friend struct data_segment_pool;
-friend class pipeline;
-
 private:
-    std::vector<std::byte> m_buffer;
-    std::size_t m_begin = 0;
-    std::size_t m_end = 0;
-    
-    std::size_t readable_size() const noexcept {
-        return m_end - m_begin;
-    }
-    
-    std::size_t writable_size() const noexcept {
-        return m_buffer.size() - m_end;
-    }
-
-    bool full() const noexcept {
-        return writable_size() == 0;
-    }
-
-    std::size_t copy_from(const std::byte* source, std::size_t size)
-    {
-        const std::size_t remaining = std::min(writable_size(), size);
-        std::copy_n(source, remaining, m_buffer.begin() + m_end);
-        m_end += remaining;
-        return remaining;
-    }
-    
-    void reset_for_write(std::size_t capacity)
-    {
-        if (m_buffer.size() != capacity) {
-            throw std::logic_error("data_segment capacity mismatch");
-        }
-        
-        m_begin = 0;
-        m_end = 0;
-    }
+const std::size_t m_capacity;
+    std::unique_ptr<std::byte[]> m_buffer;
+    std::span<std::byte> m_writable_span;
+    std::span<const std::byte> m_readable_span;
 
 public:
-    data_segment(std::size_t capacity)
-        : m_buffer(capacity)
-    {}
+    explicit data_segment(std::size_t capacity)
+        : m_capacity(capacity)
+        , m_buffer(std::make_unique<std::byte[]>(capacity))
+        , m_writable_span(m_buffer.get(), capacity)
+        , m_readable_span(m_buffer.get(), std::size_t{0})
+    {
+    }
 
     data_segment(const data_segment&) = delete;
     data_segment& operator=(const data_segment&) = delete;
 
-    data_segment(data_segment&&) noexcept = default;
-    data_segment& operator=(data_segment&&) noexcept = default;
+    data_segment(data_segment&& other) noexcept
+        : m_capacity(other.m_capacity)
+        , m_buffer(std::move(other.m_buffer))
+        , m_writable_span(other.m_writable_span)
+        , m_readable_span(other.m_readable_span)
+    {
+        // Resets the other instance's spans to empty, as the buffer has been moved.
+        other.m_writable_span = {};
+        other.m_readable_span = {};
+    }
+
+    data_segment& operator=(data_segment&& other) noexcept
+    {
+        if (this == &other) {
+            return *this;
+        }
+
+        m_buffer = std::move(other.m_buffer);
+        m_writable_span = other.m_writable_span;
+        m_readable_span = other.m_readable_span;
+
+        // Resets the other instance's spans to empty, as the buffer has been moved.
+        other.m_writable_span = {};
+        other.m_readable_span = {};
+
+        return *this;
+    }
+
+    [[nodiscard]]
+    std::size_t capacity() const noexcept
+    {
+        return m_capacity;
+    }
+
+    [[nodiscard]]
+    std::size_t readable_size() const noexcept
+    {
+        return m_readable_span.size();
+    }
+
+    [[nodiscard]]
+    std::span<const std::byte> readable_bytes() const noexcept
+    {
+        return m_readable_span;
+    }
+
+    [[nodiscard]]
+    std::size_t writable_size() const noexcept
+    {
+        return m_writable_span.size();
+    }
+
+    [[nodiscard]]
+    std::span<std::byte> writable_bytes() noexcept
+    {
+        return m_writable_span;
+    }
+
+    void advance(const std::size_t& size)
+    {
+        if (size > m_readable_span.size()) {
+            throw std::out_of_range("consume size exceeds readable size");
+        }
+        m_readable_span = m_readable_span.subspan(size);
+    }
+
+    [[nodiscard]]
+    bool full() const noexcept
+    {
+        return m_writable_span.empty();
+    }
+
+    [[nodiscard]]
+    std::size_t copy_from(const std::byte* source, const std::size_t& size) noexcept
+    {
+        const std::size_t copied = std::min(m_writable_span.size(), size);
+        std::copy_n(source, copied, m_writable_span.begin());
+        
+        m_readable_span = {m_readable_span.data(), m_readable_span.size() + copied};
+        m_writable_span = m_writable_span.subspan(copied);
+        return copied;
+    }
+
+    void reset() noexcept
+    {
+        m_readable_span = {m_buffer.get(), std::size_t{0}};
+        m_writable_span = {m_buffer.get(), m_capacity};
+    }
 };
 
 } // namespace xtd
