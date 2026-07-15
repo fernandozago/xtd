@@ -67,24 +67,24 @@ private:
         }
     }
 
-    inline static void param_assert(bool condition, const char* message) {
+    inline static void argument_assert(bool condition, const char* message) {
         if (!condition) {
             throw std::invalid_argument(message);
         }
     }
     
     inline std::size_t validate_buffer_size(const std::size_t size) const {
-        param_assert(size > 0, "buffer_size must be > 0");
+        argument_assert(size > 0, "buffer_size must be > 0");
         return size;
     }
 
     inline std::size_t validate_pause_threshold(const std::size_t pauseThreshold) const {
-        param_assert(pauseThreshold > 0, "pause_writer_threshold must be > 0");
+        argument_assert(pauseThreshold > 0, "pause_writer_threshold must be > 0");
         return pauseThreshold;
     }
 
     inline std::size_t validate_resume_threshold(const std::size_t resumeThreshold, const std::size_t pauseThreshold) const {
-        param_assert(resumeThreshold <= pauseThreshold, "resume_writer_threshold must be <= pause_writer_threshold");
+        argument_assert(resumeThreshold <= pauseThreshold, "resume_writer_threshold must be <= pause_writer_threshold");
         return resumeThreshold;
     }
 
@@ -161,8 +161,7 @@ private:
             assert(!m_segments.empty());
 
             data_segment& head = m_segments.front();
-            const std::size_t readable_size =
-                head.readable_size();
+            const std::size_t readable_size = head.readable_size();
 
             if (remaining_consumed < readable_size) {
                 head.advance(remaining_consumed);
@@ -200,31 +199,21 @@ private:
     {
         const std::size_t consumed_offset = consumed.offset_in_sequence();
         const std::size_t examined_offset = examined.offset_in_sequence();
-        param_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
+        argument_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
 
         {
             std::scoped_lock lock{m_mutex};
 
             runtime_assert(!m_reader_completed, "pipeline reader is completed");
             runtime_assert(m_has_pending_read, "advance called without a pending read");
-            param_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
-            param_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
-            param_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
+            argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
+            argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
+            argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
             advance_core(consumed_offset, examined_offset);
         }
 
         m_space_available.notify_all();
         m_data_available.notify_all();
-    }
-
-    inline void check_completion() const {
-        if (m_writer_completed) {
-            throw std::runtime_error("pipeline writer is completed");
-        }
-
-        if (m_reader_completed) {
-            throw std::runtime_error("pipeline reader is completed");
-        }
     }
 
     inline data_segment& get_segment() {
@@ -240,10 +229,14 @@ private:
             throw std::invalid_argument("data must not be null when length > 0");
         }
         
-        check_completion();
+        runtime_assert(!m_writer_completed, "pipeline writer is completed");
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
+
         std::span<const std::byte> remaining{data, length};
         std::unique_lock lock(m_mutex);
-        check_completion();
+        
+        runtime_assert(!m_writer_completed, "pipeline writer is completed");
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
         while (!remaining.empty()) {
             m_space_available.wait(lock, [this] {
@@ -253,7 +246,8 @@ private:
                     || should_resume_writer();
             });
 
-            check_completion();
+            runtime_assert(!m_writer_completed, "pipeline writer is completed");
+            runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
             if (m_writer_paused && should_resume_writer()) {
                 m_writer_paused = false;
