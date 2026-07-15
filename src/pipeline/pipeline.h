@@ -205,10 +205,7 @@ private:
         {
             std::scoped_lock lock{m_mutex};
 
-            if (m_reader_completed) {
-                throw std::runtime_error("pipeline reader is completed");
-            }
-            
+            runtime_assert(!m_reader_completed, "pipeline reader is completed");
             runtime_assert(m_has_pending_read, "advance called without a pending read");
             param_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
             param_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
