@@ -1,10 +1,11 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
-#include <chrono>
 #include <future>
 #include <memory>
 #include "channel/unbounded_channel.h"
 #include "channel/bounded_channel.h"
+
+using namespace std::chrono_literals;
 
 TEST_CASE("BoundedChannel semantics - copy, move, emplace")
 {
@@ -230,14 +231,14 @@ TEST_CASE("BoundedChannel try_push returns false when full and does not block")
     xtd::bounded_channel<int, 1> channel;
     xtd::channel_writer<int>& writer = channel.writer();
 
-    int first = 1;
-    CHECK(writer.try_push(first));
+    CHECK(writer.try_push(1));
 
-    const auto start = std::chrono::steady_clock::now();
-    CHECK_FALSE(writer.try_push(2));
-    const auto elapsed = std::chrono::steady_clock::now() - start;
+    auto try_push = std::async(std::launch::async, [&]() {
+        return writer.try_push(2);
+    });
 
-    CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 10);
+    CHECK(try_push.wait_for(10ms) == std::future_status::ready);
+    CHECK_FALSE(try_push.get());
 }
 
 TEST_CASE("BoundedChannel try_push returns false after completion")
@@ -259,11 +260,12 @@ TEST_CASE("BoundedChannel try_emplace returns false when full and does not block
 
     CHECK(writer.try_emplace(1));
 
-    const auto start = std::chrono::steady_clock::now();
-    CHECK_FALSE(writer.try_emplace(2));
-    const auto elapsed = std::chrono::steady_clock::now() - start;
+    auto try_emplace = std::async(std::launch::async, [&]() {
+        return writer.try_emplace(2);
+    });
 
-    CHECK(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() < 10);
+    CHECK(try_emplace.wait_for(10ms) == std::future_status::ready);
+    CHECK_FALSE(try_emplace.get());
 }
 
 TEST_CASE("BoundedChannel try_emplace returns false after completion")
@@ -350,30 +352,32 @@ TEST_CASE("UnboundedChannel reader get_size reflects enqueue and dequeue")
 
 TEST_CASE("BoundedChannel push blocks when full and resumes after read")
 {
-    using namespace std::chrono_literals;
-
     xtd::bounded_channel<int, 1> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
     CHECK(writer.push(1));
+    CHECK(reader.size() == 1);
 
-    auto blockedPush = std::async(std::launch::async, [&]() {
+    auto blockedPush = std::async(std::launch::async, [&writer]() {
         return writer.push(2);
     });
 
-    CHECK(blockedPush.wait_for(50ms) == std::future_status::timeout);
+    CHECK(blockedPush.wait_for(10ms) == std::future_status::timeout);
+    CHECK(reader.size() == 1);
 
     auto first = reader.read();
     REQUIRE(first.has_value());
     CHECK(*first == 1);
 
-    REQUIRE(blockedPush.wait_for(1s) == std::future_status::ready);
+    REQUIRE(blockedPush.wait_for(10ms) == std::future_status::ready);
     CHECK(blockedPush.get());
+    CHECK(reader.size() == 1);
 
     auto second = reader.read();
     REQUIRE(second.has_value());
     CHECK(*second == 2);
+    CHECK(reader.size() == 0);
 
     writer.complete();
     CHECK_FALSE(reader.read().has_value());
@@ -381,14 +385,12 @@ TEST_CASE("BoundedChannel push blocks when full and resumes after read")
 
 TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
 {
-    using namespace std::chrono_literals;
-
     xtd::bounded_channel<int, 1> channel;
     auto& writer = channel.writer();
 
     CHECK(writer.push(1));
 
-    auto blockedPush = std::async(std::launch::async, [&]() {
+    auto blockedPush = std::async(std::launch::async, [&writer]() {
         return writer.push(2);
     });
 
@@ -402,17 +404,33 @@ TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
 
 TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 {
-    using namespace std::chrono_literals;
-
     xtd::bounded_channel<int, 2> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
-    auto blockedRead = std::async(std::launch::async, [&]() {
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
         return reader.read();
     });
 
-    CHECK(blockedRead.wait_for(50ms) == std::future_status::timeout);
+    CHECK(blockedRead.wait_for(10ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(blockedRead.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blockedRead.get().has_value());
+}
+
+TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
+{
+    xtd::unbounded_channel<int> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
+        return reader.read();
+    });
+
+    CHECK(blockedRead.wait_for(10ms) == std::future_status::timeout);
 
     writer.complete();
 
@@ -422,13 +440,11 @@ TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 
 TEST_CASE("UnboundedChannel read blocks while empty and unblocks on pushed value")
 {
-    using namespace std::chrono_literals;
-
     xtd::unbounded_channel<int> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
-    auto blockedRead = std::async(std::launch::async, [&]() {
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
         return reader.read();
     });
 
@@ -477,6 +493,7 @@ TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
 
     CHECK(writer.push(4));
     CHECK(writer.push(5));
+    writer.complete();
 
     auto three = reader.read();
     auto four = reader.read();
@@ -488,6 +505,5 @@ TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
     CHECK(*four == 4);
     CHECK(*five == 5);
 
-    writer.complete();
     CHECK_FALSE(reader.read().has_value());
 }

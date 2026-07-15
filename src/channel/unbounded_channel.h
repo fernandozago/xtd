@@ -94,7 +94,7 @@ namespace xtd
 					m_not_empty.wait(lock, [this] {
 						return m_completed || !m_queue.empty();
 					});
-				}
+				} 
 				
 				if (m_queue.empty()) {
 					return std::nullopt;

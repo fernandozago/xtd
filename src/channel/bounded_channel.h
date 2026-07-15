@@ -108,11 +108,13 @@ namespace xtd
 					m_not_empty.wait(lock, [this] {
 						return m_completed || m_size != 0;
 					});
+				} 
+				
+				if (m_size == 0) {
+					return std::nullopt;
 				}
 				
-				if (m_size == 0) return std::nullopt;
 				auto& slot = m_buffer[m_head];
-				
 				result.emplace(std::move(*slot));
 				slot.reset();
 				
