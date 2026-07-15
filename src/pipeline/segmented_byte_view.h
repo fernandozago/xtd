@@ -57,19 +57,6 @@ private:
         return m_begin_offset + m_size;
     }
 
-    void assert_invariants() const noexcept
-    {
-#ifndef NDEBUG
-        std::size_t visible_size = 0;
-
-        for (const std::span<const std::byte> segment : m_segments) {
-            visible_size += segment.size();
-        }
-
-        assert(visible_size == m_size);
-#endif
-    }
-
     void validate_slice_range(std::size_t slice_begin, std::size_t slice_end) const
     {
         range_assert(slice_begin <= slice_end,
