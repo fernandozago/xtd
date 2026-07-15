@@ -252,7 +252,7 @@ public:
 
     // Finds the first occurrence of value.
     [[nodiscard]]
-    bool position_of(std::byte value, position& result) const
+    position position_of(std::byte value) const
     {
         std::size_t segment_begin = m_begin_offset;
 
@@ -260,22 +260,23 @@ public:
             const auto found = std::ranges::find(segment, value);
 
             if (found != segment.end()) {
-                const ptrdiff_t local_offset = std::ranges::distance(segment.begin(), found);
-                result = position{segment_begin + local_offset, m_sequence_id};
-                return true;
+                return position(
+                    segment_begin + std::ranges::distance(segment.begin(), found), 
+                    m_sequence_id
+                );
             }
             else {
                 segment_begin += segment.size();
             }
         }
 
-        return false;
+        return {};
     }
 
     [[nodiscard]]
-    bool position_of(char value, position& result) const
+    position position_of(char value) const
     {
-        return position_of(static_cast<std::byte>(value), result);
+        return position_of(static_cast<std::byte>(value));
     }
 
     // Copies bytes into the destination span.

@@ -87,13 +87,11 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
     
     int index = 0;
     auto& reader = pipeline.reader();
-    while (true)
+    while (const xtd::read_result result = reader.read())
     {
-        const xtd::read_result result = reader.read();
         xtd::segmented_byte_view seq = result.buffer();
         
-        xtd::position pos{};
-        while (seq.position_of('\n', pos))
+        while (xtd::position pos = seq.position_of('\n'))
         {
             pos += 1;
             CHECK(expected[index++] == seq.slice(seq.begin(), pos).to_string());
@@ -137,14 +135,12 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
     int readCount = 0;
     std::vector<std::string> received;
     auto& reader = pipeline.reader();
-    while (true)
+    while (const xtd::read_result result = reader.read())
     {
-        const xtd::read_result result = reader.read();
         xtd::segmented_byte_view ros = result.buffer();
         readCount++;
         
-        xtd::position pos{};
-        while (ros.position_of('\n', pos))
+        while (xtd::position pos = ros.position_of('\n'))
         {
             received.push_back(ros.slice(pos).to_string());
             ros = ros.slice(pos + 1, ros.end());
@@ -180,9 +176,8 @@ TEST_CASE("pipeline: isCompleted set only after all data is consumed")
     
     auto& reader = pipeline.reader();
     bool sawCompleted = false;
-    while (true)
+    while (const xtd::read_result result = reader.read())
     {
-        const xtd::read_result result = reader.read();
         xtd::segmented_byte_view ros = result.buffer();
         
         reader.advance(ros.begin(), ros.end());
@@ -486,9 +481,11 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
     auto& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
 
-    xtd::position pos{};
     const xtd::segmented_byte_view buffer = result.buffer();
-    REQUIRE(buffer.position_of('\n', pos));
+
+    xtd::position pos{};
+    CHECK((pos = buffer.position_of('\n')));
+
     CHECK(pos == buffer.slice(0, 2).end());
     CHECK(buffer.slice(pos).to_string() == "ab");
     CHECK(buffer.slice(0, pos).to_string() == "ab");
@@ -513,7 +510,7 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         xtd::segmented_byte_view seq = result.buffer();
 
         xtd::position pos{};
-        REQUIRE(seq.position_of('\n', pos));
+        CHECK((pos = seq.position_of('\n')));
 
         CHECK(seq.slice(seq.begin(), pos).to_string() == "hello");
         CHECK(seq.slice(0, pos).to_string() == "hello");
@@ -531,8 +528,7 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         xtd::segmented_byte_view seq = result.buffer();
 
         xtd::position pos{};
-        REQUIRE(seq.position_of('\n', pos));
-
+        CHECK((pos = seq.position_of('\n')));
         CHECK(seq.slice(seq.begin(), pos).to_string() == "world");
 
         reader.advance(seq.begin(), seq.end());
@@ -765,9 +761,8 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
     std::size_t trailingBytes = 0;
     
     auto& reader = pipeline.reader();
-    while (true)
+    while (const xtd::read_result result = reader.read())
     {
-        const xtd::read_result result = reader.read();
         xtd::segmented_byte_view buffer = result.buffer();
         Message message{};
         while (Message::tryDeserialize(buffer, message)) {
@@ -948,9 +943,8 @@ TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and compl
     std::size_t actualByteCount = 0;
     auto& reader = pipeline.reader();
     
-    while (true)
+    while (const xtd::read_result result = reader.read())
     {
-        const xtd::read_result result = reader.read();
         xtd::segmented_byte_view buffer = result.buffer();
 
         actualByteCount += buffer.size();
@@ -1414,14 +1408,12 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
         xtd::pipeline pipeline;  
         std::thread copier = xtd::pipe_utils::threaded_copy_from_socket(connectionFd, pipeline.writer(), 3);
         
-        xtd::position pos{};
         auto& reader = pipeline.reader();
-        while (true)
+        while (const xtd::read_result result = reader.read())
         {
-            const xtd::read_result result = reader.read();
             xtd::segmented_byte_view seq = result.buffer();
 
-            while (seq.position_of(delimiter, pos))
+            while (xtd::position pos = seq.position_of(delimiter))
             {
                 received.push_back(seq.slice(pos).to_string());
                 seq = seq.slice(pos + 1, seq.end());
@@ -1472,9 +1464,8 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
             writer.complete();
 
             std::size_t bytesRead = 0;
-            while (true)
+            while (const xtd::read_result result = reader.read())
             {
-                const xtd::read_result result = reader.read();
                 const xtd::segmented_byte_view buffer = result.buffer();
                 bytesRead += buffer.size();
                 reader.advance(buffer.begin(), buffer.end());
@@ -1519,8 +1510,7 @@ TEST_CASE("pipeline: Feeds it self for 8GB of data")
     
     auto& reader = pipeline.reader();
     std::size_t bytesRead = 0;
-    while (true) {
-        const xtd::read_result result = reader.read();
+    while (const xtd::read_result result = reader.read()) {
         const xtd::segmented_byte_view buffer = result.buffer();
         bytesRead += buffer.size();
         if (bytesRead < totalBytes) {
@@ -1878,8 +1868,7 @@ TEST_CASE("segmented_byte_view: position_of finds byte in single segment")
         5
     );
 
-    xtd::position pos{};
-    CHECK(seq.position_of(std::byte{0x03}, pos));
+    CHECK(seq.position_of(std::byte{0x03}));
 }
 
 TEST_CASE("segmented_byte_view: position_of finds char in sequence")
@@ -1894,8 +1883,7 @@ TEST_CASE("segmented_byte_view: position_of finds char in sequence")
         5
     );
 
-    xtd::position pos{};
-    CHECK(seq.position_of('l', pos));
+    CHECK(seq.position_of('l'));
 }
 
 TEST_CASE("segmented_byte_view: position_of returns false when not found")
@@ -1907,8 +1895,7 @@ TEST_CASE("segmented_byte_view: position_of returns false when not found")
         3
     );
 
-    xtd::position pos{};
-    CHECK_FALSE(seq.position_of(std::byte{0xFF}, pos));
+    CHECK_FALSE(seq.position_of(std::byte{0xFF}));
 }
 
 TEST_CASE("segmented_byte_view: position_of in empty sequence returns false")
@@ -1920,8 +1907,7 @@ TEST_CASE("segmented_byte_view: position_of in empty sequence returns false")
         0
     );
 
-    xtd::position pos{};
-    CHECK_FALSE(seq.position_of(std::byte{'x'}, pos));
+    CHECK_FALSE(seq.position_of(std::byte{'x'}));
 }
 
 TEST_CASE("segmented_byte_view: copy_to with raw byte buffer")
@@ -2237,13 +2223,11 @@ TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
 
     std::vector<std::string> lines;
 
-    while (true)
+    while (const xtd::read_result rr = reader.read())
     {
-        const xtd::read_result rr = reader.read();
         xtd::segmented_byte_view seq = rr.buffer();
 
-        xtd::position pos{};
-        while (seq.position_of('\n', pos))
+        while (xtd::position pos = seq.position_of('\n'))
         {
             lines.push_back(seq.slice(pos).to_string());
             seq = seq.slice(pos + 1, seq.end());
@@ -2374,9 +2358,8 @@ TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached
     reader.advance(firstBuffer.end(), firstBuffer.end());
 
     std::size_t totalRead = firstBuffer.size();
-    while (true)
+    while (const xtd::read_result rr = reader.read())
     {
-        const xtd::read_result rr = reader.read();
         const xtd::segmented_byte_view seq = rr.buffer();
         totalRead += seq.size();
         reader.advance(seq.end(), seq.end());

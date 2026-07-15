@@ -237,13 +237,11 @@ private:
             constexpr char Delimiter = '\n';
 
             auto& reader = pipeline.reader();
-            xtd::position newLinePos{};
-            while (true)
+            while (const xtd::read_result result = reader.read())
             {
-                const xtd::read_result result = reader.read();
                 xtd::segmented_byte_view ros = result.buffer();
                 println_locked("segmented_byte_view (size: {}, Segments: {})", ros.size(), ros.segment_count());
-                while (ros.position_of(Delimiter, newLinePos))
+                while (xtd::position newLinePos = ros.position_of(Delimiter))
                 {
                     std::string message = ros.slice(newLinePos).to_string();
                     println_locked("Sending back: [Server: {}]", message);

@@ -18,10 +18,12 @@ struct position
 private:
     std::size_t m_offset = 0;
     std::uint64_t m_sequence_id = 0;
+    bool m_valid = false;
 
     constexpr position(std::size_t offset, std::uint64_t sequence_id) noexcept
         : m_offset(offset)
         , m_sequence_id(sequence_id)
+        , m_valid(true)
     {
     }
 
@@ -34,23 +36,41 @@ private:
     [[nodiscard]]
     constexpr bool belongs_to(std::uint64_t sequence_id) const noexcept
     {
-        return m_sequence_id == sequence_id;
+        return m_valid && m_sequence_id == sequence_id;
     }
 
     [[nodiscard]]
     constexpr bool operator>(const position& rhs) const noexcept
     {
-        return m_sequence_id == rhs.m_sequence_id &&
+        return m_valid &&
+               rhs.m_valid &&
+               m_sequence_id == rhs.m_sequence_id &&
                m_offset > rhs.m_offset;
     }
 
 public:
     constexpr position() noexcept = default;
 
+    [[nodiscard]]
+    constexpr bool valid() const noexcept
+    {
+        return m_valid;
+    }
+
+    explicit constexpr operator bool() const noexcept
+    {
+        return m_valid;
+    }
+
     // Returns a new position advanced by the given offset.
+    // An invalid position remains invalid.
     [[nodiscard]]
     constexpr position operator+(std::size_t offset) const noexcept
     {
+        if (!m_valid) {
+            return {};
+        }
+
         return position{
             m_offset + offset,
             m_sequence_id
@@ -60,14 +80,17 @@ public:
     // Advances this position by the given offset.
     constexpr position& operator+=(std::size_t offset) noexcept
     {
-        m_offset += offset;
+        if (m_valid) {
+            m_offset += offset;
+        }
+
         return *this;
     }
 
     // Advances this position by one byte.
     constexpr position& operator++() noexcept
     {
-        ++m_offset;
+        if (m_valid) { ++m_offset; }
         return *this;
     }
 
@@ -75,21 +98,24 @@ public:
     constexpr position operator++(int) noexcept
     {
         position previous = *this;
-        ++m_offset;
+        ++(*this);
         return previous;
     }
 
-    // Positions are equal only when they belong to the same sequence
-    // and represent the same absolute offset.
     [[nodiscard]]
     constexpr bool operator==(const position& rhs) const noexcept
     {
-        return m_sequence_id == rhs.m_sequence_id &&
-               m_offset == rhs.m_offset;
+        if (!m_valid || !rhs.m_valid) {
+            return m_valid == rhs.m_valid;
+        }
+
+        return m_sequence_id == rhs.m_sequence_id 
+            && m_offset == rhs.m_offset;
     }
 
     [[nodiscard]]
-    constexpr bool operator!=(const position& rhs) const noexcept
+    constexpr bool operator!=(
+        const position& rhs) const noexcept
     {
         return !(*this == rhs);
     }

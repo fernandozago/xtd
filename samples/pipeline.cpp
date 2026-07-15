@@ -38,15 +38,13 @@ int main()
 
 	int lineCount = 0;
 	size_t byteCount = 0;
-	while (true)
+	while (const xtd::read_result result = reader.read()) // Read data from the pipeline
 	{
-		const xtd::read_result result = reader.read(); // Read data from the pipeline
 		xtd::segmented_byte_view readOnlySequence = result.buffer(); // Get the read-only sequence from the result
 		const size_t size = readOnlySequence.size(); // Get the size of the read-only sequence (total number of bytes available to read)
 		const size_t segments_size = readOnlySequence.segment_count(); // Get the number of segments in the read-only sequence (total number of contiguous memory blocks)
 		
-		xtd::position newLinePos{}; // Initialize a xtd::position to track the location of the next newline character
-		while (readOnlySequence.position_of('\n', newLinePos)) // Find the xtd::position of the next newline character (exclusive) and update newLinePos
+		while (xtd::position newLinePos = readOnlySequence.position_of('\n')) // Find the xtd::position of the next newline character (exclusive) and update newLinePos
 		{
 			newLinePos += 1; // +1 includes the offset of the newline character itself, so that the slice includes the newline character in the lineBytes
 			const xtd::segmented_byte_view lineBytes = readOnlySequence.slice(newLinePos); // Slice the read-only sequence up to the newline xtd::position to get the line bytes

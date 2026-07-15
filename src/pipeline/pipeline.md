@@ -146,8 +146,7 @@ auto producer = std::async(std::launch::async, [&]() {
     writer.complete();
 });
 
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
     // First read typically reaches the pause threshold (128 bytes here).
@@ -386,8 +385,8 @@ segmented_byte_view slice(const position& begin, const position& end) const;
 segmented_byte_view slice(std::size_t beginOffset, const position& end) const;
 segmented_byte_view slice(std::size_t beginOffset, std::size_t size) const;
 
-bool position_of(std::byte value, position& pos) const;
-bool position_of(char value, position& pos) const;
+position position_of(std::byte value) const;
+position position_of(char value) const;
 
 std::size_t copy_to(std::byte* destination, std::size_t destinationSize) const;
 std::size_t copy_to(std::vector<std::byte>& destination) const;
@@ -414,6 +413,8 @@ std::string to_string() const;
 ### Multi-segment behavior
 
 - `to_string()`, `copy_to(...)`, `position_of(...)`, and `slice(...)` work across segment boundaries.
+- `position_of(...)` returns a `position`; when no match exists, it returns an invalid `position{}`.
+- Prefer condition declarations such as `while (xtd::position pos = seq.position_of(...))`.
 
 ## 9) `xtd::position`
 
@@ -426,6 +427,8 @@ namespace xtd {
 
 struct position {
     position() = default;
+
+    explicit operator bool() const noexcept;
 
     position operator+(std::size_t offset) const noexcept;
     position& operator+=(std::size_t offset) noexcept;
@@ -441,6 +444,7 @@ struct position {
 ### Notes
 
 - Carries internal sequence identity.
+- Supports condition-declaration patterns via explicit `operator bool()`.
 - Use positions from the same read buffer when calling `advance()` or `slice(...)`.
 - `operator+`, `operator+=`, and increment operators do not perform bounds checking against a sequence end.
 - If position arithmetic produces an offset outside the valid range of the target sequence, later calls to `slice(...)` or `advance(...)` reject that position.
@@ -582,12 +586,10 @@ auto& reader = pipe.reader();
 writer.write("one\ntwo\n");
 writer.complete();
 
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
-    xtd::position pos{};
-    while (seq.position_of('\n', pos)) {
+    while (xtd::position pos = seq.position_of('\n')) {
         std::string line = seq.slice(pos).to_string();
         // process line (line excludes '\n')
         seq = seq.slice(pos + 1, seq.end());
@@ -614,8 +616,7 @@ struct Header {
     std::uint32_t payload_size;
 };
 
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
     while (seq.size() >= sizeof(Header)) {
@@ -658,12 +659,10 @@ void write_message(xtd::pipe_writer& writer, const Message& m) {
 ### How to keep partial data for incremental parsing
 
 ```cpp
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
-    xtd::position pos{};
-    if (seq.position_of('\n', pos)) {
+    if (xtd::position pos = seq.position_of('\n')) {
         const xtd::position consumed = pos + 1; // consume through delimiter
         reader.advance(consumed, seq.end());
     } else {
@@ -685,8 +684,7 @@ std::thread producer = xtd::pipe_utils::threaded_copy_file_from_path("input.bin"
 auto& reader = pipe.reader();
 std::size_t total = 0;
 
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
     total += seq.size();
@@ -708,8 +706,7 @@ xtd::pipeline pipe;
 std::thread producer = xtd::pipe_utils::threaded_copy_from_socket(socketFd, pipe.writer(), 4096);
 
 auto& reader = pipe.reader();
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
     reader.advance(seq.end(), seq.end());
@@ -724,12 +721,10 @@ producer.join();
 ### How to avoid unnecessary copies
 
 ```cpp
-while (true) {
-    const xtd::read_result rr = reader.read();
+while (const xtd::read_result rr = reader.read()) {
     xtd::segmented_byte_view seq = rr.buffer();
 
-    xtd::position delimiter{};
-    while (seq.position_of('|', delimiter)) {
+    while (xtd::position delimiter = seq.position_of('|')) {
         // Parse using slices/positions first.
         xtd::segmented_byte_view field = seq.slice(delimiter);
         std::string text = field.to_string(); // materialize only when needed
@@ -757,8 +752,7 @@ int main() {
     writer.complete();
 
     std::string result;
-    while (true) {
-        const xtd::read_result rr = reader.read();
+    while (const xtd::read_result rr = reader.read()) {
         xtd::segmented_byte_view seq = rr.buffer();
 
         result += seq.to_string();
@@ -790,12 +784,10 @@ int main() {
 
     std::vector<std::string> lines;
 
-    while (true) {
-        const xtd::read_result rr = reader.read();
+    while (const xtd::read_result rr = reader.read()) {
         xtd::segmented_byte_view seq = rr.buffer();
 
-        xtd::position pos{};
-        while (seq.position_of('\n', pos)) {
+        while (xtd::position pos = seq.position_of('\n')) {
             lines.push_back(seq.slice(pos).to_string());
             seq = seq.slice(pos + 1, seq.end());
         }
@@ -842,8 +834,7 @@ int main() {
     bool firstRead = true;
     std::string lastView;
 
-    while (true) {
-        const xtd::read_result rr = reader.read();
+    while (const xtd::read_result rr = reader.read()) {
         xtd::segmented_byte_view seq = rr.buffer();
         lastView = seq.to_string();
 

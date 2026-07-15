@@ -31,6 +31,11 @@ public:
     read_result(read_result&&) noexcept = default;
     read_result& operator=(read_result&&) noexcept = default;
 
+    explicit constexpr operator bool() const noexcept
+    {
+        return true; // Always true, as a read result is always valid.
+    }
+
     // Gets the read-only buffer associated with this result.
     // Returns the current read-only sequence.
     [[nodiscard]] 
