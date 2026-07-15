@@ -98,19 +98,19 @@ private:
             (m_examined_size >= m_buffered_size ? 0 : m_buffered_size - m_examined_size) <= m_resume_writer_threshold;
     }
 
-    inline bool has_available_data() const {
+    inline bool has_available_data(const std::size_t min_bytes) const {
         return m_reader_completed
                 || m_writer_completed
                 || (m_wait_for_data_change
                     ? m_buffered_size != m_wait_for_data_change_from_size
-                    : m_buffered_size > 0);
+                    : m_buffered_size > min_bytes);
     }
     
-    read_result read()
+    read_result read_at_least(const std::size_t min_bytes)
     {
         std::unique_lock lock{m_mutex};
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
-        m_data_available.wait(lock, [this] { return has_available_data(); });
+        m_data_available.wait(lock, [this, min_bytes] { return has_available_data(min_bytes); });
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
         /*
@@ -358,8 +358,12 @@ inline void pipe_writer::complete() noexcept {
     m_state.complete_writer();
 }
 
-inline read_result pipe_reader::read() {
-    return m_state.read();
+inline read_result pipe_reader::read() const {
+    return m_state.read_at_least(0);
+}
+
+inline read_result pipe_reader::read_at_least(const std::size_t min_bytes) const {
+    return m_state.read_at_least(min_bytes);
 }
 
 inline void pipe_reader::advance(const position& consumed, const position& examined) {

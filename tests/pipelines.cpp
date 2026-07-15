@@ -344,6 +344,25 @@ TEST_CASE("Reader: read twice without advance throws")
     reader.advance(buffer.end(), buffer.end());
 }
 
+TEST_CASE("Reader: read_at_least returns buffered data")
+{
+    xtd::pipeline pipeline;
+    auto& writer = pipeline.writer();
+    auto& reader = pipeline.reader();
+
+    CHECK(writer.write("abcd") == 4);
+    writer.complete();
+
+    const xtd::read_result result = reader.read_at_least(3);
+    const xtd::segmented_byte_view buffer = result.buffer();
+
+    CHECK(buffer.to_string() == "abcd");
+    CHECK(buffer.size() == 4);
+    CHECK(result.completed());
+
+    reader.advance(buffer.end(), buffer.end());
+}
+
 TEST_CASE("Reader: advance rejects consumed greater than examined")
 {
     xtd::pipeline pipeline;

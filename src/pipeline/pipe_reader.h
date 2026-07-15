@@ -30,7 +30,10 @@ public:
     // Reads currently available data from the pipeline.
     // Returns a read result containing the buffer and completion status.
     [[nodiscard]] 
-    read_result read();
+    read_result read() const;
+
+    [[nodiscard]]
+    read_result read_at_least(const std::size_t min_bytes) const;
 
     // Advances the reader by consumed and examined positions from the most recent read buffer.
     // consumed: The position up to which data has been consumed.

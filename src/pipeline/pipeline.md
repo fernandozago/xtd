@@ -26,8 +26,8 @@ This page documents the public pipeline API in a style similar to cppreference.
 Core model:
 
 - Writer appends bytes via `pipe_writer::write(...)`.
-- Reader receives snapshots via `pipe_reader::read()`.
-- Reader must call `advance(...)` exactly once per successful `read()` before calling `read()` again.
+- Reader receives snapshots via `pipe_reader::read()` or `pipe_reader::read_at_least(...)`.
+- Reader must call `advance(...)` exactly once per successful read before the next read call.
 - Backpressure is controlled by `pipe_options` thresholds.
 
 Typical use cases:
@@ -265,6 +265,7 @@ namespace xtd {
 class pipe_reader {
 public:
     read_result read();
+    read_result read_at_least(std::size_t min_bytes);
 
     void advance(const position& consumed, const position& examined);
     void advance(const position& consumed);
@@ -281,6 +282,21 @@ public:
 Returns a snapshot (`read_result`) of currently visible bytes.
 
 - Blocks while no data is available and writer is not completed.
+- Throws `std::runtime_error` if called again before `advance(...)`.
+- Throws `std::runtime_error` if reader has been completed.
+
+### `read_at_least(min_bytes)`
+
+Returns a snapshot (`read_result`) and waits until one of these is true:
+
+- reader is completed (then throws `std::runtime_error`),
+- writer is completed, or
+- buffered data size is greater than `min_bytes`.
+
+Notes:
+
+- `read()` is equivalent to `read_at_least(0)`.
+- Uses the same pending-read protocol as `read()`: call `advance(...)` exactly once before calling another read operation.
 - Throws `std::runtime_error` if called again before `advance(...)`.
 - Throws `std::runtime_error` if reader has been completed.
 
@@ -502,13 +518,13 @@ struct pipe_utils {
 
 ### Read/advance protocol
 
-For each successful `read()`:
+For each successful read (`read()` or `read_at_least(...)`):
 
 1. Parse `read_result.buffer()`.
 2. Call exactly one `advance(...)` for that read.
-3. Call `read()` again.
+3. Call another read operation.
 
-Calling `read()` twice without `advance(...)` is an error.
+Calling any read operation twice without `advance(...)` is an error.
 
 ### Completion semantics
 
