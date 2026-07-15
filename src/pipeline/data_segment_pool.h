@@ -20,7 +20,7 @@ private:
     std::vector<data_segment> m_segments;
 
     [[nodiscard]]
-    static std::size_t calculate_max_pooled_segments(std::size_t buffer_size, std::size_t pause_writer_threshold) noexcept
+    static std::size_t calculate_max_pooled_segments(const std::size_t buffer_size, const std::size_t pause_writer_threshold) noexcept
     {
         assert(buffer_size > 0);
 

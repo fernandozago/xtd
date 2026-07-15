@@ -94,12 +94,12 @@ public:
     [[nodiscard]]
     std::size_t copy_from(const std::byte* source, const std::size_t size) noexcept
     {
-        const std::size_t copied = std::min(m_writable_span.size(), size);
-        std::copy_n(source, copied, m_writable_span.begin());
+        const std::size_t to_copy_size = std::min(m_writable_span.size(), size);
+        std::copy_n(source, to_copy_size, m_writable_span.begin());
         
-        m_readable_span = {m_readable_span.data(), m_readable_span.size() + copied};
-        m_writable_span = m_writable_span.subspan(copied);
-        return copied;
+        m_readable_span = {m_readable_span.data(), m_readable_span.size() + to_copy_size};
+        m_writable_span = m_writable_span.subspan(to_copy_size);
+        return to_copy_size;
     }
 
     void reset() noexcept
