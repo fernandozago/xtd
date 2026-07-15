@@ -84,7 +84,7 @@ private:
 
         if (slice_begin == slice_end) {
             return segmented_byte_view(
-                std::vector<std::span<const std::byte>>{},
+                std::vector<std::span<const std::byte>>(),
                 m_sequence_id,
                 slice_begin);
         }
