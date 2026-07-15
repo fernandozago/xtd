@@ -98,19 +98,19 @@ private:
             (m_examined_size >= m_buffered_size ? 0 : m_buffered_size - m_examined_size) <= m_resume_writer_threshold;
     }
 
-    read_result read()
-    {
-        std::unique_lock lock{m_mutex};
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
-
-        m_data_available.wait(lock, [this] {
-            return m_reader_completed
+    inline bool has_available_data() const {
+        return m_reader_completed
                 || m_writer_completed
                 || (m_wait_for_data_change
                     ? m_buffered_size != m_wait_for_data_change_from_size
                     : m_buffered_size > 0);
-        });
-
+    }
+    
+    read_result read()
+    {
+        std::unique_lock lock{m_mutex};
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
+        m_data_available.wait(lock, [this] { return has_available_data(); });
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
         /*
@@ -121,35 +121,26 @@ private:
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
         m_wait_for_data_change = false;
 
-        std::vector<std::span<const std::byte>> read_segments;
-        read_segments.reserve(m_segments.size());
+        std::vector<std::span<const std::byte>> read_segments = m_segments // From Segments
+            | std::views::filter([](const data_segment& segment) noexcept {
+                return segment.readable_size() > 0; // Only include segments with readable data
+            })
+            | std::views::transform([](const data_segment& segment) noexcept {
+                return segment.readable_bytes(); // Select the readable bytes from each segment
+            })
+            | std::ranges::to<std::vector>(); // Collect the results into a vector
 
-        std::ranges::transform(
-            m_segments
-                | std::views::filter(
-                    [](const data_segment& segment) noexcept {
-                        return segment.readable_size() > 0;
-                    }),
-            std::back_inserter(read_segments),
-            &data_segment::readable_bytes);
-
-        segmented_byte_view buffer{
+        segmented_byte_view buffer(
             std::move(read_segments),
             m_pending_read_sequence_id = next_read_sequence_id()
-        };
+        );
 
-        /*
-        * The view calculates its size from its actual spans.
-        * Do not duplicate that calculation using m_buffered_size.
-        */
-        assert(buffer.size() == m_buffered_size);
         m_pending_read_size = buffer.size();
         m_has_pending_read = true;
-
-        return read_result{
-            std::move(buffer),
-            m_writer_completed
-        };
+        return read_result(
+            std::move(buffer), 
+            m_writer_completed 
+        );
     }
 
     bool advance_core(std::size_t consumed_offset, std::size_t examined_offset)
@@ -203,7 +194,6 @@ private:
 
         {
             std::scoped_lock lock{m_mutex};
-
             runtime_assert(!m_reader_completed, "pipeline reader is completed");
             runtime_assert(m_has_pending_read, "advance called without a pending read");
             argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
@@ -223,12 +213,16 @@ private:
         return m_segments.back();
     }
 
+    inline bool has_available_space() const noexcept {
+        return m_reader_completed
+            || m_writer_completed
+            || !m_writer_paused
+            || should_resume_writer();
+    }
+
     std::size_t write(const std::byte* data, const std::size_t length)
     {
-        if (length > 0 && data == nullptr) {
-            throw std::invalid_argument("data must not be null when length > 0");
-        }
-        
+        argument_assert(length == 0 || data != nullptr, "data must not be null when length > 0");
         runtime_assert(!m_writer_completed, "pipeline writer is completed");
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
@@ -238,14 +232,9 @@ private:
         runtime_assert(!m_writer_completed, "pipeline writer is completed");
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
-        while (!remaining.empty()) {
-            m_space_available.wait(lock, [this] {
-                return m_reader_completed
-                    || m_writer_completed
-                    || !m_writer_paused
-                    || should_resume_writer();
-            });
-
+        while (!remaining.empty()) 
+        {
+            m_space_available.wait(lock, [this] { return has_available_space(); });
             runtime_assert(!m_writer_completed, "pipeline writer is completed");
             runtime_assert(!m_reader_completed, "pipeline reader is completed");
 

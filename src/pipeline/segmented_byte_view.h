@@ -260,14 +260,13 @@ public:
             const auto found = std::ranges::find(segment, value);
 
             if (found != segment.end()) {
-                const auto local_offset = 
-                    static_cast<std::size_t>(std::ranges::distance(segment.begin(), found));
-
+                const ptrdiff_t local_offset = std::ranges::distance(segment.begin(), found);
                 result = position{segment_begin + local_offset, m_sequence_id};
                 return true;
             }
-
-            segment_begin += segment.size();
+            else {
+                segment_begin += segment.size();
+            }
         }
 
         return false;
