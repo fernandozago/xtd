@@ -32,13 +32,22 @@ private:
     std::size_t m_begin_offset;
     std::size_t m_size;
 
+    inline static void argument_assert(bool condition, const char* message) {
+        if (!condition) {
+            throw std::invalid_argument(message);
+        }
+    }
+
+    inline static void range_assert(bool condition, const char* message) {
+        if (!condition) {
+            throw std::out_of_range(message);
+        }
+    }
+
     [[nodiscard]]
     static std::size_t validate_size(std::size_t begin_offset, std::size_t end_offset)
     {
-        if (begin_offset > end_offset) {
-            throw std::out_of_range("sequence range is invalid");
-        }
-
+        range_assert(begin_offset <= end_offset, "begin_offset must be <= end_offset");
         return end_offset - begin_offset;
     }
 
@@ -61,43 +70,24 @@ private:
 #endif
     }
 
-    void ensure_position_belongs_to_sequence(const position& pos, const char* parameter_name) const
-    {
-        if (pos.m_sequence_id != m_sequence_id) {
-            throw std::invalid_argument(std::string(parameter_name) + " must belong to this sequence");
-        }
-    }
-
     void validate_slice_range(std::size_t slice_begin, std::size_t slice_end) const
     {
-        const std::size_t current_begin = m_begin_offset;
-        const std::size_t current_end = end_offset();
+        range_assert(slice_begin <= slice_end,
+            "slice begin must be <= slice end");
 
-        if (slice_begin < current_begin || slice_begin > current_end) {
-            throw std::out_of_range(
-                "slice begin is out of range");
-        }
+        range_assert(slice_begin >= m_begin_offset && slice_begin <= end_offset(),
+            "slice begin is out of range");
 
-        if (slice_end < current_begin || slice_end > current_end) {
-            throw std::out_of_range(
-                "slice end is out of range");
-        }
-
-        if (slice_begin > slice_end) {
-            throw std::out_of_range(
-                "slice range is invalid");
-        }
+        range_assert(slice_end >= m_begin_offset && slice_end <= end_offset(),
+            "slice end is out of range");
     }
 
-    void validate_relative_slice(std::size_t begin_offset, std::size_t size) const
+    inline void validate_relative_slice(std::size_t begin_offset, std::size_t size) const
     {
-        if (begin_offset > m_size) {
-            throw std::out_of_range("slice begin offset is out of range");
-        }
-
-        if (size > m_size - begin_offset) {
-            throw std::out_of_range("slice size is out of range");
-        }
+        range_assert(begin_offset <= m_size, 
+            "slice begin offset is out of range");
+        range_assert(size <= m_size - begin_offset, 
+            "slice size is out of range");
     }
 
     [[nodiscard]]
@@ -226,7 +216,7 @@ public:
     [[nodiscard]]
     segmented_byte_view slice(const position& end) const
     {
-        ensure_position_belongs_to_sequence(end, "end");
+        argument_assert(end.m_sequence_id == m_sequence_id, "end must belong to this sequence");
         return slice_range(m_begin_offset, end.offset_in_sequence());
     }
 
@@ -234,8 +224,9 @@ public:
     [[nodiscard]]
     segmented_byte_view slice(const position& begin, const position& end) const
     {
-        ensure_position_belongs_to_sequence(begin, "begin");
-        ensure_position_belongs_to_sequence(end, "end");
+        argument_assert(begin.m_sequence_id == m_sequence_id, "begin must belong to this sequence");
+        argument_assert(end.m_sequence_id == m_sequence_id, "end must belong to this sequence");
+
         return slice_range(begin.offset_in_sequence(), end.offset_in_sequence());
     }
 
@@ -243,11 +234,8 @@ public:
     [[nodiscard]]
     segmented_byte_view slice(std::size_t begin_offset, const position& end) const
     {
-        ensure_position_belongs_to_sequence(end, "end");
-
-        if (begin_offset > m_size) {
-            throw std::out_of_range("slice begin offset is out of range");
-        }
+        argument_assert(end.m_sequence_id == m_sequence_id, "end must belong to this sequence");
+        range_assert(begin_offset <= m_size, "slice begin offset is out of range");
 
         const std::size_t absolute_begin = m_begin_offset + begin_offset;
         return slice_range(absolute_begin, end.offset_in_sequence());
@@ -293,7 +281,7 @@ public:
 
     // Copies bytes into the destination span.
     [[nodiscard]]
-    std::size_t copy_to(std::span<std::byte> destination) const noexcept
+    std::size_t copy_to(const std::span<std::byte>& destination) const noexcept
     {
         const std::size_t target_size = std::min(destination.size(), m_size);
         if (target_size == 0) {
@@ -319,10 +307,7 @@ public:
     [[nodiscard]]
     std::size_t copy_to(std::byte* destination, const std::size_t destination_size) const
     {
-        if (destination == nullptr && destination_size > 0) {
-            throw std::invalid_argument("destination must not be null when destination_size > 0");
-        }
-
+        argument_assert(destination != nullptr || destination_size == 0, "destination must not be null when destination_size > 0");
         return copy_to(std::span<std::byte>{destination, destination_size});
     }
 
@@ -337,18 +322,15 @@ public:
     template <typename T>
     requires (std::is_trivially_copyable_v<T> &&!std::is_convertible_v<T, std::string_view>)
     [[nodiscard]]
-    bool copy_to(T& destination) const noexcept
+    bool copy_to(T& destination) const
     {
-        if (m_size != sizeof(T)) {
-            return false;
-        }
-
+        argument_assert(sizeof(T) <= m_size, "buffer size is smaller than the size of the destination type");
         const std::span<std::byte> destination_bytes = std::as_writable_bytes(std::span<T, 1>{&destination, 1});
         return copy_to(destination_bytes) == destination_bytes.size();
     }
 
     [[nodiscard]]
-    std::string to_string() const
+    std::string to_string() const noexcept
     {
         if (empty()) {
             return {};
