@@ -10,10 +10,12 @@ std::future<void> start_stdin_reader(xtd::pipe_writer& writer);
 void consume(xtd::pipe_reader& reader);
 
 // This sample is designed to be run in a terminal or console that supports standard input and output. 
-// It demonstrates the use of a xtd::pipeline for inter-thread communication, where one thread writes messages to the xtd::pipeline and another thread reads and echoes them back. 
+// It demonstrates the use of a xtd::pipeline for inter-thread communication, where one thread writes 
+//   messages to the xtd::pipeline and another thread reads and writes them to the console. 
 // The program will exit when an empty line is submitted.
 
-// FYI: Due console limitations, any data > 4096 bytes will be truncated when using std::cin and console output. This is a limitation of the console, not the xtd::pipeline implementation.
+// FYI: Due console limitations, any data > 4096 bytes will be truncated when using std::cin and console output. 
+// This is a limitation of the console, not the xtd::pipeline implementation.
 int main()
 {
     std::println("Enter text lines. Submit an empty line to exit.");
@@ -28,8 +30,6 @@ int main()
 
     // Propagate any exception raised by the stdin thread.
     stdin_reader_task.get();
-
-    std::println("Exiting.");
     return 0;
 }
 
@@ -40,6 +40,8 @@ std::future<void> start_stdin_reader(xtd::pipe_writer& writer)
         std::string line;
         while (std::getline(std::cin, line))
         {
+            // An empty line indicates the user wants to quit the program.
+            // So we exit this loop
             if (line.empty()) {
                 break;
             }
@@ -48,7 +50,8 @@ std::future<void> start_stdin_reader(xtd::pipe_writer& writer)
             writer.write(line + "\n");
         }
 
-        // Signals the main thread that no more data will be written.
+        // Signal the pipeline that no more data will be written,
+        //   allowing the reader to complete its work when no more data is available.
         writer.complete();
 
         std::println("Stdin thread completed writing.");
