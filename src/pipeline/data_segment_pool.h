@@ -1,7 +1,6 @@
 #ifndef PIPELINE_DATASEGMENTPOOL_H
 #define PIPELINE_DATASEGMENTPOOL_H
 
-#include <algorithm>
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -20,11 +19,25 @@ private:
     const std::size_t m_max_pooled_segments;
     std::vector<data_segment> m_segments;
 
-    data_segment_pool(std::size_t buffer_size, std::size_t pause_writer_threshold)
-        : m_buffer_size(buffer_size)
-        , m_max_pooled_segments(std::max<std::size_t>(1, pause_writer_threshold / buffer_size + 2))
+    [[nodiscard]]
+    static std::size_t calculate_max_pooled_segments(std::size_t buffer_size, std::size_t pause_writer_threshold) noexcept
     {
-        m_segments.reserve(m_max_pooled_segments);
+        assert(buffer_size > 0);
+
+        const std::size_t segments_for_threshold =
+            pause_writer_threshold / buffer_size
+            + (pause_writer_threshold % buffer_size != 0);
+
+        return segments_for_threshold + 1; // one spare segment
+    }
+
+    data_segment_pool(std::size_t buffer_size, std::size_t pause_writer_threshold) noexcept
+        : m_buffer_size(buffer_size)
+        , m_max_pooled_segments(
+            calculate_max_pooled_segments(
+                buffer_size,
+                pause_writer_threshold))
+    {
     }
 
     [[nodiscard]]
