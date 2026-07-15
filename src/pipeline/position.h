@@ -21,7 +21,7 @@ private:
         return m_segment_begin_offset + m_segment_offset;
     }
     
-    position(const std::size_t& segmentBeginOffset, const std::size_t& segmentOffset, const std::uint64_t& sequenceId)
+    position(const std::size_t segmentBeginOffset, const std::size_t segmentOffset, const std::uint64_t sequenceId)
         : m_segment_begin_offset(segmentBeginOffset)
         , m_segment_offset(segmentOffset)
         , m_sequence_id(sequenceId)
@@ -39,12 +39,12 @@ public:
     {}
     
     // Returns a new position advanced by the given offset.
-    position operator+(const std::size_t& offset) const noexcept {
+    position operator+(const std::size_t offset) const noexcept {
         return {m_segment_begin_offset, m_segment_offset + offset, m_sequence_id};
     }
 
     // Advances this position by the given offset.
-    position& operator+=(const std::size_t& offset) noexcept {
+    position& operator+=(const std::size_t offset) noexcept {
         m_segment_offset += offset;
         return *this;
     }

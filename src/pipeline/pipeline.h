@@ -61,7 +61,7 @@ private:
     pipe_writer m_writer;
     pipe_reader m_reader;
 
-    inline std::size_t validate_buffer_size(const std::size_t& size) const {
+    inline std::size_t validate_buffer_size(const std::size_t size) const {
         if (size == 0) {
             throw std::invalid_argument("buffer_size must be > 0");
         }
@@ -69,7 +69,7 @@ private:
         return size;
     }
 
-    inline std::size_t validate_pause_threshold(const std::size_t& pauseThreshold) const {
+    inline std::size_t validate_pause_threshold(const std::size_t pauseThreshold) const {
         if (pauseThreshold == 0) {
             throw std::invalid_argument("pause_writer_threshold must be > 0");
         }
@@ -77,7 +77,7 @@ private:
         return pauseThreshold;
     }
 
-    inline std::size_t validate_resume_threshold(const std::size_t& resumeThreshold, const std::size_t& pauseThreshold) const {
+    inline std::size_t validate_resume_threshold(const std::size_t resumeThreshold, const std::size_t pauseThreshold) const {
         if (resumeThreshold > pauseThreshold) {
             throw std::invalid_argument("resume_writer_threshold must be <= pause_writer_threshold");
         }
@@ -136,7 +136,7 @@ private:
         }, m_writer_completed};
     }
 
-    bool advance_core(const std::size_t& consumedOffset, const std::size_t& examinedOffset) {
+    bool advance_core(const std::size_t consumedOffset, const std::size_t examinedOffset) {
         std::size_t l_consumedOffset = consumedOffset;
 
         m_has_pending_read = false;
@@ -217,12 +217,7 @@ private:
         }
     }
 
-    std::size_t write(const std::byte* data, const std::size_t& length) {
-        if (length > 0 && data == nullptr) {
-            throw std::invalid_argument("data must not be null when length > 0");
-        }
-
-        std::unique_lock lock(m_mutex);
+    inline void check_completion() const {
         if (m_writer_completed) {
             throw std::runtime_error("pipeline writer is completed");
         }
@@ -230,8 +225,27 @@ private:
         if (m_reader_completed) {
             throw std::runtime_error("pipeline reader is completed");
         }
+    }
 
-        for (std::size_t offset = 0; offset < length;) {
+    inline data_segment& get_segment() {
+        if (m_segments.empty() || m_segments.back().full()) {
+            m_segments.push_back(m_data_segment_pool.rent_segment());
+        }
+        return m_segments.back();
+    }
+
+    std::size_t write(const std::byte* data, const std::size_t length)
+    {
+        if (length > 0 && data == nullptr) {
+            throw std::invalid_argument("data must not be null when length > 0");
+        }
+        
+        check_completion();
+        std::span<const std::byte> remaining{data, length};
+        std::unique_lock lock(m_mutex);
+        check_completion();
+
+        while (!remaining.empty()) {
             m_space_available.wait(lock, [this] {
                 return m_reader_completed
                     || m_writer_completed
@@ -239,42 +253,29 @@ private:
                     || should_resume_writer();
             });
 
-            if (m_writer_completed) {
-                throw std::runtime_error("pipeline writer is completed");
-            }
-
-            if (m_reader_completed) {
-                throw std::runtime_error("pipeline reader is completed");
-            }
+            check_completion();
 
             if (m_writer_paused && should_resume_writer()) {
                 m_writer_paused = false;
             }
 
-            bool notifyDataAvailable = false;
-            while (offset < length && !m_writer_paused)
-            {
-                if (m_segments.empty() || m_segments.back().full()) {
-                    m_segments.push_back(m_data_segment_pool.rent_segment());
-                }
+            bool notify_data_available = false;
 
-                const std::byte* beginOffset = data + offset;
-                const std::size_t size = length - offset;
-                const std::size_t copiedSize = m_segments.back().copy_from(beginOffset, size);
+            while (!remaining.empty() && !m_writer_paused) {
+                const std::size_t copied_size = get_segment()
+                    .copy_from(remaining.data(), remaining.size());
 
-                offset += copiedSize;
-                m_buffered_size += copiedSize;
+                remaining = remaining.subspan(copied_size);
+                m_buffered_size += copied_size;
 
-                if (!notifyDataAvailable && copiedSize > 0) {
-                    notifyDataAvailable = true;
-                }
+                notify_data_available |= copied_size > 0;
 
                 if (m_buffered_size >= m_pause_writer_threshold) {
                     m_writer_paused = true;
                 }
             }
 
-            if (notifyDataAvailable) {
+            if (notify_data_available) {
                 lock.unlock();
                 m_data_available.notify_one();
                 lock.lock();
@@ -294,8 +295,7 @@ private:
         m_space_available.notify_all();
     }
 
-    void complete_reader() noexcept
-    {
+    void complete_reader() noexcept {
         {
             std::scoped_lock lock(m_mutex);
             m_reader_completed = true;

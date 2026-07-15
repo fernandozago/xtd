@@ -34,7 +34,7 @@ private:
             return data_segment(m_buffer_size);
         }
 
-        data_segment segment = std::move(m_segments.back());
+        data_segment segment(std::move(m_segments.back()));
         m_segments.pop_back();
 
         segment.reset();

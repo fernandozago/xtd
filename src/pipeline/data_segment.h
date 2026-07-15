@@ -29,10 +29,6 @@ public:
     {
     }
 
-    data_segment(const data_segment&) = delete;
-    data_segment& operator=(const data_segment&) = delete;
-    data_segment& operator=(data_segment&&) noexcept = delete;
-
     data_segment(data_segment&& other) noexcept
         : m_capacity(other.m_capacity)
         , m_buffer(std::move(other.m_buffer))
@@ -47,6 +43,9 @@ public:
         other.m_readable_span = {};
     }
 
+    data_segment(const data_segment&) = delete;
+    data_segment& operator=(const data_segment&) = delete;
+    data_segment& operator=(data_segment&&) noexcept = delete;
 
     [[nodiscard]]
     std::size_t capacity() const noexcept
@@ -78,7 +77,7 @@ public:
         return m_writable_span;
     }
 
-    void advance(const std::size_t& size)
+    void advance(const std::size_t size)
     {
         if (size > m_readable_span.size()) {
             throw std::out_of_range("consume size exceeds readable size");
@@ -93,7 +92,7 @@ public:
     }
 
     [[nodiscard]]
-    std::size_t copy_from(const std::byte* source, const std::size_t& size) noexcept
+    std::size_t copy_from(const std::byte* source, const std::size_t size) noexcept
     {
         const std::size_t copied = std::min(m_writable_span.size(), size);
         std::copy_n(source, copied, m_writable_span.begin());
