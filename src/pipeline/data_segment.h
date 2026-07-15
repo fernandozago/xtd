@@ -7,6 +7,7 @@
 #include <span>
 #include <stdexcept>
 #include <utility>
+#include <cassert>
 
 namespace xtd
 {
@@ -14,7 +15,7 @@ namespace xtd
 struct data_segment
 {
 private:
-const std::size_t m_capacity;
+    const std::size_t m_capacity;
     std::unique_ptr<std::byte[]> m_buffer;
     std::span<std::byte> m_writable_span;
     std::span<const std::byte> m_readable_span;
@@ -30,6 +31,7 @@ public:
 
     data_segment(const data_segment&) = delete;
     data_segment& operator=(const data_segment&) = delete;
+    data_segment& operator=(data_segment&&) noexcept = delete;
 
     data_segment(data_segment&& other) noexcept
         : m_capacity(other.m_capacity)
@@ -37,27 +39,14 @@ public:
         , m_writable_span(other.m_writable_span)
         , m_readable_span(other.m_readable_span)
     {
+        assert(m_capacity == other.m_capacity);
+        assert(m_buffer != nullptr);
+
         // Resets the other instance's spans to empty, as the buffer has been moved.
         other.m_writable_span = {};
         other.m_readable_span = {};
     }
 
-    data_segment& operator=(data_segment&& other) noexcept
-    {
-        if (this == &other) {
-            return *this;
-        }
-
-        m_buffer = std::move(other.m_buffer);
-        m_writable_span = other.m_writable_span;
-        m_readable_span = other.m_readable_span;
-
-        // Resets the other instance's spans to empty, as the buffer has been moved.
-        other.m_writable_span = {};
-        other.m_readable_span = {};
-
-        return *this;
-    }
 
     [[nodiscard]]
     std::size_t capacity() const noexcept
@@ -116,6 +105,7 @@ public:
 
     void reset() noexcept
     {
+        assert(m_buffer != nullptr);
         m_readable_span = {m_buffer.get(), std::size_t{0}};
         m_writable_span = {m_buffer.get(), m_capacity};
     }
