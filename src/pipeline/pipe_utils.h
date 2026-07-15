@@ -18,13 +18,11 @@ namespace xtd
 
 struct pipe_utils
 {
-    /// <summary>
-    /// Starts a background thread that copies file bytes into the given pipeline writer and completes the writer.
-    /// </summary>
-    /// <param name="path">Path to the source file.</param>
-    /// <param name="writer">Destination pipeline writer.</param>
-    /// <param name="chunkSize">Read chunk size in bytes.</param>
-    /// <returns>A joinable thread performing the file copy.</returns>
+    // Starts a background thread that copies file bytes into the given pipeline writer and completes the writer.
+    // path: Path to the source file.
+    // writer: Destination pipeline writer.
+    // chunkSize: Read chunk size in bytes.
+    // Returns a joinable thread performing the file copy.
     static std::thread threaded_copy_file_from_path(const std::string& path, pipe_writer& writer, const std::size_t chunkSize = 4096) {
         if (chunkSize == 0) {
             throw std::invalid_argument("chunk size must be greater than zero");
@@ -61,13 +59,11 @@ struct pipe_utils
         });
     }
 
-    /// <summary>
-    /// Starts a background thread that copies bytes from a socket into the given pipeline writer and completes the writer.
-    /// </summary>
-    /// <param name="socketFd">Source socket file descriptor (expected to be readable).</param>
-    /// <param name="writer">Destination pipeline writer.</param>
-    /// <param name="chunkSize">Read chunk size in bytes.</param>
-    /// <returns>A joinable thread performing the socket copy.</returns>
+    // Starts a background thread that copies bytes from a socket into the given pipeline writer and completes the writer.
+    // socketFd: Source socket file descriptor (expected to be readable).
+    // writer: Destination pipeline writer.
+    // chunkSize: Read chunk size in bytes.
+    // Returns a joinable thread performing the socket copy.
     static std::thread threaded_copy_from_socket(int socketFd, pipe_writer& writer, std::size_t chunkSize = 4096)
     {
         if (socketFd < 0) {

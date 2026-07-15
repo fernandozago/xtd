@@ -200,68 +200,52 @@ private:
 public:
     segmented_byte_view() = delete;
 
-    /// <summary>
-    /// Gets the inclusive begin position of this sequence.
-    /// </summary>
-    /// <returns>The begin position.</returns>
+    // Gets the inclusive begin position of this sequence.
+    // Returns the begin position.
     [[nodiscard]] 
     const position& begin() const noexcept { return m_begin; }
 
-    /// <summary>
-    /// Gets the exclusive end position of this sequence.
-    /// </summary>
-    /// <returns>The end position.</returns>
+    // Gets the exclusive end position of this sequence.
+    // Returns the end position.
     [[nodiscard]] 
     const position& end() const noexcept { return m_end; }
 
-    /// <summary>
-    /// Gets the length of this sequence in bytes.
-    /// </summary>
-    /// <returns>The number of bytes in the sequence range.</returns>
+    // Gets the length of this sequence in bytes.
+    // Returns the number of bytes in the sequence range.
     [[nodiscard]] 
     std::size_t size() const noexcept { return m_size; }
 
-    /// <summary>
-    /// Indicates whether this sequence is empty.
-    /// </summary>
-    /// <returns>True when the sequence length is zero; otherwise, false.</returns>
+    // Indicates whether this sequence is empty.
+    // Returns true when the sequence length is zero; otherwise, false.
     [[nodiscard]] 
     bool empty() const noexcept { return m_size == 0; }
-    /// <summary>
-    /// Counts how many segments intersect the current sequence range.
-    /// </summary>
-    /// <returns>The number of visible segments.</returns>
+    // Counts how many segments intersect the current sequence range.
+    // Returns the number of visible segments.
     [[nodiscard]] 
     std::size_t segment_count() const noexcept {
         return m_segments.size();
     }
 
-    /// <summary>
-    /// Gets a non-owning view over the visible segments.
-    /// </summary>
-    /// <returns>A span covering this sequence's segments.</returns>
+    // Gets a non-owning view over the visible segments.
+    // Returns a span covering this sequence's segments.
     [[nodiscard]] 
     std::span<const std::span<const std::byte>> segments() const noexcept {
         return m_segments;
     }
 
-    /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, from the sequence begin up to end (exclusive).
-    /// </summary>
-    /// <param name="end">The ending position of the slice (exclusive).</param>
-    /// <returns>A new segmented_byte_view representing everything before end.</returns>
+    // Forms a slice out of the current segmented_byte_view, from the sequence begin up to end (exclusive).
+    // end: The ending position of the slice (exclusive).
+    // Returns a new segmented_byte_view representing everything before end.
     [[nodiscard]] 
     segmented_byte_view slice(const position& end) const {
         ensure_position_belongs_to_sequence(end, "end");
         return slice_range(m_begin.offset_in_sequence(), end.offset_in_sequence());
     }
 
-    /// <summary>
-    /// Forms a slice out of the current segmented_byte_view<T>, from the sequence begin and ending at end (exclusive).
-    /// </summary>
-    /// <param name="begin">The begin position of the slice.</param>
-    /// <param name="end">The ending position of the slice.</param>
-    /// <returns>A new segmented_byte_view representing the specified slice.</returns>
+    // Forms a slice out of the current segmented_byte_view<T>, from the sequence begin and ending at end (exclusive).
+    // begin: The begin position of the slice.
+    // end: The ending position of the slice.
+    // Returns a new segmented_byte_view representing the specified slice.
     [[nodiscard]] 
     segmented_byte_view slice(const position& begin, const position& end) const {
         ensure_position_belongs_to_sequence(begin, "begin");
@@ -269,12 +253,10 @@ public:
         return slice_range(begin.offset_in_sequence(), end.offset_in_sequence());
     }
 
-    /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, beginning at beginOffset and ending at end (exclusive).
-    /// </summary>
-    /// <param name="beginOffset">The begin offset of the slice relative to the current sequence begin.</param>
-    /// <param name="end">The ending position of the slice.</param>
-    /// <returns>A new segmented_byte_view representing the specified slice.</returns>
+    // Forms a slice out of the current segmented_byte_view, beginning at beginOffset and ending at end (exclusive).
+    // beginOffset: The begin offset of the slice relative to the current sequence begin.
+    // end: The ending position of the slice.
+    // Returns a new segmented_byte_view representing the specified slice.
     [[nodiscard]] 
     segmented_byte_view slice(std::size_t beginOffset, const position& end) const {
         ensure_position_belongs_to_sequence(end, "end");
@@ -283,12 +265,10 @@ public:
         return slice_range(m_begin.offset_in_sequence() + beginOffset, end.offset_in_sequence());
     }
 
-    /// <summary>
-    /// Forms a slice out of the current segmented_byte_view, beginning at beginOffset and spanning size bytes.
-    /// </summary>
-    /// <param name="beginOffset">The begin offset of the slice relative to the current sequence begin.</param>
-    /// <param name="size">The number of bytes to include in the slice.</param>
-    /// <returns>A new segmented_byte_view representing the specified slice.</returns>
+    // Forms a slice out of the current segmented_byte_view, beginning at beginOffset and spanning size bytes.
+    // beginOffset: The begin offset of the slice relative to the current sequence begin.
+    // size: The number of bytes to include in the slice.
+    // Returns a new segmented_byte_view representing the specified slice.
     [[nodiscard]] 
     segmented_byte_view slice(const std::size_t& beginOffset, const std::size_t& size) const {
         validate_relative_slice(beginOffset, size);
@@ -297,12 +277,10 @@ public:
         return slice_range(m_begin.offset_in_sequence() + beginOffset, sliceEnd);
     }
 
-    /// <summary>
-    /// Finds the position of the specified byte value within the sequence.
-    /// </summary>
-    /// <param name="value">The byte value to search for.</param>
-    /// <param name="pos">The position of the found byte, if any.</param>
-    /// <returns>True if the byte is found; otherwise, false.</returns>
+    // Finds the position of the specified byte value within the sequence.
+    // value: The byte value to search for.
+    // pos: The position of the found byte, if any.
+    // Returns true if the byte is found; otherwise, false.
     [[nodiscard]] 
     bool position_of(const std::byte& value, position& pos) const {
         if (empty()) return false;
@@ -332,23 +310,19 @@ public:
         return false;
     }
 
-    /// <summary>
-    /// Finds the position of the specified character value within the sequence.
-    /// </summary>
-    /// <param name="value">The character value to search for.</param>
-    /// <param name="pos">The position of the found character, if any.</param>
-    /// <returns>True if the character is found; otherwise, false.</returns>
+    // Finds the position of the specified character value within the sequence.
+    // value: The character value to search for.
+    // pos: The position of the found character, if any.
+    // Returns true if the character is found; otherwise, false.
     [[nodiscard]] 
     bool position_of(const char& value, position& pos) const {
         return position_of(std::byte{static_cast<unsigned char>(value)}, pos);
     }
 
-    /// <summary>
-    /// Copies the contents of the sequence to the specified destination byte buffer.
-    /// </summary>
-    /// <param name="destination">The destination byte buffer.</param>
-    /// <param name="destinationSize">The size of the destination buffer in bytes.</param>
-    /// <returns>The number of bytes copied.</returns>
+    // Copies the contents of the sequence to the specified destination byte buffer.
+    // destination: The destination byte buffer.
+    // destinationSize: The size of the destination buffer in bytes.
+    // Returns the number of bytes copied.
     [[nodiscard]] 
     std::size_t copy_to(std::byte* destination, const std::size_t destinationSize) const {
         if (destination == nullptr && destinationSize > 0) {
@@ -369,23 +343,19 @@ public:
         return bytesToCopy;
     }
 
-    /// <summary>
-    /// Copies bytes from this sequence into the destination buffer, capped by the smaller of
-    /// the sequence.size() or destination.size().
-    /// </summary>
-    /// <param name="destination">The destination buffer to copy into. It is not resized.</param>
-    /// <returns>The number of bytes copied.</returns>
+    // Copies bytes from this sequence into the destination buffer, capped by the smaller of
+    // the sequence.size() or destination.size().
+    // destination: The destination buffer to copy into. It is not resized.
+    // Returns the number of bytes copied.
     [[nodiscard]] 
     std::size_t copy_to(std::vector<std::byte>& destination) const {
         return copy_to(destination.data(), destination.size());
     }
 
-    /// <summary>
-    /// Copies the sequence bytes into a trivially copyable value.
-    /// </summary>
-    /// <typeparam name="T">The destination value type.</typeparam>
-    /// <param name="destination">The destination value.</param>
-    /// <returns>True when the full value was copied; otherwise, false.</returns>
+    // Copies the sequence bytes into a trivially copyable value.
+    // T: The destination value type.
+    // destination: The destination value.
+    // Returns true when the full value was copied; otherwise, false.
     template <typename T>
     requires (!std::is_convertible_v<T, std::string_view>)
     [[nodiscard]] 
@@ -398,10 +368,8 @@ public:
         return copy_to(reinterpret_cast<std::byte*>(&destination), sizeof(T)) == sizeof(T);
     }
 
-    /// <summary>
-    /// Converts the sequence to a string representation.
-    /// </summary>
-    /// <returns>A string containing the sequence's contents.</returns>
+    // Converts the sequence to a string representation.
+    // Returns a string containing the sequence's contents.
     [[nodiscard]] 
     std::string to_string() const {
         if (empty() || m_segments.empty()) return {};

@@ -331,10 +331,8 @@ public:
         complete_reader();
     }
 
-    /// <summary>
-    /// Initializes a pipeline with the provided options.
-    /// </summary>
-    /// <param name="options">pipeline buffering and backpressure options.</param>
+    // Initializes a pipeline with the provided options.
+    // options: pipeline buffering and backpressure options.
     pipeline(pipe_options options = {})
         : m_buffer_size(validate_buffer_size(options.buffer_size))
         , m_pause_writer_threshold(validate_pause_threshold(options.pause_writer_threshold))
@@ -345,19 +343,15 @@ public:
     {
     }
 
-    /// <summary>
-    /// Gets the pipeline reader endpoint.
-    /// </summary>
-    /// <returns>A reference to the reader.</returns>
+    // Gets the pipeline reader endpoint.
+    // Returns a reference to the reader.
     [[nodiscard]]
     pipe_reader& reader() noexcept {
         return m_reader;
     }
 
-    /// <summary>
-    /// Gets the pipeline writer endpoint.
-    /// </summary>
-    /// <returns>A reference to the writer.</returns>
+    // Gets the pipeline writer endpoint.
+    // Returns a reference to the writer.
     [[nodiscard]]
     pipe_writer& writer() noexcept {
         return m_writer;

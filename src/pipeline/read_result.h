@@ -16,11 +16,9 @@ private:
     segmented_byte_view m_buffer;
     bool m_completed = false;
     
-    /// <summary>
-    /// Initializes a read result with a buffer and completion state.
-    /// </summary>
-    /// <param name="buffer">The buffer returned by a read operation.</param>
-    /// <param name="isCompleted">Whether the writer has completed.</param>
+    // Initializes a read result with a buffer and completion state.
+    // buffer: The buffer returned by a read operation.
+    // isCompleted: Whether the writer has completed.
     read_result(segmented_byte_view&& buffer, const bool completed)
         : m_buffer(std::move(buffer))
         , m_completed(completed)
@@ -33,19 +31,15 @@ public:
     read_result(read_result&&) noexcept = default;
     read_result& operator=(read_result&&) noexcept = default;
 
-    /// <summary>
-    /// Gets the read-only buffer associated with this result.
-    /// </summary>
-    /// <returns>The current read-only sequence.</returns>
+    // Gets the read-only buffer associated with this result.
+    // Returns the current read-only sequence.
     [[nodiscard]] 
     segmented_byte_view buffer() const noexcept {
         return m_buffer; 
     }
 
-    /// <summary>
-    /// Indicates whether no more data will be written.
-    /// </summary>
-    /// <returns>True when the writer is completed; otherwise, false.</returns>
+    // Indicates whether no more data will be written.
+    // Returns true when the writer is completed; otherwise, false.
     [[nodiscard]] 
     bool completed() const noexcept {
         return m_completed; 
