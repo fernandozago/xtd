@@ -1,7 +1,6 @@
 #ifndef PIPELINE_PIPELINE_H
 #define PIPELINE_PIPELINE_H
 
-#include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
@@ -50,9 +49,7 @@ private:
     std::size_t m_buffered_size = 0;
     std::size_t m_examined_size = 0;
     std::size_t m_pending_read_size = 0;
-    std::size_t m_wait_for_data_change_from_size = 0;
 
-    bool m_wait_for_data_change = false;
     bool m_has_pending_read = false;
     bool m_writer_completed = false;
     bool m_reader_completed = false;
@@ -93,17 +90,31 @@ private:
         return next.fetch_add(1, std::memory_order_relaxed);
     }
 
-    bool should_resume_writer() const noexcept {
-        return m_buffered_size <= m_resume_writer_threshold ||
-            (m_examined_size >= m_buffered_size ? 0 : m_buffered_size - m_examined_size) <= m_resume_writer_threshold;
+    // Writer backpressure is based only on the total amount of unconsumed buffered data.
+    //
+    // `m_examined_size` must not affect writer resumption. Examined bytes are still
+    // owned by the pipeline and cannot be recycled until the reader consumes them.
+    //
+    // Using examined bytes as available capacity could let the buffer grow without
+    // bound when the reader repeatedly examines data without consuming it.
+    //
+    // The configured pause and resume thresholds must therefore be large enough to
+    // accommodate the largest expected message.
+    [[nodiscard]]
+    bool should_resume_writer() const noexcept
+    {
+        return m_buffered_size <= m_resume_writer_threshold;
     }
 
-    inline bool has_available_data(const std::size_t min_size) const {
+    [[nodiscard]]
+    bool has_available_data(std::size_t min_size) const noexcept
+    {
         return m_reader_completed
-                || m_writer_completed
-                || (m_wait_for_data_change
-                    ? m_buffered_size != m_wait_for_data_change_from_size
-                    : m_buffered_size > min_size);
+            || m_writer_completed
+            || (
+                m_buffered_size > m_examined_size &&
+                (min_size == 0 || m_buffered_size >= min_size)
+            );
     }
     
     read_result read_at_least(const std::size_t min_size)
@@ -112,14 +123,7 @@ private:
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
         m_data_available.wait(lock, [this, min_size] { return has_available_data(min_size); });
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
-
-        /*
-        * wait() releases the mutex. Another reader may have completed a read
-        * while this thread was waiting, so this second check is necessary if
-        * concurrent calls to read() are possible.
-        */
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
-        m_wait_for_data_change = false;
 
         std::vector<std::span<const std::byte>> read_segments = m_segments // From Segments
             | std::views::filter([](const data_segment& segment) noexcept {
@@ -143,16 +147,14 @@ private:
         );
     }
 
-    bool advance_core(std::size_t consumed_offset, std::size_t examined_offset)
+    bool advance_core(const std::size_t consumed_offset, const std::size_t examined_offset)
     {
-        const std::size_t pending_read_size = m_pending_read_size;
         std::size_t remaining_consumed = consumed_offset;
 
         while (remaining_consumed > 0) {
-            assert(!m_segments.empty());
-
             data_segment& head = m_segments.front();
-            const std::size_t readable_size = head.readable_size();
+            const std::size_t readable_size =
+                head.readable_size();
 
             if (remaining_consumed < readable_size) {
                 head.advance(remaining_consumed);
@@ -161,24 +163,19 @@ private:
                 break;
             }
 
+            // Return the fully consumed segment to the pool and remove it from the deque.
+            m_data_segment_pool.return_segment(std::move(head));
+            m_segments.pop_front();
+
             remaining_consumed -= readable_size;
             m_buffered_size -= readable_size;
-
-            m_data_segment_pool.return_segment(
-                std::move(m_segments.front()));
-
-            m_segments.pop_front();
         }
 
-        assert(remaining_consumed == 0);
-
-        m_examined_size = std::min(examined_offset - consumed_offset,m_buffered_size);
+        m_examined_size = examined_offset - consumed_offset;
         if (m_writer_paused && should_resume_writer()) {
             m_writer_paused = false;
         }
 
-        m_wait_for_data_change = examined_offset == pending_read_size && !m_writer_completed;
-        m_wait_for_data_change_from_size = pending_read_size - consumed_offset;
         m_pending_read_size = 0;
         m_pending_read_sequence_id = 0;
         m_has_pending_read = false;
@@ -284,8 +281,6 @@ private:
             m_reader_completed = true;
             m_has_pending_read = false;
             m_pending_read_size = 0;
-            m_wait_for_data_change = false;
-            m_wait_for_data_change_from_size = 0;
             m_writer_paused = false;
             m_buffered_size = 0;
             m_examined_size = 0;

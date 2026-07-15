@@ -999,7 +999,7 @@ TEST_CASE("Utility: threaded_copy_file_from_path rejects invalid path")
 // Additional coverage worth keeping
 // ---------------------------------------------------------------------------
 
-TEST_CASE("pipeline: examined-all without consuming unblocks paused writer")
+TEST_CASE("pipeline: examined-all without consuming should never unblock the writer to avoid unbounded growth of the buffer")
 {
     using namespace std::chrono_literals;
 
@@ -1022,22 +1022,17 @@ TEST_CASE("pipeline: examined-all without consuming unblocks paused writer")
     const xtd::read_result first = reader.read();
     CHECK(first.buffer().to_string() == "12345678");
 
-    // This is the important pipeline-style case: no bytes consumed, all bytes examined.
-    // Writer must still be allowed to produce more data, otherwise delimiter-based
-    // parsers can deadlock while waiting for the rest of a message.
+    // No bytes consumed and all bytes examined must keep the writer blocked.
     const xtd::segmented_byte_view firstBuffer = first.buffer();
-    reader.advance(firstBuffer.begin(), firstBuffer.end()); // this is the key: all bytes examined, none consumed
+    reader.advance(firstBuffer.begin(), firstBuffer.end());
+
+    CHECK(producer.wait_for(50ms) == std::future_status::timeout);
+
+    // Completing the reader should release the blocked writer with an error.
+    reader.complete();
 
     REQUIRE(producer.wait_for(1s) == std::future_status::ready);
-    producer.get();
-
-    const xtd::read_result second = reader.read();
-    const xtd::segmented_byte_view secondBuffer = second.buffer();
-    CHECK(secondBuffer.to_string() == "12345678abcd");
-    CHECK(second.completed());
-
-    reader.advance(secondBuffer.end());
-    reader.complete();
+    CHECK_THROWS_AS(producer.get(), std::runtime_error);
 }
 
 TEST_CASE("pipeline: reader advance() wakes blocked writer")
