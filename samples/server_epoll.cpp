@@ -101,8 +101,6 @@ void addToEpoll(int epollFd, int fd, std::uint32_t events)
     }
 }
 
-struct ServerState;
-
 class Connection
 {
 public:
