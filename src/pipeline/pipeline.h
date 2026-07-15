@@ -61,27 +61,30 @@ private:
     pipe_writer m_writer;
     pipe_reader m_reader;
 
-    inline std::size_t validate_buffer_size(const std::size_t size) const {
-        if (size == 0) {
-            throw std::invalid_argument("buffer_size must be > 0");
+    inline static void runtime_assert(bool condition, const char* message) {
+        if (!condition) {
+            throw std::runtime_error(message);
         }
+    }
 
+    inline static void param_assert(bool condition, const char* message) {
+        if (!condition) {
+            throw std::invalid_argument(message);
+        }
+    }
+    
+    inline std::size_t validate_buffer_size(const std::size_t size) const {
+        param_assert(size > 0, "buffer_size must be > 0");
         return size;
     }
 
     inline std::size_t validate_pause_threshold(const std::size_t pauseThreshold) const {
-        if (pauseThreshold == 0) {
-            throw std::invalid_argument("pause_writer_threshold must be > 0");
-        }
-
+        param_assert(pauseThreshold > 0, "pause_writer_threshold must be > 0");
         return pauseThreshold;
     }
 
     inline std::size_t validate_resume_threshold(const std::size_t resumeThreshold, const std::size_t pauseThreshold) const {
-        if (resumeThreshold > pauseThreshold) {
-            throw std::invalid_argument("resume_writer_threshold must be <= pause_writer_threshold");
-        }
-
+        param_assert(resumeThreshold <= pauseThreshold, "resume_writer_threshold must be <= pause_writer_threshold");
         return resumeThreshold;
     }
 
@@ -95,124 +98,126 @@ private:
             (m_examined_size >= m_buffered_size ? 0 : m_buffered_size - m_examined_size) <= m_resume_writer_threshold;
     }
 
-    read_result read() {
-        std::unique_lock lock(m_mutex);
-        if (m_has_pending_read) {
-            throw std::runtime_error("advance(consumed, examined) must be called before the next read");
-        }
+    read_result read()
+    {
+        std::unique_lock lock{m_mutex};
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
-        m_data_available.wait(lock, [this]
-        {
-            return m_writer_completed || m_reader_completed ||
-                (m_wait_for_data_change
+        m_data_available.wait(lock, [this] {
+            return m_reader_completed
+                || m_writer_completed
+                || (m_wait_for_data_change
                     ? m_buffered_size != m_wait_for_data_change_from_size
                     : m_buffered_size > 0);
         });
 
-        if (m_reader_completed) {
-            throw std::runtime_error("pipeline reader is completed");
-        }
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
-        if (m_has_pending_read) {
-            throw std::runtime_error("advance(consumed, examined) must be called before the next read");
-        }
-
+        /*
+        * wait() releases the mutex. Another reader may have completed a read
+        * while this thread was waiting, so this second check is necessary if
+        * concurrent calls to read() are possible.
+        */
+        runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
         m_wait_for_data_change = false;
-        std::vector<std::span<const std::byte>> readSegments = m_segments
-            | std::views::filter([](const data_segment& segment) noexcept {
-                return segment.readable_size() > 0;
-            })
-            | std::views::transform(&data_segment::readable_bytes)
-            | std::ranges::to<std::vector>();
 
-        m_pending_read_size = m_buffered_size;
-        m_pending_read_sequence_id = next_read_sequence_id();
+        std::vector<std::span<const std::byte>> read_segments;
+        read_segments.reserve(m_segments.size());
+
+        std::ranges::transform(
+            m_segments
+                | std::views::filter(
+                    [](const data_segment& segment) noexcept {
+                        return segment.readable_size() > 0;
+                    }),
+            std::back_inserter(read_segments),
+            &data_segment::readable_bytes);
+
+        segmented_byte_view buffer{
+            std::move(read_segments),
+            m_pending_read_sequence_id = next_read_sequence_id()
+        };
+
+        /*
+        * The view calculates its size from its actual spans.
+        * Do not duplicate that calculation using m_buffered_size.
+        */
+        assert(buffer.size() == m_buffered_size);
+        m_pending_read_size = buffer.size();
         m_has_pending_read = true;
 
         return read_result{
-            segmented_byte_view{std::move(readSegments), m_pending_read_sequence_id},
-            m_writer_completed};
+            std::move(buffer),
+            m_writer_completed
+        };
     }
 
-    bool advance_core(const std::size_t consumedOffset, const std::size_t examinedOffset) {
-        std::size_t l_consumedOffset = consumedOffset;
+    bool advance_core(std::size_t consumed_offset, std::size_t examined_offset)
+    {
+        const std::size_t pending_read_size = m_pending_read_size;
+        std::size_t remaining_consumed = consumed_offset;
 
-        m_has_pending_read = false;
+        while (remaining_consumed > 0) {
+            assert(!m_segments.empty());
 
-        while (l_consumedOffset > 0 && !m_segments.empty()) {
             data_segment& head = m_segments.front();
-            const std::size_t readable = head.readable_size();
+            const std::size_t readable_size =
+                head.readable_size();
 
-            if (readable > l_consumedOffset) {
-                head.advance(l_consumedOffset);
-                m_buffered_size -= l_consumedOffset;
-                l_consumedOffset = 0;
+            if (remaining_consumed < readable_size) {
+                head.advance(remaining_consumed);
+                m_buffered_size -= remaining_consumed;
+                remaining_consumed = 0;
                 break;
             }
 
-            m_buffered_size -= readable;
-            l_consumedOffset -= readable;
+            remaining_consumed -= readable_size;
+            m_buffered_size -= readable_size;
 
-            m_data_segment_pool.return_segment(std::move(m_segments.front()));
+            m_data_segment_pool.return_segment(
+                std::move(m_segments.front()));
+
             m_segments.pop_front();
         }
 
-        m_examined_size = std::min(
-            examinedOffset - consumedOffset,
-            m_buffered_size
-        );
+        assert(remaining_consumed == 0);
 
+        m_examined_size = std::min(examined_offset - consumed_offset,m_buffered_size);
         if (m_writer_paused && should_resume_writer()) {
             m_writer_paused = false;
         }
 
+        m_wait_for_data_change = examined_offset == pending_read_size && !m_writer_completed;
+        m_wait_for_data_change_from_size = pending_read_size - consumed_offset;
+        m_pending_read_size = 0;
+        m_pending_read_sequence_id = 0;
+        m_has_pending_read = false;
+
         return m_writer_completed;
     }
 
-    void advance(const position& consumed, const position& examined) {
-        if (consumed > examined) {
-            throw std::invalid_argument("consumed must be <= examined");
-        }
+    void advance(const position& consumed, const position& examined)
+    {
+        const std::size_t consumed_offset = consumed.offset_in_sequence();
+        const std::size_t examined_offset = examined.offset_in_sequence();
+        param_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
 
-        const std::size_t consumedOffset = consumed.offset_in_sequence();
-        const std::size_t examinedOffset = examined.offset_in_sequence();
-        bool notify = false;
         {
-            std::scoped_lock lock(m_mutex);
-
-            if (!m_has_pending_read) {
-                throw std::runtime_error("advance called without a pending read");
-            }
+            std::scoped_lock lock{m_mutex};
 
             if (m_reader_completed) {
                 throw std::runtime_error("pipeline reader is completed");
             }
-
-            if (consumed.m_sequence_id != m_pending_read_sequence_id || examined.m_sequence_id != m_pending_read_sequence_id) {
-                throw std::invalid_argument("position must belong to the most recent read buffer");
-            }
-
-            if (consumedOffset > m_pending_read_size) {
-                throw std::invalid_argument("consumed is out of range for the most recent read buffer");
-            }
-
-            if (examinedOffset > m_pending_read_size) {
-                throw std::invalid_argument("examined exceeds the most recent read buffer length");
-            }
-
-            const bool writerCompleted = advance_core(consumedOffset, examinedOffset);
-
-            m_wait_for_data_change = examinedOffset == m_pending_read_size && !writerCompleted;
-            m_wait_for_data_change_from_size = consumedOffset < m_pending_read_size ? m_pending_read_size - consumedOffset : 0;
-            m_pending_read_size = 0;
-
-            notify = true;
+            
+            runtime_assert(m_has_pending_read, "advance called without a pending read");
+            param_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
+            param_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
+            param_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
+            advance_core(consumed_offset, examined_offset);
         }
 
-        if (notify) {
-            m_space_available.notify_all();
-            m_data_available.notify_all();
-        }
+        m_space_available.notify_all();
+        m_data_available.notify_all();
     }
 
     inline void check_completion() const {
