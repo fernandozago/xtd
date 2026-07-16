@@ -1,7 +1,9 @@
 #ifndef CHANNEL_BLOCK_STRATEGY_H
 #define CHANNEL_BLOCK_STRATEGY_H
 
-enum block_strategy
+#include <cstdint>
+
+enum class block_strategy : std::uint8_t
 {
     WAIT,
     TRY

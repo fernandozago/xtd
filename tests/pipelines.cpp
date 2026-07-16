@@ -1748,6 +1748,7 @@ TEST_CASE("data_segment: move operations transfer readable state")
     CHECK(source.writable_size() == 0);
     CHECK(moved.capacity() == 5);
     CHECK(moved.readable_size() == 3);
+    CHECK(moved.writable_size() == 2);
 
     xtd::data_segment assigned(std::move(moved));
 
