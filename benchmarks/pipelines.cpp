@@ -107,7 +107,7 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
     reader_task.get();
 
     assert(total_bytes_read == total_bytes_written);
-    results.push_back(std::format("| {:>20.2f} | {}", bytes_to_gib(total_bytes_written), bench_name));
+    results.push_back(std::format("| {:>15.2f} GiB | {}", bytes_to_gib(total_bytes_written), bench_name));
 }
 
 int main()
@@ -150,8 +150,8 @@ int main()
         output);
 
     std::println();
-    std::println("| Total GiB Transfered | xtd::pipeline throughput ");
-    std::println("|---------------------:|:-------------------------");
+    std::println("|    Total Transfered | xtd::pipeline throughput ");
+    std::println("|--------------------:|:-------------------------");
     for (const std::string& result : results)
     {
         std::println("{}", result);

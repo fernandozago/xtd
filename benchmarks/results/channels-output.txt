@@ -10,13 +10,16 @@ Warning, results might be unstable:
 Recommendations
 * Use 'pyperf system tune' before benchmarking. See https://github.com/psf/pyperf
 
-|          ns/message |           message/s |    err% |     ins/message |     cyc/message |    IPC |    bra/message |   miss% |     total | xtd::channel push/read throughput
-|--------------------:|--------------------:|--------:|----------------:|----------------:|-------:|---------------:|--------:|----------:|:----------------------------------
-|               21.03 |       47,547,360.25 |    0.6% |          274.00 |           30.39 |  9.017 |          69.00 |    0.0% |      2.19 | `single-thread / bounded_channel`
- [Total Messages Enqueued: 104982866]
-|               22.88 |       43,708,517.18 |    0.5% |          244.27 |           33.09 |  7.382 |          63.24 |    0.0% |      2.19 | `single-thread / unbounded_channel`
- [Total Messages Enqueued: 96651008]
-|              197.48 |        5,063,742.89 |    0.6% |          147.03 |          170.75 |  0.861 |          37.19 |    1.2% |      2.25 | `multi-thread / bounded_channel`
- [Total Messages Enqueued: 11500635]
-|              204.30 |        4,894,674.17 |    0.9% |          145.66 |          168.36 |  0.865 |          38.56 |    1.2% |      2.18 | `multi-thread / unbounded_channel`
- [Total Messages Enqueued: 10779217]
+|          ns/message |           message/s |    err% |     ins/message |     cyc/message |    IPC |    bra/message |   miss% |     total | xtd::channel throughput
+|--------------------:|--------------------:|--------:|----------------:|----------------:|-------:|---------------:|--------:|----------:|:------------------------
+|               20.61 |       48,514,830.97 |    0.4% |          274.00 |           30.21 |  9.070 |          69.00 |    0.0% |      2.19 | `single-thread / bounded_channel`
+|               22.95 |       43,576,081.66 |    0.5% |          244.27 |           33.15 |  7.369 |          63.24 |    0.0% |      2.19 | `single-thread / unbounded_channel`
+|              197.02 |        5,075,705.80 |    0.3% |          147.79 |          166.22 |  0.889 |          37.23 |    1.1% |      2.18 | `multi-thread / bounded_channel`
+|              208.65 |        4,792,731.53 |    0.4% |          162.55 |          175.67 |  0.925 |          40.70 |    1.0% |      2.22 | `multi-thread / unbounded_channel`
+
+| Total Messages Enqueued | xtd::channel throughput 
+|------------------------:|:-------------------------
+|             105,488,147 | `single-thread / bounded_channel`
+|              95,839,584 | `single-thread / unbounded_channel`
+|              11,088,688 | `multi-thread / bounded_channel`
+|              10,748,646 | `multi-thread / unbounded_channel`

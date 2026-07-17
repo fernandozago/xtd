@@ -18,6 +18,8 @@
 
 using namespace std::chrono_literals;
 
+static std::vector<std::string> results;
+
 void run_push_read_benchmark(
     ankerl::nanobench::Bench& bench,
     const std::string name,
@@ -70,8 +72,8 @@ void run_push_read_benchmark(
         reader_task.get();
     }
 
-    assert(total_messages_enqueued == total_messages_received.load());
-    std::println("| Total Messages Enqueued: {}", total_messages_enqueued);
+    assert(total_messages_enqueued == total_messages_received);
+    results.push_back(std::format(std::locale("en_US.UTF-8"), "| {:>23L} | `{}`", total_messages_enqueued, name));
 }
 
 int main()
@@ -81,7 +83,7 @@ int main()
     ankerl::nanobench::Bench bench;
 
     bench
-        .title("xtd::channel push/read throughput")
+        .title("xtd::channel throughput")
         .unit("message")
         .epochs(20)
         .warmup(10)
@@ -140,6 +142,14 @@ int main()
     bench.render(
         ankerl::nanobench::templates::json(),
         output);
+
+    std::println();
+    std::println("| Total Messages Enqueued | xtd::channel throughput ");
+    std::println("|------------------------:|:-------------------------");
+    for (const std::string& result : results)
+    {
+        std::println("{}", result);
+    }
 
     return 0;
 }
