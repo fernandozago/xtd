@@ -204,67 +204,67 @@ private:
     }
 
     std::size_t write(const std::byte* data, const std::size_t length)
-{
-    argument_assert(
-        length == 0 || data != nullptr,
-        "data must not be null when length > 0");
-
-    runtime_assert(!m_writer_completed, "pipeline writer is completed");
-    runtime_assert(!m_reader_completed, "pipeline reader is completed");
-
-    std::span<const std::byte> remaining{data, length};
-    std::unique_lock lock(m_mutex);
-
-    runtime_assert(!m_writer_completed, "pipeline writer is completed");
-    runtime_assert(!m_reader_completed, "pipeline reader is completed");
-
-    while (!remaining.empty()) {
-        m_space_available.wait(lock, [this] {
-            return m_writer_completed ||
-                   m_reader_completed ||
-                   has_available_space();
-        });
+    {
+        argument_assert(
+            length == 0 || data != nullptr,
+            "data must not be null when length > 0");
 
         runtime_assert(!m_writer_completed, "pipeline writer is completed");
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
-        if (m_writer_paused && should_resume_writer()) {
-            m_writer_paused = false;
-        }
+        std::span<const std::byte> remaining{data, length};
+        std::unique_lock lock(m_mutex);
 
-        bool notify_data_available = false;
+        runtime_assert(!m_writer_completed, "pipeline writer is completed");
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
-        while (!remaining.empty() && !m_writer_paused) {
-            if (m_buffered_size >= m_pause_writer_threshold) {
-                m_writer_paused = true;
-                break;
+        while (!remaining.empty()) {
+            m_space_available.wait(lock, [this] {
+                return m_writer_completed ||
+                    m_reader_completed ||
+                    has_available_space();
+            });
+
+            runtime_assert(!m_writer_completed, "pipeline writer is completed");
+            runtime_assert(!m_reader_completed, "pipeline reader is completed");
+
+            if (m_writer_paused && should_resume_writer()) {
+                m_writer_paused = false;
             }
 
-            const std::size_t available_before_pause = m_pause_writer_threshold - m_buffered_size;
+            bool notify_data_available = false;
 
-            const std::size_t requested_size = std::min(remaining.size(), available_before_pause);
+            while (!remaining.empty() && !m_writer_paused) {
+                if (m_buffered_size >= m_pause_writer_threshold) {
+                    m_writer_paused = true;
+                    break;
+                }
 
-            const std::size_t copied_size = get_segment()
-                .copy_from(remaining.data(), requested_size);
+                const std::size_t available_before_pause = m_pause_writer_threshold - m_buffered_size;
 
-            remaining = remaining.subspan(copied_size);
-            m_buffered_size += copied_size;
-            notify_data_available = true;
+                const std::size_t requested_size = std::min(remaining.size(), available_before_pause);
 
-            if (m_buffered_size == m_pause_writer_threshold) {
-                m_writer_paused = true;
+                const std::size_t copied_size = get_segment()
+                    .copy_from(remaining.data(), requested_size);
+
+                remaining = remaining.subspan(copied_size);
+                m_buffered_size += copied_size;
+                notify_data_available = true;
+
+                if (m_buffered_size == m_pause_writer_threshold) {
+                    m_writer_paused = true;
+                }
+            }
+
+            if (notify_data_available) {
+                lock.unlock();
+                m_data_available.notify_one();
+                lock.lock();
             }
         }
 
-        if (notify_data_available) {
-            lock.unlock();
-            m_data_available.notify_one();
-            lock.lock();
-        }
+        return length;
     }
-
-    return length;
-}
 
     void complete_writer() noexcept {
         {

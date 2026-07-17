@@ -1,3 +1,4 @@
+#include <cstddef>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
@@ -15,6 +16,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <print>
 #include "pipeline/data_segment.h"
 #include "pipeline/position.h"
 #include "pipeline/pipeline.h"
@@ -37,6 +39,194 @@ public:
     }
 };
 }
+
+struct test_data_trivially_copyable
+{
+    enum class status : std::uint8_t
+    {
+        sure,
+        that,
+        it,
+        can, 
+        have, 
+        multiple,
+        and_any,
+        values
+    };
+
+    struct nested_data
+    {
+        std::int32_t value = 0;
+        double ratio = 0.0;
+
+        void member_function() {}
+    };
+
+    union trivial_union
+    {
+        std::uint64_t integer;
+        double floating;
+
+        constexpr trivial_union() : integer(0) {}
+    };
+
+    // Boolean and character types
+    bool booleanValue = false;
+    char charValue = '\0';
+    signed char signedCharValue = 0;
+    unsigned char unsignedCharValue = 0;
+    wchar_t wideCharValue = L'\0';
+    char8_t utf8CharValue = u8'\0';
+    char16_t utf16CharValue = u'\0';
+    char32_t utf32CharValue = U'\0';
+    std::byte byteValue{};
+
+    // Integer types
+    short shortValue = 0;
+    unsigned short unsignedShortValue = 0;
+
+    int intValue = 0;
+    unsigned int unsignedIntValue = 0;
+
+    long longValue = 0;
+    unsigned long unsignedLongValue = 0;
+
+    long long longLongValue = 0;
+    unsigned long long unsignedLongLongValue = 0;
+
+    // Fixed-width integers
+    std::int8_t int8Value = 0;
+    std::uint8_t uint8Value = 0;
+    std::int16_t int16Value = 0;
+    std::uint16_t uint16Value = 0;
+    std::int32_t int32Value = 0;
+    std::uint32_t uint32Value = 0;
+    std::int64_t int64Value = 0;
+    std::uint64_t uint64Value = 0;
+
+    // Floating-point types
+    float floatValue = 0.0F;
+    double doubleValue = 0.0;
+    long double longDoubleValue = 0.0L;
+
+    // Enumeration
+    status statusValue = status::and_any;
+
+    // Nested trivially copyable object
+    nested_data nested{};
+
+    // Arrays
+    int rawArray[8]{};
+    std::array<std::uint64_t, 8> standardArray{};
+
+    // Union
+    trivial_union unionValue{};
+
+    // Arbitrary raw payload
+    std::array<std::byte, 512> rawData{};
+
+    [[nodiscard]]
+    bool operator==(const test_data_trivially_copyable& other) const noexcept
+    {
+        return std::memcmp(this, &other, sizeof(*this)) == 0;
+    }
+
+    [[nodiscard]]
+    bool operator!=(const test_data_trivially_copyable& other) const noexcept
+    {
+        return !(*this == other);
+    }
+
+    void print() const
+    {
+        std::println(
+            "test_data_trivially_copyable "
+            "[sizeof = {} bytes] "
+            "[booleanValue = {}] "
+            "[charValue = {}] "
+            "[signedCharValue = {}] "
+            "[unsignedCharValue = {}] "
+            "[wideCharValue = {}] "
+            "[utf8CharValue = {}] "
+            "[utf16CharValue = {}] "
+            "[utf32CharValue = {}] "
+            "[byteValue = {:#04x}] "
+            "[shortValue = {}] "
+            "[unsignedShortValue = {}] "
+            "[intValue = {}] "
+            "[unsignedIntValue = {}] "
+            "[longValue = {}] "
+            "[unsignedLongValue = {}] "
+            "[longLongValue = {}] "
+            "[unsignedLongLongValue = {}] "
+            "[int8Value = {}] "
+            "[uint8Value = {}] "
+            "[int16Value = {}] "
+            "[uint16Value = {}] "
+            "[int32Value = {}] "
+            "[uint32Value = {}] "
+            "[int64Value = {}] "
+            "[uint64Value = {}] "
+            "[floatValue = {}] "
+            "[doubleValue = {}] "
+            "[longDoubleValue = {}] "
+            "[statusValue = {}] "
+            "[nested.value = {}] "
+            "[nested.ratio = {}] "
+            "[unionValue.integer = {}] "
+            "[rawArray = {} elements, {} bytes] "
+            "[standardArray = {} elements, {} bytes] "
+            "[rawData = {} bytes]",
+            sizeof(*this),
+
+            booleanValue,
+            static_cast<int>(charValue),
+            static_cast<int>(signedCharValue),
+            static_cast<unsigned int>(unsignedCharValue),
+            static_cast<std::uint32_t>(wideCharValue),
+            static_cast<std::uint32_t>(utf8CharValue),
+            static_cast<std::uint32_t>(utf16CharValue),
+            static_cast<std::uint32_t>(utf32CharValue),
+            std::to_integer<unsigned int>(byteValue),
+
+            shortValue,
+            unsignedShortValue,
+            intValue,
+            unsignedIntValue,
+            longValue,
+            unsignedLongValue,
+            longLongValue,
+            unsignedLongLongValue,
+
+            static_cast<int>(int8Value),
+            static_cast<unsigned int>(uint8Value),
+            int16Value,
+            uint16Value,
+            int32Value,
+            uint32Value,
+            int64Value,
+            uint64Value,
+
+            floatValue,
+            doubleValue,
+            longDoubleValue,
+
+            static_cast<std::uint32_t>(statusValue),
+            nested.value,
+            nested.ratio,
+            unionValue.integer,
+
+            std::size(rawArray),
+            sizeof(rawArray),
+            standardArray.size(),
+            sizeof(standardArray),
+            rawData.size());
+    }
+};
+
+static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable>);
+static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::nested_data>);
+static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::trivial_union>);
 
 std::size_t readCurrentRssKb()
 {
@@ -78,7 +268,7 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
     
     std::thread t([&]()
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         for (const auto& msg : expected) {
             writer.write(msg);
         }
@@ -86,7 +276,7 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
     });
     
     int index = 0;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view seq = result.buffer();
@@ -114,7 +304,7 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
     std::thread producer([&]()
     {
         using namespace std::chrono_literals;
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         std::this_thread::sleep_for(.1s);
         CHECK(writer.write("h") == 1);
         std::this_thread::sleep_for(.1s);
@@ -134,7 +324,7 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
     
     int readCount = 0;
     std::vector<std::string> received;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view ros = result.buffer();
@@ -174,7 +364,7 @@ TEST_CASE("pipeline: isCompleted set only after all data is consumed")
         writer.complete();
     });
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     bool sawCompleted = false;
     while (const xtd::read_result result = reader.read())
     {
@@ -201,12 +391,12 @@ TEST_CASE("pipeline: message spans multiple buffers when exceeding buffer_size")
     const std::string message("this_is_a_long_message_that_spans_many_buffers");
     
     // write all data then complete
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     CHECK(writer.write(message) == message.size());
     writer.complete();
     
     // Single read returns all segments even though message is split into small buffers
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
     CHECK(buffer.segment_count() == 12);
@@ -249,7 +439,7 @@ TEST_CASE("pipe_options: rejects zero buffer size")
 TEST_CASE("Writer: rejects null data when length is non-zero")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
 
     CHECK_THROWS_AS(
         writer.write(nullptr, 1),
@@ -260,7 +450,7 @@ TEST_CASE("Writer: rejects null data when length is non-zero")
 TEST_CASE("Writer: write after complete throws")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
 
     writer.complete();
 
@@ -273,8 +463,8 @@ TEST_CASE("Writer: write after complete throws")
 TEST_CASE("Writer: write after reader complete throws")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     reader.complete();
 
@@ -290,7 +480,7 @@ TEST_CASE("Writer: templated write with std::array<T, N>")
 
     xtd::pipeline pipeline;
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         CHECK(writer.write(values) == sizeof(values));
         writer.complete();
     }
@@ -315,7 +505,7 @@ TEST_CASE("Writer: templated write with std::array<T, N>")
 TEST_CASE("Reader: advance without pending read throws")
 {
     xtd::pipeline pipeline;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     xtd::position position{};
 
     CHECK_THROWS_AS(
@@ -327,8 +517,8 @@ TEST_CASE("Reader: advance without pending read throws")
 TEST_CASE("Reader: read twice without advance throws")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("abc");
 
@@ -347,8 +537,8 @@ TEST_CASE("Reader: read twice without advance throws")
 TEST_CASE("Reader: read_at_least returns buffered data")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     CHECK(writer.write("abcd") == 4);
     writer.complete();
@@ -366,11 +556,11 @@ TEST_CASE("Reader: read_at_least returns buffered data")
 TEST_CASE("Reader: advance rejects consumed greater than examined")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     CHECK(writer.write("abc") == 3);
     writer.complete();
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
     const xtd::segmented_byte_view consumedSlice = buffer.slice(2, 0);
@@ -388,20 +578,20 @@ TEST_CASE("Reader: advance rejects positions from another read buffer")
 {
     xtd::pipeline pipe1;
     {
-        auto& writer1 = pipe1.writer();
+        xtd::pipe_writer& writer1 = pipe1.writer();
         CHECK(writer1.write("abc") == 3);
         writer1.complete();
     }
 
     xtd::pipeline pipe2;
     {
-        auto& writer2 = pipe2.writer();
+        xtd::pipe_writer& writer2 = pipe2.writer();
         CHECK(writer2.write("xyz") == 3);
         writer2.complete();
     }
     
-    auto& reader1 = pipe1.reader();
-    auto& reader2 = pipe2.reader();
+    xtd::pipe_reader& reader1 = pipe1.reader();
+    xtd::pipe_reader& reader2 = pipe2.reader();
     const xtd::read_result result = reader1.read();
     const xtd::read_result otherResult = reader2.read();
 
@@ -417,8 +607,8 @@ TEST_CASE("Reader: advance rejects positions from another read buffer")
 TEST_CASE("Reader: advance rejects examined offset beyond most recent read size")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     CHECK(writer.write("abc") == 3);
     writer.complete();
@@ -438,8 +628,8 @@ TEST_CASE("Reader: advance rejects examined offset beyond most recent read size"
 TEST_CASE("segmented_byte_view: position arithmetic beyond end is rejected by slice")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     CHECK(writer.write("abc") == 3);
     writer.complete();
@@ -467,12 +657,12 @@ TEST_CASE("segmented_byte_view: slice can span multiple segments")
     });
 
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         CHECK(writer.write("abcdefghi") == 9);
         writer.complete();
     }
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
 
@@ -492,12 +682,12 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
     });
 
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         CHECK(writer.write("ab\ncd") == 5);
         writer.complete();
     }
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
 
     const xtd::segmented_byte_view buffer = result.buffer();
@@ -519,8 +709,8 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
 TEST_CASE("pipeline: Unconsumed data / examined behavior")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("hello\nwo");
 
@@ -557,9 +747,10 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
 TEST_CASE("pipeline: not examining everything allows immediate reread of same data")
 {
     xtd::pipeline pipeline;
-    pipeline.writer().write("abc");
+    xtd::pipe_writer& writer = pipeline.writer();
+    writer.write("abc");
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     {
         const xtd::read_result result = reader.read();
         const xtd::segmented_byte_view buffer = result.buffer();
@@ -580,8 +771,8 @@ TEST_CASE("pipeline: examined-all without consuming waits for data change before
     using namespace std::chrono_literals;
 
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("abcd");
 
@@ -621,10 +812,10 @@ TEST_CASE("pipeline: examined-all without consuming waits for data change before
 TEST_CASE("pipeline: read does not block when data arrives between read and advance")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write("abc");
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result first = reader.read();
     const xtd::segmented_byte_view buffer = first.buffer();
     CHECK(buffer.to_string() == "abc");
@@ -672,11 +863,11 @@ TEST_CASE("pipeline: supports binary data containing null bytes")
         .buffer_size = 2,
     });
     
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write(expected.data(), expected.size());
     writer.complete();
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
     
@@ -768,7 +959,7 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
     
     std::thread producer([&]()
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         for (const Message& message : expected) {
             CHECK(message.serialize(writer) == sizeof(std::uint32_t) + sizeof(std::uint32_t) + message.some_text.size());
         }
@@ -779,7 +970,7 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
     actual.reserve(expected.size());
     std::size_t trailingBytes = 0;
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view buffer = result.buffer();
@@ -811,11 +1002,11 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
 TEST_CASE("pipeline: completed read can still contain buffered data")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write("abc");
     writer.complete();
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
 
@@ -846,7 +1037,7 @@ TEST_CASE("pipeline: writer complete wakes blocked reader")
     CHECK(result.completed());
     CHECK(buffer.empty());
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     reader.advance(buffer.begin(), buffer.end());
     reader.complete();
 }
@@ -854,7 +1045,7 @@ TEST_CASE("pipeline: writer complete wakes blocked reader")
 TEST_CASE("Reader: read after complete throws")
 {
     xtd::pipeline pipeline;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     reader.complete();
 
@@ -867,7 +1058,7 @@ TEST_CASE("Reader: read after complete throws")
 TEST_CASE("Reader: complete is idempotent")
 {
     xtd::pipeline pipeline;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     reader.complete();
     reader.complete();
@@ -881,8 +1072,8 @@ TEST_CASE("Reader: complete is idempotent")
 TEST_CASE("Writer: complete after reader complete is valid")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     reader.complete();
     writer.complete();
@@ -898,10 +1089,10 @@ TEST_CASE("Writer: complete after reader complete is valid")
 TEST_CASE("Reader: advance after complete throws")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write("abc");
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     const xtd::segmented_byte_view buffer = result.buffer();
 
@@ -913,9 +1104,90 @@ TEST_CASE("Reader: advance after complete throws")
     );
 }
 
+TEST_CASE("Use /dev/urandom as stream source to test trivially copyable struct serialization and deserialization")
+{
+    constexpr std::size_t expected_count = 100;
+    std::vector<test_data_trivially_copyable> expected_values;
+
+    xtd::pipeline pipeline;
+    auto producer = std::async(
+        std::launch::async,
+        [&pipeline, &expected_values]
+        {
+            std::ifstream random("/dev/urandom", std::ios::binary);
+            
+            REQUIRE(random.is_open());
+            
+            std::size_t written_count = 0;
+            test_data_trivially_copyable mydata;
+            xtd::pipe_writer& writer = pipeline.writer();
+            while (written_count < expected_count)
+            {
+                random.read(reinterpret_cast<char*>(&mydata), static_cast<std::streamsize>(sizeof(mydata)));
+                const auto bytes_read = static_cast<std::size_t>(random.gcount());
+
+                if (bytes_read < sizeof(mydata)) {
+                    random.clear();
+                    continue;
+                }
+
+                // Ensure that the booleanValue is consistent with the unsignedIntValue for testing purposes
+                // This is important because the random data from /dev/urandom may not have a valid booleanValue
+                // So we set it based on the unsignedIntValue.
+                mydata.booleanValue = mydata.unsignedIntValue % 2 == 0;
+                
+                // Ensure that the statusValue is within the valid range of the enum
+                mydata.statusValue = static_cast<test_data_trivially_copyable::status>(mydata.unsignedIntValue % 3);
+
+                expected_values.push_back(mydata);
+                
+                const auto written = writer.write(mydata);
+                REQUIRE(written == sizeof(mydata));
+                ++written_count;
+            }
+
+            writer.complete();
+            return written_count;
+        });
+
+    xtd::pipe_reader& reader = pipeline.reader();
+
+    std::size_t received_count = 0;
+    test_data_trivially_copyable mydata;
+    while (const xtd::read_result result = reader.read())
+    {
+        xtd::segmented_byte_view buffer = result.buffer();
+
+        while (buffer.size() >= sizeof(mydata))
+        {
+            REQUIRE(received_count < expected_values.size());
+            REQUIRE(buffer.copy_to(mydata));
+            CHECK(mydata == expected_values[received_count]);
+            //mydata.print();
+
+            buffer = buffer.slice(sizeof(mydata), buffer.end());
+            ++received_count;
+        }
+
+        reader.advance(buffer);
+
+        if (result.completed()) {
+            break;
+        }
+    }
+
+    const auto written_count = producer.get();
+
+    reader.complete();
+
+    CHECK(written_count == expected_count);
+    CHECK(received_count == expected_count);
+}
+
 // ---------------------------------------------------------------------------
 // File writer utility
 // ---------------------------------------------------------------------------
+
 
 TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and completes")
 {
@@ -960,7 +1232,7 @@ TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and compl
 
     const auto startedAt = std::chrono::steady_clock::now();
     std::size_t actualByteCount = 0;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     
     while (const xtd::read_result result = reader.read())
     {
@@ -971,10 +1243,11 @@ TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and compl
 
         if (result.completed()) break;
     }
+
     reader.complete();
+    producer.join();
 
     const auto finishedAt = std::chrono::steady_clock::now();
-    producer.join();
 
     INFO("xtd::pipeline reader processed "
         << actualByteCount
@@ -1012,13 +1285,13 @@ TEST_CASE("pipeline: examined-all without consuming should never unblock the wri
     
     auto producer = std::async(std::launch::async, [&]()
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         writer.write("12345678");
         writer.write("abcd");
         writer.complete();
     });
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result first = reader.read();
     CHECK(first.buffer().to_string() == "12345678");
 
@@ -1047,13 +1320,13 @@ TEST_CASE("pipeline: reader advance() wakes blocked writer")
     
     auto producer = std::async(std::launch::async, [&]()
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         writer.write("12345678");
         writer.write("abcd");
         writer.complete();
     });
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result first = reader.read();
     CHECK(first.buffer().to_string() == "12345678");
 
@@ -1084,7 +1357,7 @@ TEST_CASE("pipeline: reader complete wakes blocked writer")
     
     auto producer = std::async(std::launch::async, [&]()
     {
-        auto& writer = pipeline.writer();
+        xtd::pipe_writer& writer = pipeline.writer();
         writer.write("12345678");
         
         CHECK_THROWS_AS(
@@ -1093,7 +1366,7 @@ TEST_CASE("pipeline: reader complete wakes blocked writer")
         );
     });
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     const xtd::read_result result = reader.read();
     CHECK(result.buffer().to_string() == "12345678");
 
@@ -1106,8 +1379,8 @@ TEST_CASE("pipeline: reader complete wakes blocked writer")
 TEST_CASE("Writer: null data with zero length is a no-op")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write(nullptr, 0);
     writer.write("x");
@@ -1132,10 +1405,10 @@ TEST_CASE("Writer: write before advance appends into the same segment when space
     xtd::pipeline pipeline(xtd::pipe_options{
         .buffer_size = 4096,
     });
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write("test");
 
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     {
         const xtd::read_result result = reader.read();
         const xtd::segmented_byte_view buffer = result.buffer();
@@ -1167,8 +1440,8 @@ TEST_CASE("Writer: write before advance allocates a new segment when current seg
     xtd::pipeline pipeline(xtd::pipe_options{
         .buffer_size = 4,
     });
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("test"); // fills segment A completely (4/4 bytes)
 
@@ -1200,8 +1473,8 @@ TEST_CASE("Reader: with buffer_size 4, consuming first byte keeps remaining segm
         .buffer_size = 4,
     });
 
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("abcdefgh");
     writer.complete();
@@ -1239,8 +1512,8 @@ TEST_CASE("Reader: stale positions are rejected after a segment is returned to t
         .buffer_size = 4,
     });
 
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("abcd");
 
@@ -1282,7 +1555,7 @@ TEST_CASE("Reader: stale positions are rejected after a segment is returned to t
 TEST_CASE("Utility: threaded_copy_file_from_path rejects zero chunk size")
 {
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
 
     CHECK_THROWS_AS(
         xtd::pipe_utils::threaded_copy_file_from_path("./bin/pipe_file_to_writer_test.bin", writer, 0),
@@ -1316,7 +1589,7 @@ TEST_CASE("Utility: threaded_copy_from_socket completes when recv fails with non
     REQUIRE(::pipe(pipeFds) == 0);
 
     xtd::pipeline pipeline;
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     std::thread copier = xtd::pipe_utils::threaded_copy_from_socket(pipeFds[0], pipeline.writer(), 16);
 
     const xtd::read_result result = reader.read();
@@ -1422,7 +1695,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
         xtd::pipeline pipeline;  
         std::thread copier = xtd::pipe_utils::threaded_copy_from_socket(connectionFd, pipeline.writer(), 3);
         
-        auto& reader = pipeline.reader();
+        xtd::pipe_reader& reader = pipeline.reader();
         while (const xtd::read_result result = reader.read())
         {
             xtd::segmented_byte_view seq = result.buffer();
@@ -1468,8 +1741,8 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
                 .pause_writer_threshold = bytesPerPipe + payloadSize,
             });
 
-            auto& writer = pipeline.writer();
-            auto& reader = pipeline.reader();
+            xtd::pipe_writer& writer = pipeline.writer();
+            xtd::pipe_reader& reader = pipeline.reader();
 
             for (std::size_t writeIndex = 0; writeIndex < writesPerPipe; ++writeIndex)
             {
@@ -1519,10 +1792,10 @@ TEST_CASE("pipeline: Feeds it self for 8GB of data")
 
     const std::size_t totalBytes = 8ULL * 1024 * 1024 * 1024;
     xtd::pipeline pipeline;
-    auto& writer = pipeline.writer();
+    xtd::pipe_writer& writer = pipeline.writer();
     writer.write(std::string(1024 * 4, 'A'));
     
-    auto& reader = pipeline.reader();
+    xtd::pipe_reader& reader = pipeline.reader();
     std::size_t bytesRead = 0;
     while (const xtd::read_result result = reader.read()) {
         const xtd::segmented_byte_view buffer = result.buffer();
@@ -1555,8 +1828,8 @@ TEST_CASE("pipeline: same-thread write-before-advance can block until advance wi
         .pause_writer_threshold = 8,
     });
 
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     writer.write("1234");
 
@@ -1599,8 +1872,8 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
         .pause_writer_threshold = 8,
     });
 
-    auto& writer = pipeline.writer();
-    auto& reader = pipeline.reader();
+    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_reader& reader = pipeline.reader();
 
     CHECK(writer.write("12345678") == 8);
 
@@ -2212,8 +2485,8 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
 TEST_CASE("pipeline docs example A: minimal text pipeline")
 {
     xtd::pipeline pipe;
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
 
     CHECK(writer.write("hello") == 5);
     writer.complete();
@@ -2230,8 +2503,8 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
 TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
 {
     xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
 
     CHECK(writer.write("ab\ncd\nef\n") == 9);
     writer.complete();
@@ -2268,8 +2541,8 @@ TEST_CASE("pipeline docs example C: backpressure with producer thread")
         .pause_writer_threshold = 8,
     });
 
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
 
     auto producer = std::async(std::launch::async, [&]() {
         CHECK(writer.write("12345678") == 8);
@@ -2299,8 +2572,8 @@ TEST_CASE("pipeline docs example C: backpressure with producer thread")
 TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consumed=begin examined=end")
 {
     xtd::pipeline pipe;
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
 
     CHECK(writer.write("abcdef") == 6);
 
@@ -2326,8 +2599,8 @@ TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consume
 TEST_CASE("pipeline docs reader complete invalidates pending read")
 {
     xtd::pipeline pipe;
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
 
     CHECK(writer.write("abc") == 3);
 
@@ -2353,8 +2626,8 @@ TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached
         .pause_writer_threshold = 128,
     });
 
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
     const std::string payload(1024, 'x');
 
     auto writeFuture = std::async(std::launch::async, [&]() {

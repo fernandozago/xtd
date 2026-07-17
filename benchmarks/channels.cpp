@@ -18,23 +18,14 @@ void run_push_read_benchmark(std::string&& name, bool single_thread, xtd::channe
 {
     std::atomic<std::size_t> total_messages_received = 0;
     
-    std::future<void> reader_task[2];
+    std::future<void> reader_task;
 
     if (!single_thread) {
-        reader_task[0] = std::async(
+        reader_task = std::async(
             std::launch::async,
             [&reader, &total_messages_received] {
                 while (const auto value = reader.read()) {
                     ++total_messages_received;
-                    ankerl::nanobench::doNotOptimizeAway(*value);
-                }
-            });
-        reader_task[1] = std::async(
-            std::launch::async,
-            [&reader, &total_messages_received] {
-                while (const auto value = reader.read()) {
-                    ++total_messages_received;
-                    ankerl::nanobench::doNotOptimizeAway(*value);
                 }
             });
     }
@@ -43,33 +34,35 @@ void run_push_read_benchmark(std::string&& name, bool single_thread, xtd::channe
     ankerl::nanobench::Bench bench;
     bench
         .title("channel push/read")
-        .unit("message").batch(1) // One message transferred per benchmark invocation.
-        .epochs(25)
-        .warmup(0)
-        .minEpochTime(1s).maxEpochTime(2s)
+        .unit("message")
+        .batch(1)
+        .epochs(21)
+        .warmup(10'000)
+        .minEpochTime(100ms)
+        .maxEpochTime(500ms)
         .performanceCounters(true)
-        .run(name, 
+        .run(name,
             [&writer, &single_thread, &reader, &total_messages_enqueued, &total_messages_received]() {
+                
                 auto result = writer.push(0);
-                if (!result) { std::abort(); }
-                total_messages_enqueued += 1;
+
+                if (!result) {
+                    std::abort();
+                }
+
+                ++total_messages_enqueued;
                 ankerl::nanobench::doNotOptimizeAway(result);
 
                 if (single_thread) {
-                    // In single-threaded mode, we must read the value back to avoid deadlock.
                     if (auto value = reader.read()) {
-                        total_messages_received += 1;
-                        ankerl::nanobench::doNotOptimizeAway(*value);
+                        ++total_messages_received;
                     }
                 }
             });
 
     writer.complete();
-    if (reader_task[0].valid()) {
-        reader_task[0].get();
-    }
-    if (reader_task[1].valid()) {
-        reader_task[1].get();
+    if (reader_task.valid()) {
+        reader_task.get();
     }
     assert(total_messages_enqueued == total_messages_received);
     std::println("| | | | | **Total messages transferred: {}**", total_messages_enqueued);

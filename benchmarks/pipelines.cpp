@@ -59,13 +59,17 @@ void benchmark_writer_throughput(std::size_t write_chunk_size) {
     bench
         .title("xtd::pipeline writer throughput")
         .timeUnit(1ms, "ms")
-        .epochs(6)
-        .warmup(0)
-        .minEpochTime(1s).maxEpochTime(2s)
-        .unit("GiB").batch(bytes_to_gib(write_chunk_size))
-        .run(std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes", 
+        .epochs(15)
+        .warmup(100)
+        .minEpochTime(100ms)
+        .maxEpochTime(500ms)
+        .unit("GiB")
+        .batch(bytes_to_gib(write_chunk_size))
+        .run(std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes",
             [&writer, &total_bytes_write, write_chunk_size, &payload] {
-                total_bytes_write += writer.write(payload.get(), write_chunk_size);
+                const auto bytes_written = writer.write(payload.get(), write_chunk_size);
+                total_bytes_write += bytes_written;
+                ankerl::nanobench::doNotOptimizeAway(bytes_written);
             });
 
     writer.complete();
