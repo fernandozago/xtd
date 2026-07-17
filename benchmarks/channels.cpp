@@ -91,48 +91,41 @@ int main()
         .batch(1);
 
     {
-        const auto bounded_channel =
-            std::make_unique<xtd::bounded_channel<int, 1024>>();
-
+        const auto bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
         run_push_read_benchmark(
             bench,
-            "single-thread / bounded_channel / push / read",
+            "single-thread / bounded_channel",
             true,
             bounded_channel->writer(),
             bounded_channel->reader());
     }
 
     {
-        const auto unbounded_channel =
-            std::make_unique<xtd::unbounded_channel<int>>();
-
+        const auto unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
         run_push_read_benchmark(
             bench,
-            "single-thread / unbounded_channel / push / read",
+            "single-thread / unbounded_channel",
             true,
             unbounded_channel->writer(),
             unbounded_channel->reader());
     }
 
     {
-        const auto bounded_channel =
-            std::make_unique<xtd::bounded_channel<int, 1024>>();
+        const auto bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
 
         run_push_read_benchmark(
             bench,
-            "multi-thread / bounded_channel / push / read",
+            "multi-thread / bounded_channel",
             false,
             bounded_channel->writer(),
             bounded_channel->reader());
     }
 
     {
-        const auto unbounded_channel =
-            std::make_unique<xtd::unbounded_channel<int>>();
-
+        const auto unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
         run_push_read_benchmark(
             bench,
-            "multi-thread / unbounded_channel / push / read",
+            "multi-thread / unbounded_channel",
             false,
             unbounded_channel->writer(),
             unbounded_channel->reader());

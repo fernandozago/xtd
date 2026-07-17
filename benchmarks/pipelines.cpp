@@ -106,7 +106,7 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
     reader_task.get();
 
     assert(total_bytes_read == total_bytes_written);
-    std::print("| Total Bytes Written: {} ({:.2f} GiB)\n", total_bytes_written, bytes_to_gib(total_bytes_written));
+    std::println("| Total Bytes Written: {} ({:.2f} GiB)", total_bytes_written, bytes_to_gib(total_bytes_written));
 }
 
 int main()
