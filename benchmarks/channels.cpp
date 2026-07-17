@@ -28,11 +28,19 @@ void run_push_read_benchmark(
 {
     std::atomic<std::size_t> total_messages_received = 0;
 
-    std::future<void> reader_task;
+    std::future<void> reader_task[2];
 
     if (!single_thread)
     {
-        reader_task = std::async(
+        reader_task[0] = std::async(
+            std::launch::async,
+            [&reader, &total_messages_received]
+            {
+                while (const auto read = reader.read())
+                    ++total_messages_received;
+            });
+        
+        reader_task[1] = std::async(
             std::launch::async,
             [&reader, &total_messages_received]
             {
@@ -66,9 +74,10 @@ void run_push_read_benchmark(
 
     writer.complete();
 
-    if (reader_task.valid())
+    for (auto& task : reader_task)
     {
-        reader_task.get();
+        if (task.valid())
+            task.get();
     }
 
     assert(total_messages_enqueued == total_messages_received);

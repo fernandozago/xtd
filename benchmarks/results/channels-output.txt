@@ -12,14 +12,14 @@ Recommendations
 
 |          ns/message |           message/s |    err% |     ins/message |     cyc/message |    IPC |    bra/message |   miss% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------------:|----------------:|-------:|---------------:|--------:|----------:|:------------------------
-|               21.94 |       45,579,497.05 |    0.4% |          274.00 |           31.81 |  8.614 |          69.00 |    0.0% |      5.43 | `single-thread / bounded_channel`
-|               23.90 |       41,833,257.45 |    0.3% |          244.27 |           34.64 |  7.051 |          63.24 |    0.0% |      5.45 | `single-thread / unbounded_channel`
-|              199.95 |        5,001,369.60 |    2.5% |          156.34 |          177.44 |  0.881 |          38.23 |    1.1% |      5.39 | `multi-thread / bounded_channel`
-|              209.34 |        4,777,007.90 |    0.6% |          143.79 |          179.87 |  0.799 |          38.38 |    1.3% |      5.43 | `multi-thread / unbounded_channel`
+|               21.05 |       47,502,094.54 |    0.8% |          274.00 |           29.93 |  9.153 |          69.00 |    0.0% |      5.43 | `single-thread / bounded_channel`
+|               22.54 |       44,374,418.88 |    1.5% |          244.27 |           33.10 |  7.380 |          63.24 |    0.0% |      5.42 | `single-thread / unbounded_channel`
+|              188.44 |        5,306,726.82 |    1.6% |          162.21 |          117.31 |  1.383 |          38.26 |    0.7% |      5.43 | `multi-thread / bounded_channel`
+|              196.48 |        5,089,556.83 |    1.3% |          152.91 |          136.45 |  1.121 |          38.77 |    0.9% |      5.40 | `multi-thread / unbounded_channel`
 
 | Total Messages Enqueued | xtd::channel throughput 
 |------------------------:|:-------------------------
-|             248,386,185 | `single-thread / bounded_channel`
-|             228,463,143 | `single-thread / unbounded_channel`
-|              26,990,686 | `multi-thread / bounded_channel`
-|              25,990,888 | `multi-thread / unbounded_channel`
+|             258,293,012 | `single-thread / bounded_channel`
+|             240,916,971 | `single-thread / unbounded_channel`
+|              29,138,695 | `multi-thread / bounded_channel`
+|              27,703,363 | `multi-thread / unbounded_channel`
