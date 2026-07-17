@@ -6,7 +6,6 @@
 #include <cassert>
 #include <chrono>
 #include <cstddef>
-#include <fstream>
 #include <future>
 #include <memory>
 #include <random>
@@ -119,7 +118,8 @@ int main()
         2 * bytes_per_kib,
         4 * bytes_per_kib,
         8 * bytes_per_kib,
-        16 * bytes_per_kib
+        16 * bytes_per_kib,
+        32 * bytes_per_kib
     };
 
     ankerl::nanobench::Bench bench;
@@ -129,8 +129,8 @@ int main()
         .timeUnit(1ms, "ms")
         .epochs(20)
         .warmup(10)
-        .minEpochTime(100ms)
-        .maxEpochTime(1s)
+        .minEpochTime(250ms)
+        .maxEpochTime(2s)
         .performanceCounters(true)
         .unit("GiB");
 
@@ -139,15 +139,10 @@ int main()
         benchmark_writer_throughput(bench, write_chunk_size);
     }
 
-    std::ofstream output(
-        "./benchmarks/results/pipelines.json",
-        std::ios::out | std::ios::trunc);
-
-    assert(output.is_open());
-
-    bench.render(
-        ankerl::nanobench::templates::json(),
-        output);
+    // Uncomment for detailed JSON output
+    // std::ofstream output("./benchmarks/results/pipelines.json", std::ios::out | std::ios::trunc);
+    // assert(output.is_open());
+    // bench.render(ankerl::nanobench::templates::json(), output);
 
     std::println();
     std::println("|    Total Transfered | xtd::pipeline throughput ");

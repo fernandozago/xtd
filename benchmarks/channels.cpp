@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <future>
 #include <memory>
 #include <print>
@@ -87,8 +86,8 @@ int main()
         .unit("message")
         .epochs(20)
         .warmup(10)
-        .minEpochTime(100ms)
-        .maxEpochTime(1s)
+        .minEpochTime(250ms)
+        .maxEpochTime(2s)
         .performanceCounters(true)
         .batch(1);
 
@@ -133,15 +132,10 @@ int main()
             unbounded_channel->reader());
     }
 
-    std::ofstream output(
-        "./benchmarks/results/channels.json",
-        std::ios::out | std::ios::trunc);
-
-    assert(output.is_open());
-
-    bench.render(
-        ankerl::nanobench::templates::json(),
-        output);
+    // Uncomment for detailed JSON output
+    // std::ofstream output("./benchmarks/results/channels.json", std::ios::out | std::ios::trunc);
+    // assert(output.is_open());
+    // bench.render(ankerl::nanobench::templates::json(), output);
 
     std::println();
     std::println("| Total Messages Enqueued | xtd::channel throughput ");
