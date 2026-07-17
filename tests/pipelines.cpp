@@ -1,7 +1,7 @@
-#include <cstddef>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
+#include <cstddef>
 #include <chrono>
 #include <cstring>
 #include <cstdint>
@@ -16,11 +16,11 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <print>
 #include "pipeline/data_segment.h"
 #include "pipeline/position.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
+#include "tests/test_data_trivially_copyable.h"
 
 
 namespace xtd {
@@ -39,194 +39,6 @@ public:
     }
 };
 }
-
-struct test_data_trivially_copyable
-{
-    enum class status : std::uint8_t
-    {
-        sure,
-        that,
-        it,
-        can, 
-        have, 
-        multiple,
-        and_any,
-        values
-    };
-
-    struct nested_data
-    {
-        std::int32_t value = 0;
-        double ratio = 0.0;
-
-        void member_function() {}
-    };
-
-    union trivial_union
-    {
-        std::uint64_t integer;
-        double floating;
-
-        constexpr trivial_union() : integer(0) {}
-    };
-
-    // Boolean and character types
-    bool booleanValue = false;
-    char charValue = '\0';
-    signed char signedCharValue = 0;
-    unsigned char unsignedCharValue = 0;
-    wchar_t wideCharValue = L'\0';
-    char8_t utf8CharValue = u8'\0';
-    char16_t utf16CharValue = u'\0';
-    char32_t utf32CharValue = U'\0';
-    std::byte byteValue{};
-
-    // Integer types
-    short shortValue = 0;
-    unsigned short unsignedShortValue = 0;
-
-    int intValue = 0;
-    unsigned int unsignedIntValue = 0;
-
-    long longValue = 0;
-    unsigned long unsignedLongValue = 0;
-
-    long long longLongValue = 0;
-    unsigned long long unsignedLongLongValue = 0;
-
-    // Fixed-width integers
-    std::int8_t int8Value = 0;
-    std::uint8_t uint8Value = 0;
-    std::int16_t int16Value = 0;
-    std::uint16_t uint16Value = 0;
-    std::int32_t int32Value = 0;
-    std::uint32_t uint32Value = 0;
-    std::int64_t int64Value = 0;
-    std::uint64_t uint64Value = 0;
-
-    // Floating-point types
-    float floatValue = 0.0F;
-    double doubleValue = 0.0;
-    long double longDoubleValue = 0.0L;
-
-    // Enumeration
-    status statusValue = status::and_any;
-
-    // Nested trivially copyable object
-    nested_data nested{};
-
-    // Arrays
-    int rawArray[8]{};
-    std::array<std::uint64_t, 8> standardArray{};
-
-    // Union
-    trivial_union unionValue{};
-
-    // Arbitrary raw payload
-    std::array<std::byte, 512> rawData{};
-
-    [[nodiscard]]
-    bool operator==(const test_data_trivially_copyable& other) const noexcept
-    {
-        return std::memcmp(this, &other, sizeof(*this)) == 0;
-    }
-
-    [[nodiscard]]
-    bool operator!=(const test_data_trivially_copyable& other) const noexcept
-    {
-        return !(*this == other);
-    }
-
-    void print() const
-    {
-        std::println(
-            "test_data_trivially_copyable "
-            "[sizeof = {} bytes] "
-            "[booleanValue = {}] "
-            "[charValue = {}] "
-            "[signedCharValue = {}] "
-            "[unsignedCharValue = {}] "
-            "[wideCharValue = {}] "
-            "[utf8CharValue = {}] "
-            "[utf16CharValue = {}] "
-            "[utf32CharValue = {}] "
-            "[byteValue = {:#04x}] "
-            "[shortValue = {}] "
-            "[unsignedShortValue = {}] "
-            "[intValue = {}] "
-            "[unsignedIntValue = {}] "
-            "[longValue = {}] "
-            "[unsignedLongValue = {}] "
-            "[longLongValue = {}] "
-            "[unsignedLongLongValue = {}] "
-            "[int8Value = {}] "
-            "[uint8Value = {}] "
-            "[int16Value = {}] "
-            "[uint16Value = {}] "
-            "[int32Value = {}] "
-            "[uint32Value = {}] "
-            "[int64Value = {}] "
-            "[uint64Value = {}] "
-            "[floatValue = {}] "
-            "[doubleValue = {}] "
-            "[longDoubleValue = {}] "
-            "[statusValue = {}] "
-            "[nested.value = {}] "
-            "[nested.ratio = {}] "
-            "[unionValue.integer = {}] "
-            "[rawArray = {} elements, {} bytes] "
-            "[standardArray = {} elements, {} bytes] "
-            "[rawData = {} bytes]",
-            sizeof(*this),
-
-            booleanValue,
-            static_cast<int>(charValue),
-            static_cast<int>(signedCharValue),
-            static_cast<unsigned int>(unsignedCharValue),
-            static_cast<std::uint32_t>(wideCharValue),
-            static_cast<std::uint32_t>(utf8CharValue),
-            static_cast<std::uint32_t>(utf16CharValue),
-            static_cast<std::uint32_t>(utf32CharValue),
-            std::to_integer<unsigned int>(byteValue),
-
-            shortValue,
-            unsignedShortValue,
-            intValue,
-            unsignedIntValue,
-            longValue,
-            unsignedLongValue,
-            longLongValue,
-            unsignedLongLongValue,
-
-            static_cast<int>(int8Value),
-            static_cast<unsigned int>(uint8Value),
-            int16Value,
-            uint16Value,
-            int32Value,
-            uint32Value,
-            int64Value,
-            uint64Value,
-
-            floatValue,
-            doubleValue,
-            longDoubleValue,
-
-            static_cast<std::uint32_t>(statusValue),
-            nested.value,
-            nested.ratio,
-            unionValue.integer,
-
-            std::size(rawArray),
-            sizeof(rawArray),
-            standardArray.size(),
-            sizeof(standardArray),
-            rawData.size());
-    }
-};
-
-static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable>);
-static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::nested_data>);
-static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::trivial_union>);
 
 std::size_t readCurrentRssKb()
 {
@@ -250,15 +62,6 @@ std::size_t readCurrentRssKb()
 
     throw std::runtime_error("VmRSS not found in /proc/self/status");
 }
-
-
-// ---------------------------------------------------------------------------
-// pipeline: segmented_byte_view integration tests
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// pipeline: multiple lines
-// ---------------------------------------------------------------------------
 
 TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
 {
@@ -350,10 +153,6 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
     CHECK(readCount == 7);
 }
 
-// ---------------------------------------------------------------------------
-// pipeline: completion
-// ---------------------------------------------------------------------------
-
 TEST_CASE("pipeline: isCompleted set only after all data is consumed")
 {
     xtd::pipeline pipeline;
@@ -406,10 +205,6 @@ TEST_CASE("pipeline: message spans multiple buffers when exceeding buffer_size")
     reader.advance(buffer.end(), buffer.end());
 }
 
-// ---------------------------------------------------------------------------
-// pipe_options validation
-// ---------------------------------------------------------------------------
-
 TEST_CASE("pipe_options: rejects invalid thresholds")
 {
     CHECK_THROWS_AS(
@@ -431,10 +226,6 @@ TEST_CASE("pipe_options: rejects zero buffer size")
         std::invalid_argument
     );
 }
-
-// ---------------------------------------------------------------------------
-// Writer validation
-// ---------------------------------------------------------------------------
 
 TEST_CASE("Writer: rejects null data when length is non-zero")
 {
@@ -497,10 +288,6 @@ TEST_CASE("Writer: templated write with std::array<T, N>")
     reader.advance(buffer.end(), buffer.end());
     reader.complete();
 }
-
-// ---------------------------------------------------------------------------
-// Reader protocol validation
-// ---------------------------------------------------------------------------
 
 TEST_CASE("Reader: advance without pending read throws")
 {
@@ -646,10 +433,6 @@ TEST_CASE("segmented_byte_view: position arithmetic beyond end is rejected by sl
     reader.complete();
 }
 
-// ---------------------------------------------------------------------------
-// pipeline: segmented_byte_view slicing and segmentation
-// ---------------------------------------------------------------------------
-
 TEST_CASE("segmented_byte_view: slice can span multiple segments")
 {
     xtd::pipeline pipeline(xtd::pipe_options{
@@ -703,9 +486,6 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
     reader.advance(buffer.end());
 }
 
-// ---------------------------------------------------------------------------
-// Unconsumed data / examined behavior
-// ---------------------------------------------------------------------------
 TEST_CASE("pipeline: Unconsumed data / examined behavior")
 {
     xtd::pipeline pipeline;
@@ -844,10 +624,6 @@ TEST_CASE("pipeline: read does not block when data arrives between read and adva
     CHECK(done.completed());
     reader.advance(doneBuffer.begin(), doneBuffer.end());
 }
-
-// ---------------------------------------------------------------------------
-// Binary data
-// ---------------------------------------------------------------------------
 
 TEST_CASE("pipeline: supports binary data containing null bytes")
 {
@@ -996,9 +772,6 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
     CHECK(actual == expected);
 }
 
-// ---------------------------------------------------------------------------
-// Completion behavior
-// ---------------------------------------------------------------------------
 TEST_CASE("pipeline: completed read can still contain buffered data")
 {
     xtd::pipeline pipeline;
@@ -1104,90 +877,17 @@ TEST_CASE("Reader: advance after complete throws")
     );
 }
 
-TEST_CASE("Use /dev/urandom as stream source to test trivially copyable struct serialization and deserialization")
-{
-    constexpr std::size_t expected_count = 100;
-    std::vector<test_data_trivially_copyable> expected_values;
-
-    xtd::pipeline pipeline;
-    auto producer = std::async(
-        std::launch::async,
-        [&pipeline, &expected_values]
-        {
-            std::ifstream random("/dev/urandom", std::ios::binary);
-            
-            REQUIRE(random.is_open());
-            
-            std::size_t written_count = 0;
-            test_data_trivially_copyable mydata;
-            xtd::pipe_writer& writer = pipeline.writer();
-            while (written_count < expected_count)
-            {
-                random.read(reinterpret_cast<char*>(&mydata), static_cast<std::streamsize>(sizeof(mydata)));
-                const auto bytes_read = static_cast<std::size_t>(random.gcount());
-
-                if (bytes_read < sizeof(mydata)) {
-                    random.clear();
-                    continue;
-                }
-
-                // Ensure that the booleanValue is consistent with the unsignedIntValue for testing purposes
-                // This is important because the random data from /dev/urandom may not have a valid booleanValue
-                // So we set it based on the unsignedIntValue.
-                mydata.booleanValue = mydata.unsignedIntValue % 2 == 0;
-                
-                // Ensure that the statusValue is within the valid range of the enum
-                mydata.statusValue = static_cast<test_data_trivially_copyable::status>(mydata.unsignedIntValue % 3);
-
-                expected_values.push_back(mydata);
-                
-                const auto written = writer.write(mydata);
-                REQUIRE(written == sizeof(mydata));
-                ++written_count;
-            }
-
-            writer.complete();
-            return written_count;
-        });
-
-    xtd::pipe_reader& reader = pipeline.reader();
-
-    std::size_t received_count = 0;
-    test_data_trivially_copyable mydata;
-    while (const xtd::read_result result = reader.read())
-    {
-        xtd::segmented_byte_view buffer = result.buffer();
-
-        while (buffer.size() >= sizeof(mydata))
-        {
-            REQUIRE(received_count < expected_values.size());
-            REQUIRE(buffer.copy_to(mydata));
-            CHECK(mydata == expected_values[received_count]);
-            //mydata.print();
-
-            buffer = buffer.slice(sizeof(mydata), buffer.end());
-            ++received_count;
-        }
-
-        reader.advance(buffer);
-
-        if (result.completed()) {
-            break;
-        }
-    }
-
-    const auto written_count = producer.get();
-
-    reader.complete();
-
-    CHECK(written_count == expected_count);
-    CHECK(received_count == expected_count);
+TEST_CASE("Use /dev/urandom as stream source to test trivially copyable struct serialization and deserialization") {
+    std::ifstream random("/dev/urandom", std::ios::binary);
+    REQUIRE(random.is_open());
+    test_data_trivially_copyable::test(random);   
 }
 
-// ---------------------------------------------------------------------------
-// File writer utility
-// ---------------------------------------------------------------------------
-
+TEST_CASE("Use /dev/zero as stream source to test trivially copyable struct serialization and deserialization") {
+    std::ifstream zero("/dev/zero", std::ios::binary);
+    REQUIRE(zero.is_open());
+    test_data_trivially_copyable::test(zero);
+}
 
 TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and completes")
 {
@@ -1268,9 +968,6 @@ TEST_CASE("Utility: threaded_copy_file_from_path rejects invalid path")
         std::runtime_error
     );
 }
-// ---------------------------------------------------------------------------
-// Additional coverage worth keeping
-// ---------------------------------------------------------------------------
 
 TEST_CASE("pipeline: examined-all without consuming should never unblock the writer to avoid unbounded growth of the buffer")
 {
@@ -1394,10 +1091,6 @@ TEST_CASE("Writer: null data with zero length is a no-op")
     reader.advance(buffer.end(), buffer.end());
     reader.complete();
 }
-
-// ---------------------------------------------------------------------------
-// write / segment reuse behaviour
-// ---------------------------------------------------------------------------
 
 TEST_CASE("Writer: write before advance appends into the same segment when space is available")
 {
@@ -1782,10 +1475,6 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
     CHECK(rssAfterKb <= rssBeforeKb + allowedGrowthKb);
 }
 
-// ---------------------------------------------------------------------------
-// pipeline: segmented_byte_view serialization and large data
-// ---------------------------------------------------------------------------
-
 TEST_CASE("pipeline: Feeds it self for 8GB of data")
 {
     const auto startedAt = std::chrono::steady_clock::now();
@@ -1904,10 +1593,6 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
     reader.complete();
 }
 
-
-// ---------------------------------------------------------------------------
-// data_segment
-// ---------------------------------------------------------------------------
 
 TEST_CASE("data_segment: starts empty with full writable capacity")
 {
@@ -2037,11 +1722,6 @@ TEST_CASE("data_segment: move operations transfer readable state")
     CHECK(readable[1] == std::byte{'2'});
     CHECK(readable[2] == std::byte{'3'});
 }
-
-
-// ---------------------------------------------------------------------------
-// segmented_byte_view: Comprehensive Standalone Test Suite
-// ---------------------------------------------------------------------------
 
 TEST_CASE("segmented_byte_view: Construction with segments from test helper")
 {
@@ -2477,10 +2157,6 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice1) == 5);
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice2) == 10);
 }
-
-// ---------------------------------------------------------------------------
-// pipeline.md documentation contract tests
-// ---------------------------------------------------------------------------
 
 TEST_CASE("pipeline docs example A: minimal text pipeline")
 {
