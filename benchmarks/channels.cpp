@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <memory>
 #include <print>
+#include <cassert>
+#include <future>
 
 #include "channel/bounded_channel.h"
 #include "channel/unbounded_channel.h"
@@ -12,64 +14,105 @@
 
 using namespace std::chrono_literals;
 
-void run_push_read_benchmark(std::string name, xtd::channel_writer<int>& writer, xtd::channel_reader<int>& reader)
+void run_push_read_benchmark(std::string&& name, bool single_thread, xtd::channel_writer<int>& writer, xtd::channel_reader<int>& reader)
 {
-    std::uint64_t total_messages_transferred = 0;
+    std::atomic<std::size_t> total_messages_received = 0;
     
+    std::future<void> reader_task[2];
+
+    if (!single_thread) {
+        reader_task[0] = std::async(
+            std::launch::async,
+            [&reader, &total_messages_received] {
+                while (const auto value = reader.read()) {
+                    ++total_messages_received;
+                    ankerl::nanobench::doNotOptimizeAway(*value);
+                }
+            });
+        reader_task[1] = std::async(
+            std::launch::async,
+            [&reader, &total_messages_received] {
+                while (const auto value = reader.read()) {
+                    ++total_messages_received;
+                    ankerl::nanobench::doNotOptimizeAway(*value);
+                }
+            });
+    }
+    
+    std::uint64_t total_messages_enqueued = 0;
     ankerl::nanobench::Bench bench;
     bench
-        .title("single-thread channel push/read")
+        .title("channel push/read")
         .unit("message").batch(1) // One message transferred per benchmark invocation.
-        .epochs(21)
-        .warmup(2)
-        .minEpochTime(2s).maxEpochTime(5s)
+        .epochs(25)
+        .warmup(0)
+        .minEpochTime(1s).maxEpochTime(2s)
         .performanceCounters(true)
         .run(name, 
-            [&writer, &reader, &total_messages_transferred] {
-                if (writer.push(0)) {
+            [&writer, &single_thread, &reader, &total_messages_enqueued, &total_messages_received]() {
+                auto result = writer.push(0);
+                if (!result) { std::abort(); }
+                total_messages_enqueued += 1;
+                ankerl::nanobench::doNotOptimizeAway(result);
+
+                if (single_thread) {
+                    // In single-threaded mode, we must read the value back to avoid deadlock.
                     if (auto value = reader.read()) {
-                        total_messages_transferred += 1;
+                        total_messages_received += 1;
                         ankerl::nanobench::doNotOptimizeAway(*value);
-                        return;
                     }
                 }
-
-                // If we reach this point
-                // Stop the benchmark
-                std::abort();
             });
 
-    std::println("| | | | | **Total messages transferred: {}**", total_messages_transferred);
+    writer.complete();
+    if (reader_task[0].valid()) {
+        reader_task[0].get();
+    }
+    if (reader_task[1].valid()) {
+        reader_task[1].get();
+    }
+    assert(total_messages_enqueued == total_messages_received);
+    std::println("| | | | | **Total messages transferred: {}**", total_messages_enqueued);
 }
 
 int main()
 {
     print_machine_spec();
+   
+    {
+        std::unique_ptr<xtd::bounded_channel<int, 1024>> bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
+        run_push_read_benchmark(
+            "single-thread / bounded_channel / push / read",
+            true,
+            bounded_channel->writer(),
+            bounded_channel->reader());
+    }
 
-    xtd::bounded_channel<int, 32> bounded_stack_allocated;
-    xtd::unbounded_channel<int> unbounded_stack_allocated;
-    std::unique_ptr<xtd::bounded_channel<int, 32>> bounded_heap_allocated = std::make_unique<xtd::bounded_channel<int, 32>>();
-    std::unique_ptr<xtd::unbounded_channel<int>> unbounded_heap_allocated = std::make_unique<xtd::unbounded_channel<int>>();
+    {
+        std::unique_ptr<xtd::unbounded_channel<int>> unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
+        run_push_read_benchmark(
+            "single-thread / unbounded_channel / push / read",
+            true,
+            unbounded_channel->writer(),
+            unbounded_channel->reader());
+    }
 
-    run_push_read_benchmark(
-        "(STACK OBJECT, INLINE STORAGE) bounded_channel / push / read",
-        bounded_stack_allocated.writer(),
-        bounded_stack_allocated.reader());
+    {
+        std::unique_ptr<xtd::bounded_channel<int, 1024>> bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
+        run_push_read_benchmark(
+            "multi-thread / bounded_channel / push / read",
+            false,
+            bounded_channel->writer(),
+            bounded_channel->reader());
+    }
 
-    run_push_read_benchmark(
-        "(HEAP OBJECT, INLINE STORAGE) bounded_channel / push / read",
-        bounded_heap_allocated->writer(),
-        bounded_heap_allocated->reader());
-
-    run_push_read_benchmark(
-        "(STACK OBJECT, HEAP-BACKED DEQUE) unbounded_channel / push / read",
-        unbounded_stack_allocated.writer(),
-        unbounded_stack_allocated.reader());
-
-    run_push_read_benchmark(
-        "(HEAP OBJECT, HEAP-BACKED DEQUE) unbounded_channel / push / read",
-        unbounded_heap_allocated->writer(),
-        unbounded_heap_allocated->reader());
-
+    {
+        std::unique_ptr<xtd::unbounded_channel<int>> unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
+        run_push_read_benchmark(
+            "multi-thread / unbounded_channel / push / read",
+            false,
+            unbounded_channel->writer(),
+            unbounded_channel->reader());
+    }
     return 0;
 }

@@ -63,11 +63,10 @@ namespace xtd
 		// #Writer Operations
 		bool push(auto&& value, block_strategy unused) {
 			(void)unused; // unused parameter to satisfy interface
-			{
-				std::scoped_lock<std::mutex> lock(m_mutex);
-				if (m_completed) return false;
-				m_queue.emplace(std::forward<decltype(value)>(value));
-			}
+			std::unique_lock<std::mutex> lock(m_mutex);
+			if (m_completed) return false;
+			m_queue.emplace(std::forward<decltype(value)>(value));
+			lock.unlock();			
 			
 			m_not_empty.notify_one();
 			return true;
@@ -84,26 +83,22 @@ namespace xtd
 		// #End Writer Operations
 		
 		// #Reader Operations
-		std::optional<T> read(block_strategy strategy) {
-			std::optional<T> result;
+		std::optional<T> read(block_strategy strategy) 
+		{
+			std::unique_lock<std::mutex> lock(m_mutex);
+			if (strategy == block_strategy::WAIT && !m_completed && m_queue.empty()) {
+				m_not_empty.wait(lock, [this] {
+					return m_completed || !m_queue.empty();
+				});
+			} 
 			
-			{
-				std::unique_lock<std::mutex> lock(m_mutex);
-				
-				if (strategy == block_strategy::WAIT && !m_completed && m_queue.empty()) {
-					m_not_empty.wait(lock, [this] {
-						return m_completed || !m_queue.empty();
-					});
-				} 
-				
-				if (m_queue.empty()) {
-					return std::nullopt;
-				}
-				
-				result.emplace(std::move(m_queue.front()));
-				m_queue.pop();
+			if (m_queue.empty()) {
+				return std::nullopt;
 			}
 			
+			std::optional<T> result(std::move(m_queue.front()));
+			m_queue.pop();
+			lock.unlock();
 			return result;
 		}
 		

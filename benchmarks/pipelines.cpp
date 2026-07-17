@@ -8,8 +8,8 @@
 #include <cstddef>
 #include <memory>
 #include <string>
-#include <thread>
 #include <print>
+#include <future>
 
 // Required for 64-bit size_t assumption in benchmark code below.
 static_assert(sizeof(std::size_t) == 8, "Benchmark requires a 64-bit size_t");
@@ -29,22 +29,26 @@ void benchmark_writer_throughput(std::size_t write_chunk_size) {
     xtd::pipeline pipeline;
 
     std::size_t total_bytes_read = 0;
-    std::thread reader_thread{[&pipeline, &total_bytes_read]() {
-        xtd::pipe_reader& reader = pipeline.reader();
 
-        while (const xtd::read_result result = reader.read()) {
-            const xtd::segmented_byte_view buffer = result.buffer();
+    std::future<void> reader_task = std::async(
+        std::launch::async,
+        [&pipeline, &total_bytes_read]() {
+            xtd::pipe_reader& reader = pipeline.reader();
 
-            total_bytes_read += buffer.size();
-            reader.advance(buffer.end());
+            while (const xtd::read_result result = reader.read()) {
+                const xtd::segmented_byte_view buffer = result.buffer();
 
-            if (result.completed()) {
-                break;
+                total_bytes_read += buffer.size();
+                reader.advance(buffer.end());
+
+                if (result.completed()) {
+                    break;
+                }
             }
-        }
 
-        reader.complete();
-    }};
+            reader.complete();
+        });
+
 
     xtd::pipe_writer& writer = pipeline.writer();
 
@@ -57,7 +61,7 @@ void benchmark_writer_throughput(std::size_t write_chunk_size) {
         .timeUnit(1ms, "ms")
         .epochs(6)
         .warmup(0)
-        .minEpochTime(2s).maxEpochTime(5s)
+        .minEpochTime(1s).maxEpochTime(2s)
         .unit("GiB").batch(bytes_to_gib(write_chunk_size))
         .run(std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes", 
             [&writer, &total_bytes_write, write_chunk_size, &payload] {
@@ -65,7 +69,7 @@ void benchmark_writer_throughput(std::size_t write_chunk_size) {
             });
 
     writer.complete();
-    reader_thread.join();
+    reader_task.get();
 
     assert(total_bytes_read == total_bytes_write);
     std::println("| | | | | ** Total Bytes Transferred: {:.2f} GiB**", bytes_to_gib(total_bytes_write));
