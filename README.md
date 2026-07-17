@@ -30,15 +30,25 @@ Memory: 14.4626 GiB total
 
 ## Pipeline Benchmark
 
+**Machine spec:**
+```
+CPU model: Intel(R) Core(TM) i5-1035G7 CPU @ 1.20GHz
+CPU cores (physical/logical per socket): 4 / 8
+Memory: 14.4626 GiB total
+```
+
+> **Warning:** results might be unstable — CPU frequency scaling enabled (400–3700 MHz), turbo enabled.
+### multi-thread pipeline (one thread for reading / one thread for writing)
+
 |              ms/GiB |               GiB/s |    err% |     total | xtd::pipeline writer throughput
 |--------------------:|--------------------:|--------:|----------:|:--------------------------------
 |              244.15 |                4.10 |    0.9% |     13.29 | `1 KiB writes`
-| | | | | ** Total Bytes Transferred: 55.56 GiB**
+| | | | | **Total Bytes Transferred: 55.56 GiB**
 |              152.20 |                6.57 |    0.9% |     13.23 | `2 KiB writes`
-| | | | | ** Total Bytes Transferred: 88.71 GiB**
+| | | | | **Total Bytes Transferred: 88.71 GiB**
 |              103.34 |                9.68 |    0.7% |     12.90 | `4 KiB writes`
-| | | | | ** Total Bytes Transferred: 128.72 GiB**
+| | | | | **Total Bytes Transferred: 128.72 GiB**
 |               87.06 |               11.49 |    0.5% |     13.05 | `8 KiB writes`
-| | | | | ** Total Bytes Transferred: 157.13 GiB**
+| | | | | **Total Bytes Transferred: 157.13 GiB**
 |               79.21 |               12.62 |    0.8% |     13.10 | `16 KiB writes`
-| | | | | ** Total Bytes Transferred: 182.41 GiB**
+| | | | | **Total Bytes Transferred: 182.41 GiB**
