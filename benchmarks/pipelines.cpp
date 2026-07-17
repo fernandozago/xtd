@@ -1,7 +1,5 @@
 //#define ANKERL_NANOBENCH_LOG_ENABLED
 #define ANKERL_NANOBENCH_IMPLEMENT
-#include "third_party/nanobench.h"
-
 
 #include <algorithm>
 #include <cassert>
@@ -12,8 +10,11 @@
 #include <memory>
 #include <random>
 #include <string>
+#include <print>
+
 #include "pipeline/pipeline.h"
 #include "utils/utils.h"
+#include "third_party/nanobench.h"
 
 static_assert(
     sizeof(std::size_t) == 8,
@@ -105,6 +106,7 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
     reader_task.get();
 
     assert(total_bytes_read == total_bytes_written);
+    std::print("| Total Bytes Written: {} ({:.2f} GiB)\n", total_bytes_written, bytes_to_gib(total_bytes_written));
 }
 
 int main()

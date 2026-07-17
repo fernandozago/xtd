@@ -1,9 +1,4 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
-#include "third_party/nanobench.h"
-
-#include "channel/bounded_channel.h"
-#include "channel/unbounded_channel.h"
-#include "utils/utils.h"
 
 #include <atomic>
 #include <cassert>
@@ -14,6 +9,12 @@
 #include <fstream>
 #include <future>
 #include <memory>
+#include <print>
+
+#include "third_party/nanobench.h"
+#include "channel/bounded_channel.h"
+#include "channel/unbounded_channel.h"
+#include "utils/utils.h"
 
 using namespace std::chrono_literals;
 
@@ -70,6 +71,7 @@ void run_push_read_benchmark(
     }
 
     assert(total_messages_enqueued == total_messages_received.load());
+    std::println("| Total Messages Enqueued: {}", total_messages_enqueued);
 }
 
 int main()
