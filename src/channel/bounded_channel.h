@@ -55,7 +55,7 @@ namespace xtd
 
 		mutable std::mutex m_mutex;
 		mutable std::condition_variable m_not_full;
-		std::condition_variable m_not_empty;
+		mutable std::condition_variable m_not_empty;
 
 		std::size_t m_head = 0;
 		std::size_t m_tail = 0;
