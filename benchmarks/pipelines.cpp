@@ -124,10 +124,10 @@ int main()
     bench
         .title("xtd::pipeline throughput")
         .timeUnit(1ms, "ms")
-        .epochs(15)
-        .warmup(100)
-        .minEpochTime(250ms)
-        .maxEpochTime(750ms)
+        .epochs(20)
+        .warmup(10)
+        .minEpochTime(100ms)
+        .maxEpochTime(1s)
         .performanceCounters(true)
         .unit("GiB");
 

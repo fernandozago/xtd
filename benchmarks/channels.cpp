@@ -81,10 +81,10 @@ int main()
     bench
         .title("xtd::channel push/read throughput")
         .unit("message")
-        .epochs(21)
-        .warmup(10'000)
+        .epochs(20)
+        .warmup(10)
         .minEpochTime(100ms)
-        .maxEpochTime(500ms)
+        .maxEpochTime(1s)
         .performanceCounters(true)
         .batch(1);
 
