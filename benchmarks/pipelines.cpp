@@ -10,6 +10,7 @@
 #include <string>
 #include <print>
 #include <future>
+#include <sys/random.h>
 
 // Required for 64-bit size_t assumption in benchmark code below.
 static_assert(sizeof(std::size_t) == 8, "Benchmark requires a 64-bit size_t");
@@ -55,21 +56,27 @@ void benchmark_writer_throughput(std::size_t write_chunk_size) {
     std::size_t total_bytes_write = 0;
     const auto payload = std::make_unique<std::byte[]>(write_chunk_size);
 
+    std::mt19937 generator{std::random_device{}()};
+    std::uniform_int_distribution<unsigned int> distribution{0, 255};
+
+    std::generate_n(payload.get(), write_chunk_size,
+        [&] {
+            return static_cast<std::byte>(distribution(generator));
+        });
+
     ankerl::nanobench::Bench bench;
     bench
         .title("xtd::pipeline writer throughput")
         .timeUnit(1ms, "ms")
         .epochs(15)
         .warmup(100)
-        .minEpochTime(100ms)
-        .maxEpochTime(500ms)
+        .minEpochTime(250ms)
+        .maxEpochTime(750ms)
         .unit("GiB")
         .batch(bytes_to_gib(write_chunk_size))
         .run(std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes",
             [&writer, &total_bytes_write, write_chunk_size, &payload] {
-                const auto bytes_written = writer.write(payload.get(), write_chunk_size);
-                total_bytes_write += bytes_written;
-                ankerl::nanobench::doNotOptimizeAway(bytes_written);
+                total_bytes_write += writer.write(payload.get(), write_chunk_size);
             });
 
     writer.complete();
