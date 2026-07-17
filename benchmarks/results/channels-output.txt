@@ -1,0 +1,18 @@
+Machine Spec:
+  CPU model: Intel(R) Core(TM) i5-1035G7 CPU @ 1.20GHz
+  CPU cores (physical/logical per socket): 4 / 8
+  Memory: 14.4625 GiB total
+
+Warning, results might be unstable:
+* CPU frequency scaling enabled: CPU 0 between 400.0 and 3,700.0 MHz
+* Turbo is enabled, CPU frequency will fluctuate
+
+Recommendations
+* Use 'pyperf system tune' before benchmarking. See https://github.com/psf/pyperf
+
+|          ns/message |           message/s |    err% |     ins/message |     cyc/message |    IPC |    bra/message |   miss% |     total | xtd::channel push/read throughput
+|--------------------:|--------------------:|--------:|----------------:|----------------:|-------:|---------------:|--------:|----------:|:----------------------------------
+|               20.43 |       48,959,517.91 |    0.7% |          274.00 |           30.08 |  9.110 |          69.00 |    0.0% |      2.28 | `single-thread / bounded_channel / push / read`
+|               22.21 |       45,025,224.96 |    0.4% |          244.27 |           32.99 |  7.404 |          63.24 |    0.0% |      2.31 | `single-thread / unbounded_channel / push / read`
+|              200.86 |        4,978,521.55 |    0.7% |          147.00 |          174.34 |  0.843 |          37.13 |    1.1% |      2.32 | `multi-thread / bounded_channel / push / read`
+|              190.62 |        5,246,035.65 |    0.5% |          137.76 |          176.75 |  0.779 |          37.61 |    1.2% |      2.29 | `multi-thread / unbounded_channel / push / read`
