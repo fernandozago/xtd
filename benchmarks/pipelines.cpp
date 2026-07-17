@@ -1,4 +1,5 @@
 //#define ANKERL_NANOBENCH_LOG_ENABLED
+#include <format>
 #define ANKERL_NANOBENCH_IMPLEMENT
 
 #include <algorithm>
@@ -32,6 +33,7 @@ static double bytes_to_gib(const std::size_t bytes)
            static_cast<double>(bytes_per_gib);
 }
 
+static std::vector<std::string> results;
 void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_size)
 {
     assert(write_chunk_size > 0);
@@ -86,12 +88,11 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
                 distribution(generator));
         });
 
+    std::string bench_name = std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes";
     bench
         .batch(bytes_to_gib(write_chunk_size))
         .run(
-            std::to_string(
-                write_chunk_size / bytes_per_kib) +
-                " KiB writes",
+            bench_name,
             [&writer,
              &total_bytes_written,
              write_chunk_size,
@@ -106,7 +107,7 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
     reader_task.get();
 
     assert(total_bytes_read == total_bytes_written);
-    std::println("| Total Bytes Written: {} ({:.2f} GiB)", total_bytes_written, bytes_to_gib(total_bytes_written));
+    results.push_back(std::format("| {:>20.2f} | {}", bytes_to_gib(total_bytes_written), bench_name));
 }
 
 int main()
@@ -147,6 +148,14 @@ int main()
     bench.render(
         ankerl::nanobench::templates::json(),
         output);
+
+    std::println();
+    std::println("| Total GiB Transfered | xtd::pipeline throughput ");
+    std::println("|---------------------:|:-------------------------");
+    for (const std::string& result : results)
+    {
+        std::println("{}", result);
+    }
 
     return 0;
 }
