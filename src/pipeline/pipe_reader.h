@@ -13,14 +13,6 @@ class pipeline;
 class pipe_reader
 {
 friend class pipeline;
-private:
-    pipeline& m_state;
-             
-    // Initializes a reader endpoint bound to a shared pipeline state.
-    // state: Shared pipeline state.
-    pipe_reader(pipeline& state) noexcept
-        : m_state(state) 
-    {}
 public:
     pipe_reader(const pipe_reader&) = delete;
     pipe_reader& operator=(const pipe_reader&) = delete;
@@ -51,6 +43,14 @@ public:
     // Completes the reader, clears buffered state, and wakes waiting writers/readers.
     void complete() noexcept;
 
+private:
+    pipeline& m_state;
+             
+    // Initializes a reader endpoint bound to a shared pipeline state.
+    // state: Shared pipeline state.
+    explicit pipe_reader(pipeline& state) noexcept
+        : m_state(state) 
+    {}
 };
 
 } // namespace xtd

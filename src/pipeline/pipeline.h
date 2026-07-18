@@ -28,6 +28,49 @@ struct pipe_options {
 
 class pipeline
 {
+public:
+    friend class pipe_reader;
+    friend class pipe_writer;
+
+    pipeline(const pipeline&) = delete;
+    pipeline& operator=(const pipeline&) = delete;
+    pipeline(pipeline&&) = delete;
+    pipeline& operator=(pipeline&&) = delete;
+
+    ~pipeline() {
+        complete_writer();
+        complete_reader();
+    }
+
+    // Initializes a pipeline with the provided options.
+    // options: pipeline buffering and backpressure options.
+    pipeline(pipe_options options = {})
+        : m_buffer_size(validate_buffer_size(options.buffer_size))
+        , m_pause_writer_threshold(validate_pause_threshold(options.pause_writer_threshold))
+        , m_resume_writer_threshold(validate_resume_threshold(options.resume_writer_threshold, m_pause_writer_threshold))
+        , m_data_segment_pool(
+            m_buffer_size,
+            calculate_max_pooled_segments(m_buffer_size, m_pause_writer_threshold)
+        )
+        , m_writer(*this)
+        , m_reader(*this)
+    {
+    }
+
+    // Gets the pipeline reader endpoint.
+    // Returns a reference to the reader.
+    [[nodiscard]]
+    pipe_reader& reader() noexcept {
+        return m_reader;
+    }
+
+    // Gets the pipeline writer endpoint.
+    // Returns a reference to the writer.
+    [[nodiscard]]
+    pipe_writer& writer() noexcept {
+        return m_writer;
+    }
+
 private:
     const std::size_t m_buffer_size;
     const std::size_t m_pause_writer_threshold;
@@ -301,49 +344,6 @@ private:
 
         m_space_available.notify_all();
         m_data_available.notify_all();
-    }
-
-public:
-    friend class pipe_reader;
-    friend class pipe_writer;
-
-    pipeline(const pipeline&) = delete;
-    pipeline& operator=(const pipeline&) = delete;
-    pipeline(pipeline&&) = delete;
-    pipeline& operator=(pipeline&&) = delete;
-
-    ~pipeline() {
-        complete_writer();
-        complete_reader();
-    }
-
-    // Initializes a pipeline with the provided options.
-    // options: pipeline buffering and backpressure options.
-    pipeline(pipe_options options = {})
-        : m_buffer_size(validate_buffer_size(options.buffer_size))
-        , m_pause_writer_threshold(validate_pause_threshold(options.pause_writer_threshold))
-        , m_resume_writer_threshold(validate_resume_threshold(options.resume_writer_threshold, m_pause_writer_threshold))
-        , m_data_segment_pool(
-            m_buffer_size,
-            calculate_max_pooled_segments(m_buffer_size, m_pause_writer_threshold)
-        )
-        , m_writer(*this)
-        , m_reader(*this)
-    {
-    }
-
-    // Gets the pipeline reader endpoint.
-    // Returns a reference to the reader.
-    [[nodiscard]]
-    pipe_reader& reader() noexcept {
-        return m_reader;
-    }
-
-    // Gets the pipeline writer endpoint.
-    // Returns a reference to the writer.
-    [[nodiscard]]
-    pipe_writer& writer() noexcept {
-        return m_writer;
     }
 };
 

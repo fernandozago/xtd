@@ -12,8 +12,6 @@ namespace xtd
 	class channel_reader
 	{
 	public:
-		virtual ~channel_reader() = default;
-
 		// Attempts to read one value without waiting for data.
 		//
 		// Returns:
@@ -44,9 +42,6 @@ namespace xtd
 		// Gets the current number of buffered items.
 		[[nodiscard]]
 		virtual std::size_t size() const = 0;
-
-	protected:
-		channel_reader() = default;
 	};
 
 
@@ -60,6 +55,7 @@ namespace xtd
 		{
 		}
 
+	protected:
 		[[nodiscard]]
 		std::optional<T> try_read() override {
 			return m_channel.read(block_strategy::TRY);

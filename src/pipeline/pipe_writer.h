@@ -14,12 +14,6 @@ class pipe_writer
 {
 friend class pipeline;
 
-private:
-    pipeline& m_state;
-    pipe_writer(pipeline& state)  noexcept
-        : m_state(state) 
-    {}
-
 public:
     pipe_writer(const pipe_writer&) = delete;
     pipe_writer& operator=(const pipe_writer&) = delete;
@@ -40,6 +34,12 @@ public:
 
     // Marks the writer as complete and wakes waiting readers.
     void complete() noexcept;
+
+private:
+    pipeline& m_state;
+    explicit pipe_writer(pipeline& state)  noexcept
+        : m_state(state) 
+    {}
 };
 
 } // namespace xtd

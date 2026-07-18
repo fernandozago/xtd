@@ -12,8 +12,6 @@ namespace xtd
     class channel_writer
     {
     public:
-        virtual ~channel_writer() = default;
-
         // Enqueues a copy.
         //
         // Returns false when the channel has been completed.
@@ -63,14 +61,6 @@ namespace xtd
         // Completes the channel for writing.
         virtual void complete() = 0;
 
-    protected:
-        channel_writer() = default;
-
-        channel_writer(const channel_writer&) = default;
-        channel_writer(channel_writer&&) = default;
-
-        channel_writer& operator=(const channel_writer&) = default;
-        channel_writer& operator=(channel_writer&&) = default;
     };
 
 
@@ -84,6 +74,7 @@ namespace xtd
         {
         }
 
+    protected:
         [[nodiscard]]
         bool push(const T& value) override {
             return m_channel.push(value, block_strategy::WAIT);

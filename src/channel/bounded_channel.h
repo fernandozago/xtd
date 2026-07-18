@@ -29,7 +29,7 @@ namespace xtd
 	public:
 		static_assert(capacity > 0, "bounded_channel capacity must be greater than zero" );
 
-		bounded_channel()
+		explicit bounded_channel()
 			: m_writer(*this)
 			, m_reader(*this)
 		{
@@ -103,7 +103,7 @@ namespace xtd
 		// #End Writer Operations
 		
 		// #Reader Operations
-		std::optional<T> read(block_strategy strategy) 
+		std::optional<T> read(const block_strategy strategy) 
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
 			if (strategy == block_strategy::WAIT && !m_completed && m_size == 0) {

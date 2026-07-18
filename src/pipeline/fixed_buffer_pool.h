@@ -9,37 +9,6 @@ namespace xtd
 
 class fixed_buffer_pool
 {
-private:
-    const std::size_t m_buffer_size;
-    const std::size_t m_max_pool_size;
-
-    std::byte** m_buffers;
-    std::size_t m_pool_size = 0;
-
-    [[nodiscard]]
-    std::byte* acquire()
-    {
-        if (m_pool_size == 0) {
-            return new std::byte[m_buffer_size];
-        }
-
-        return m_buffers[--m_pool_size];
-    }
-
-    void release(std::byte* const buffer) noexcept
-    {
-        if (buffer == nullptr) {
-            return;
-        }
-
-        if (m_pool_size >= m_max_pool_size) {
-            delete[] buffer;
-            return;
-        }
-
-        m_buffers[m_pool_size++] = buffer;
-    }
-
 public:
     struct fixed_buffer_ptr_deleter
     {
@@ -58,7 +27,7 @@ public:
         return fixed_buffer_ptr(acquire(), fixed_buffer_ptr_deleter{ .pool = this });
     }
 
-    fixed_buffer_pool(const std::size_t buffer_size, const std::size_t max_pool_size)
+    explicit fixed_buffer_pool(const std::size_t buffer_size, const std::size_t max_pool_size)
         : m_buffer_size(buffer_size)
         , m_max_pool_size(max_pool_size)
         , m_buffers(max_pool_size > 0 ? new std::byte*[max_pool_size] : nullptr)
@@ -89,6 +58,37 @@ public:
     std::size_t pool_size() const noexcept
     {
         return m_pool_size;
+    }
+
+private:
+    const std::size_t m_buffer_size;
+    const std::size_t m_max_pool_size;
+
+    std::byte** m_buffers;
+    std::size_t m_pool_size = 0;
+
+    [[nodiscard]]
+    std::byte* acquire()
+    {
+        if (m_pool_size == 0) {
+            return new std::byte[m_buffer_size];
+        }
+
+        return m_buffers[--m_pool_size];
+    }
+
+    void release(std::byte* const buffer) noexcept
+    {
+        if (buffer == nullptr) {
+            return;
+        }
+
+        if (m_pool_size >= m_max_pool_size) {
+            delete[] buffer;
+            return;
+        }
+
+        m_buffers[m_pool_size++] = buffer;
     }
 };
 

@@ -27,8 +27,7 @@ namespace xtd
 	class unbounded_channel
 	{
 	public:
-
-		unbounded_channel()
+		explicit unbounded_channel()
 			: m_writer(*this)
 			, m_reader(*this)
 		{
@@ -53,7 +52,7 @@ namespace xtd
 		friend class xtd::channel_reader_impl<T, unbounded_channel<T>>;
 
 		mutable std::mutex m_mutex;
-		std::condition_variable m_not_empty;
+		mutable std::condition_variable m_not_empty;
 		std::queue<T> m_queue;
 		
 		bool m_completed = false;
@@ -64,10 +63,11 @@ namespace xtd
 		bool push(auto&& value, block_strategy unused) {
 			(void)unused; // unused parameter to satisfy interface
 			std::unique_lock<std::mutex> lock(m_mutex);
+
 			if (m_completed) return false;
 			m_queue.emplace(std::forward<decltype(value)>(value));
+
 			lock.unlock();			
-			
 			m_not_empty.notify_one();
 			return true;
 		}
@@ -98,6 +98,7 @@ namespace xtd
 			
 			std::optional<T> result(std::move(m_queue.front()));
 			m_queue.pop();
+
 			lock.unlock();
 			return result;
 		}
