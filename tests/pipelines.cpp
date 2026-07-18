@@ -16,7 +16,9 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "pipeline/segmented_byte_view.h"
 #include "pipeline/data_segment.h"
+#include "pipeline/fixed_buffer_pool.h"
 #include "pipeline/position.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
@@ -1596,7 +1598,8 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
 
 TEST_CASE("data_segment: starts empty with full writable capacity")
 {
-    xtd::data_segment segment(8);
+    xtd::fixed_buffer_pool pool(8, 2);
+    xtd::data_segment segment(&pool);
 
     CHECK(segment.capacity() == 8);
     CHECK(segment.readable_size() == 0);
@@ -1608,7 +1611,8 @@ TEST_CASE("data_segment: starts empty with full writable capacity")
 
 TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 {
-    xtd::data_segment segment(5);
+    xtd::fixed_buffer_pool pool(5, 2);
+    xtd::data_segment segment(&pool);
     const std::array<std::byte, 7> source = {
         std::byte{'A'},
         std::byte{'B'},
@@ -1645,7 +1649,8 @@ TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 
 TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consume")
 {
-    xtd::data_segment segment(6);
+    xtd::fixed_buffer_pool pool(6, 2);
+    xtd::data_segment segment(&pool);
     const std::array<std::byte, 4> source = {
         std::byte{'x'},
         std::byte{'y'},
@@ -1668,31 +1673,41 @@ TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consum
     CHECK(segment.readable_bytes().empty());
 }
 
-TEST_CASE("data_segment: reset restores empty readable span and full writable span")
+TEST_CASE("data_segment returns buffers to the pool on destruction")
 {
-    xtd::data_segment segment(4);
-    const std::array<std::byte, 4> source = {
-        std::byte{0x01},
-        std::byte{0x02},
-        std::byte{0x03},
-        std::byte{0x04},
-    };
+    xtd::fixed_buffer_pool pool(1, 3);
 
-    REQUIRE(segment.copy_from(source.data(), source.size()) == source.size());
-    segment.advance(2);
+    CHECK(pool.pool_count() == 0);
 
-    segment.reset();
+    {
+        xtd::data_segment segment1(&pool);
+        CHECK(pool.pool_count() == 0);
+    }
 
-    CHECK(segment.capacity() == 4);
-    CHECK(segment.readable_size() == 0);
-    CHECK(segment.writable_size() == 4);
-    CHECK(segment.readable_bytes().empty());
-    CHECK_FALSE(segment.full());
+    CHECK(pool.pool_count() == 1);
+
+    {
+        xtd::data_segment segment2(&pool);
+        CHECK(pool.pool_count() == 0); // Reuses the pooled buffer.
+    }
+
+    CHECK(pool.pool_count() == 1);
+
+    {
+        xtd::data_segment segment1(&pool);
+        xtd::data_segment segment2(&pool);
+        xtd::data_segment segment3(&pool);
+
+        CHECK(pool.pool_count() == 0);
+    }
+
+    CHECK(pool.pool_count() == 3);
 }
 
 TEST_CASE("data_segment: move operations transfer readable state")
 {
-    xtd::data_segment source(5);
+    xtd::fixed_buffer_pool pool(5, 1);
+    xtd::data_segment source(&pool);
     const std::array<std::byte, 3> bytes = {
         std::byte{'1'},
         std::byte{'2'},

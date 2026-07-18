@@ -9,10 +9,9 @@
 #include <mutex>
 #include <span>
 #include <stdexcept>
-#include <utility>
 
 #include "data_segment.h"
-#include "data_segment_pool.h"
+#include "fixed_buffer_pool.h"
 #include "pipe_reader.h"
 #include "pipe_writer.h"
 #include "position.h"
@@ -33,8 +32,8 @@ private:
     const std::size_t m_buffer_size;
     const std::size_t m_pause_writer_threshold;
     const std::size_t m_resume_writer_threshold;
-    xtd::data_segment_pool m_data_segment_pool;
 
+    xtd::fixed_buffer_pool m_data_segment_pool;
     std::deque<data_segment> m_segments;
 
     mutable std::mutex m_mutex;
@@ -54,6 +53,20 @@ private:
 
     pipe_writer m_writer;
     pipe_reader m_reader;
+
+    [[nodiscard]]
+    static std::size_t calculate_max_pooled_segments(
+        const std::size_t buffer_size,
+        const std::size_t pause_writer_threshold) noexcept
+    {
+        assert(buffer_size > 0);
+
+        const std::size_t segments_for_threshold =
+            pause_writer_threshold / buffer_size +
+            (pause_writer_threshold % buffer_size != 0);
+
+        return segments_for_threshold + 1;
+    }
 
     inline static void runtime_assert(bool condition, const char* message) {
         if (!condition) {
@@ -149,8 +162,7 @@ private:
                 break;
             }
 
-            // Return the fully consumed segment to the pool and remove it from the deque.
-            m_data_segment_pool.return_segment(std::move(head));
+            // The entire head segment has been consumed, so remove it from the pipeline.
             m_segments.pop_front();
 
             remaining_consumed -= readable_size;
@@ -191,7 +203,7 @@ private:
 
     inline data_segment& get_segment() {
         if (m_segments.empty() || m_segments.back().full()) {
-            m_segments.push_back(m_data_segment_pool.rent_segment());
+            m_segments.emplace_back(&m_data_segment_pool);
         }
         return m_segments.back();
     }
@@ -311,7 +323,10 @@ public:
         : m_buffer_size(validate_buffer_size(options.buffer_size))
         , m_pause_writer_threshold(validate_pause_threshold(options.pause_writer_threshold))
         , m_resume_writer_threshold(validate_resume_threshold(options.resume_writer_threshold, m_pause_writer_threshold))
-        , m_data_segment_pool(m_buffer_size, m_pause_writer_threshold)
+        , m_data_segment_pool(
+            m_buffer_size,
+            calculate_max_pooled_segments(m_buffer_size, m_pause_writer_threshold)
+        )
         , m_writer(*this)
         , m_reader(*this)
     {

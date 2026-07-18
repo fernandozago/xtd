@@ -2,12 +2,11 @@
 #define PIPELINE_DATA_SEGMENT_H
 
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
-#include <memory>
 #include <span>
 #include <stdexcept>
-#include <utility>
-#include <cassert>
+#include "fixed_buffer_pool.h"
 
 namespace xtd
 {
@@ -15,37 +14,34 @@ namespace xtd
 struct data_segment
 {
 private:
+    fixed_buffer_pool::fixed_buffer_ptr m_buffer;
     const std::size_t m_capacity;
-    std::unique_ptr<std::byte[]> m_buffer;
+
     std::span<std::byte> m_writable_span;
     std::span<const std::byte> m_readable_span;
 
 public:
-    explicit data_segment(std::size_t capacity)
-        : m_capacity(capacity)
-        , m_buffer(std::make_unique<std::byte[]>(capacity))
-        , m_writable_span(m_buffer.get(), capacity)
+    explicit data_segment(fixed_buffer_pool* const resource)
+        : m_buffer(resource->allocate_buffer())
+        , m_capacity(resource->buffer_size())
+        , m_writable_span(m_buffer.get(), m_capacity)
         , m_readable_span(m_buffer.get(), std::size_t{0})
     {
     }
 
     data_segment(data_segment&& other) noexcept
-        : m_capacity(other.m_capacity)
-        , m_buffer(std::move(other.m_buffer))
+        : m_buffer(std::move(other.m_buffer))
+        , m_capacity(other.m_capacity)
         , m_writable_span(other.m_writable_span)
         , m_readable_span(other.m_readable_span)
     {
-        assert(m_capacity == other.m_capacity);
-        assert(m_buffer != nullptr);
-
-        // Resets the other instance's spans to empty, as the buffer has been moved.
         other.m_writable_span = {};
         other.m_readable_span = {};
     }
 
     data_segment(const data_segment&) = delete;
     data_segment& operator=(const data_segment&) = delete;
-    data_segment& operator=(data_segment&&) noexcept = delete;
+    data_segment& operator=(data_segment&&) = delete;
 
     [[nodiscard]]
     std::size_t capacity() const noexcept
@@ -82,6 +78,7 @@ public:
         if (size > m_readable_span.size()) {
             throw std::out_of_range("consume size exceeds readable size");
         }
+
         m_readable_span = m_readable_span.subspan(size);
     }
 
@@ -92,24 +89,16 @@ public:
     }
 
     [[nodiscard]]
-    std::size_t copy_from(const std::byte* source, const std::size_t size) noexcept
+    std::size_t copy_from(const std::byte* const source, const std::size_t size) noexcept
     {
         const std::size_t to_copy_size = std::min(m_writable_span.size(), size);
         std::copy_n(source, to_copy_size, m_writable_span.begin());
-        
         m_readable_span = {m_readable_span.data(), m_readable_span.size() + to_copy_size};
         m_writable_span = m_writable_span.subspan(to_copy_size);
         return to_copy_size;
-    }
-
-    void reset() noexcept
-    {
-        assert(m_buffer != nullptr);
-        m_readable_span = {m_buffer.get(), std::size_t{0}};
-        m_writable_span = {m_buffer.get(), m_capacity};
     }
 };
 
 } // namespace xtd
 
-#endif // PIPELINE_DATA_SEGMENT_H
+#endif
