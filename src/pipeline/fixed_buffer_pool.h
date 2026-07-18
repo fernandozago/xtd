@@ -11,7 +11,7 @@ namespace xtd
 class fixed_buffer_pool
 {
 public:
-    struct buffer_deleter
+    struct unique_ptr_releaser
     {
         fixed_buffer_pool* pool = nullptr;
         void operator()(std::byte* const buffer) const noexcept
@@ -21,7 +21,7 @@ public:
         }
     };
 
-    using fixed_buffer_ptr = std::unique_ptr<std::byte[], buffer_deleter>;
+    using fixed_buffer_ptr = std::unique_ptr<std::byte[], unique_ptr_releaser>;
 
     explicit fixed_buffer_pool(const std::size_t buffer_size, const std::size_t max_pool_size)
         : m_buffer_size(buffer_size)
@@ -37,7 +37,7 @@ public:
         if (m_available_buffers.empty()) {
             return {
                 new std::byte[m_buffer_size], // new here is ok, because we are using a unique_ptr to manage the memory and ensure it is freed.
-                buffer_deleter{this} // this custom deleter will relate the buffer back to the pool when it is no longer needed.
+                unique_ptr_releaser{this} // this custom deleter will relate the buffer back to the pool when it is no longer needed.
             };
         }
 
@@ -46,7 +46,7 @@ public:
 
         return {
             buffer.release(),
-            buffer_deleter{this}
+            unique_ptr_releaser{this}
         };
     }
 
@@ -80,7 +80,6 @@ private:
 
     const std::size_t m_buffer_size;
     const std::size_t m_max_pool_size;
-
     std::vector<std::unique_ptr<std::byte[]>> m_available_buffers;
 };
 
