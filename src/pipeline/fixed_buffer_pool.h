@@ -3,50 +3,55 @@
 
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace xtd
 {
 
 class fixed_buffer_pool
 {
+private:
+    using buffer_ref = std::unique_ptr<std::byte[]>;
+
 public:
-    struct fixed_buffer_ptr_deleter
+    struct buffer_deleter
     {
         fixed_buffer_pool* pool = nullptr;
         void operator()(std::byte* const buffer) const noexcept
         {
-            pool->release(buffer);
+            if (buffer == nullptr) return;
+            pool->release(buffer_ref(buffer));
         }
     };
 
-    using fixed_buffer_ptr = std::unique_ptr<std::byte, fixed_buffer_pool::fixed_buffer_ptr_deleter>;
-
-     [[nodiscard]]
-    fixed_buffer_ptr allocate_buffer()
-    {
-        return fixed_buffer_ptr(acquire(), fixed_buffer_ptr_deleter{ .pool = this });
-    }
+    using fixed_buffer_ptr = std::unique_ptr<std::byte[], buffer_deleter>;
 
     explicit fixed_buffer_pool(const std::size_t buffer_size, const std::size_t max_pool_size)
         : m_buffer_size(buffer_size)
         , m_max_pool_size(max_pool_size)
-        , m_buffers(max_pool_size > 0 ? new std::byte*[max_pool_size] : nullptr)
     {
+        // Ensures release() never reallocates and can remain noexcept.
+        m_available_buffers.reserve(max_pool_size);
     }
 
-    ~fixed_buffer_pool()
+    [[nodiscard]]
+    fixed_buffer_ptr get_buffer()
     {
-        for (std::size_t i = 0; i < m_pool_size; ++i) {
-            delete[] m_buffers[i];
+        if (m_available_buffers.empty()) {
+            return {
+                new std::byte[m_buffer_size], // new here is ok, because we are using a unique_ptr to manage the memory and ensure it is freed.
+                buffer_deleter{this} // this custom deleter will relate the buffer back to the pool when it is no longer needed.
+            };
         }
 
-        delete[] m_buffers;
-    }
+        buffer_ref buffer = std::move(m_available_buffers.back());
+        m_available_buffers.pop_back();
 
-    fixed_buffer_pool(const fixed_buffer_pool&) = delete;
-    fixed_buffer_pool& operator=(const fixed_buffer_pool&) = delete;
-    fixed_buffer_pool(fixed_buffer_pool&&) = delete;
-    fixed_buffer_pool& operator=(fixed_buffer_pool&&) = delete;
+        return {
+            buffer.release(),
+            buffer_deleter{this}
+        };
+    }
 
     [[nodiscard]]
     std::size_t buffer_size() const noexcept
@@ -57,39 +62,28 @@ public:
     [[nodiscard]]
     std::size_t pool_size() const noexcept
     {
-        return m_pool_size;
+        return m_available_buffers.size();
     }
 
+    fixed_buffer_pool(const fixed_buffer_pool&) = delete;
+    fixed_buffer_pool& operator=(const fixed_buffer_pool&) = delete;
+    fixed_buffer_pool(fixed_buffer_pool&&) = delete;
+    fixed_buffer_pool& operator=(fixed_buffer_pool&&) = delete;
+
 private:
+    void release(buffer_ref buffer) noexcept
+    {
+        if (m_available_buffers.size() < m_max_pool_size) {
+            m_available_buffers.push_back(std::move(buffer));
+        }
+
+        // If the pool is full, `buffer` automatically frees the memory.
+    }
+
     const std::size_t m_buffer_size;
     const std::size_t m_max_pool_size;
 
-    std::byte** m_buffers;
-    std::size_t m_pool_size = 0;
-
-    [[nodiscard]]
-    std::byte* acquire()
-    {
-        if (m_pool_size == 0) {
-            return new std::byte[m_buffer_size];
-        }
-
-        return m_buffers[--m_pool_size];
-    }
-
-    void release(std::byte* const buffer) noexcept
-    {
-        if (buffer == nullptr) {
-            return;
-        }
-
-        if (m_pool_size >= m_max_pool_size) {
-            delete[] buffer;
-            return;
-        }
-
-        m_buffers[m_pool_size++] = buffer;
-    }
+    std::vector<buffer_ref> m_available_buffers;
 };
 
 } // namespace xtd

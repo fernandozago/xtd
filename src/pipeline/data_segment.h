@@ -15,7 +15,7 @@ struct data_segment
 {
 public:
     explicit data_segment(fixed_buffer_pool& resource)
-        : m_buffer(resource.allocate_buffer())
+        : m_buffer(resource.get_buffer())
         , m_capacity(resource.buffer_size())
         , m_writable_span(m_buffer.get(), m_capacity)
         , m_readable_span(m_buffer.get(), std::size_t{0})
