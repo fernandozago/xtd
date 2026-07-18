@@ -19,17 +19,17 @@ Memory: 14.4626 GiB total
 
 |          ns/message |           message/s |    err% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------:|:------------------------
-|               20.46 |       48,881,787.85 |    1.6% |      6.86 | `single-thread / bounded_channel`
-|               22.09 |       45,276,617.79 |    0.6% |      6.82 | `single-thread / unbounded_channel`
-|              158.56 |        6,306,778.01 |    1.4% |      6.82 | `multi-thread / bounded_channel`
-|              170.80 |        5,854,849.28 |    0.9% |      6.89 | `multi-thread / unbounded_channel`
+|               19.83 |       50,430,054.70 |    0.6% |      6.75 | `single-thread / bounded_channel`
+|               21.45 |       46,619,007.63 |    0.5% |      6.79 | `single-thread / unbounded_channel`
+|              168.01 |        5,952,106.04 |    2.7% |      6.83 | `multi-thread / bounded_channel`
+|              170.18 |        5,876,094.45 |    0.9% |      6.88 | `multi-thread / unbounded_channel`
 
 | Total Messages Enqueued | xtd::channel throughput 
 |------------------------:|:-------------------------
-|             335,450,143 | `single-thread / bounded_channel`
-|             308,709,060 | `single-thread / unbounded_channel`
-|              42,424,957 | `multi-thread / bounded_channel`
-|              41,409,573 | `multi-thread / unbounded_channel`
+|             337,936,250 | `single-thread / bounded_channel`
+|             316,023,492 | `single-thread / unbounded_channel`
+|              42,081,642 | `multi-thread / bounded_channel`
+|              41,793,590 | `multi-thread / unbounded_channel`
 
 ## Pipeline Benchmark
 
@@ -46,18 +46,18 @@ Memory: 14.4626 GiB total
 
 |              ms/GiB |               GiB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              224.03 |                4.46 |    1.0% |      5.39 | `1 KiB writes`
-|              137.15 |                7.29 |    1.2% |      5.46 | `2 KiB writes`
-|               90.86 |               11.01 |    1.8% |      5.41 | `4 KiB writes`
-|               73.47 |               13.61 |    1.2% |      5.44 | `8 KiB writes`
-|               69.61 |               14.37 |    1.9% |      5.58 | `16 KiB writes`
-|               74.91 |               13.35 |    1.2% |      5.46 | `32 KiB writes`
+|              220.94 |                4.53 |    1.0% |      5.45 | `1 KiB writes`
+|              136.16 |                7.34 |    0.9% |      5.48 | `2 KiB writes`
+|               91.58 |               10.92 |    0.9% |      5.55 | `4 KiB writes`
+|               73.72 |               13.57 |    1.5% |      5.51 | `8 KiB writes`
+|               68.33 |               14.63 |    1.5% |      5.51 | `16 KiB writes`
+|               76.77 |               13.03 |    1.7% |      5.49 | `32 KiB writes`
 
 |    Total Transfered | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|           24.30 GiB | 1 KiB writes
-|           40.15 GiB | 2 KiB writes
-|           59.67 GiB | 4 KiB writes
-|           74.89 GiB | 8 KiB writes
-|           81.86 GiB | 16 KiB writes
-|           72.61 GiB | 32 KiB writes
+|           24.72 GiB | 1 KiB writes
+|           40.37 GiB | 2 KiB writes
+|           60.93 GiB | 4 KiB writes
+|           75.19 GiB | 8 KiB writes
+|           82.58 GiB | 16 KiB writes
+|           71.56 GiB | 32 KiB writes
