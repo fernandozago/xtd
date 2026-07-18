@@ -203,7 +203,7 @@ private:
 
     inline data_segment& get_segment() {
         if (m_segments.empty() || m_segments.back().full()) {
-            m_segments.emplace_back(&m_data_segment_pool);
+            m_segments.emplace_back(m_data_segment_pool);
         }
         return m_segments.back();
     }

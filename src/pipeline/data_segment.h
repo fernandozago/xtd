@@ -21,9 +21,9 @@ private:
     std::span<const std::byte> m_readable_span;
 
 public:
-    explicit data_segment(fixed_buffer_pool* const resource)
-        : m_buffer(resource->allocate_buffer())
-        , m_capacity(resource->buffer_size())
+    explicit data_segment(fixed_buffer_pool& resource)
+        : m_buffer(resource.allocate_buffer())
+        , m_capacity(resource.buffer_size())
         , m_writable_span(m_buffer.get(), m_capacity)
         , m_readable_span(m_buffer.get(), std::size_t{0})
     {

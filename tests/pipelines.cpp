@@ -1599,7 +1599,7 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
 TEST_CASE("data_segment: starts empty with full writable capacity")
 {
     xtd::fixed_buffer_pool pool(8, 2);
-    xtd::data_segment segment(&pool);
+    xtd::data_segment segment(pool);
 
     CHECK(segment.capacity() == 8);
     CHECK(segment.readable_size() == 0);
@@ -1612,7 +1612,7 @@ TEST_CASE("data_segment: starts empty with full writable capacity")
 TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 {
     xtd::fixed_buffer_pool pool(5, 2);
-    xtd::data_segment segment(&pool);
+    xtd::data_segment segment(pool);
     const std::array<std::byte, 7> source = {
         std::byte{'A'},
         std::byte{'B'},
@@ -1650,7 +1650,7 @@ TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consume")
 {
     xtd::fixed_buffer_pool pool(6, 2);
-    xtd::data_segment segment(&pool);
+    xtd::data_segment segment(pool);
     const std::array<std::byte, 4> source = {
         std::byte{'x'},
         std::byte{'y'},
@@ -1680,23 +1680,23 @@ TEST_CASE("data_segment returns buffers to the pool on destruction")
     CHECK(pool.pool_count() == 0);
 
     {
-        xtd::data_segment segment1(&pool);
+        xtd::data_segment segment1(pool);
         CHECK(pool.pool_count() == 0);
     }
 
     CHECK(pool.pool_count() == 1);
 
     {
-        xtd::data_segment segment2(&pool);
+        xtd::data_segment segment2(pool);
         CHECK(pool.pool_count() == 0); // Reuses the pooled buffer.
     }
 
     CHECK(pool.pool_count() == 1);
 
     {
-        xtd::data_segment segment1(&pool);
-        xtd::data_segment segment2(&pool);
-        xtd::data_segment segment3(&pool);
+        xtd::data_segment segment1(pool);
+        xtd::data_segment segment2(pool);
+        xtd::data_segment segment3(pool);
 
         CHECK(pool.pool_count() == 0);
     }
@@ -1707,7 +1707,7 @@ TEST_CASE("data_segment returns buffers to the pool on destruction")
 TEST_CASE("data_segment: move operations transfer readable state")
 {
     xtd::fixed_buffer_pool pool(5, 1);
-    xtd::data_segment source(&pool);
+    xtd::data_segment source(pool);
     const std::array<std::byte, 3> bytes = {
         std::byte{'1'},
         std::byte{'2'},
