@@ -29,18 +29,10 @@ public:
     {
     }
 
-    data_segment(data_segment&& other) noexcept
-        : m_buffer(std::move(other.m_buffer))
-        , m_capacity(other.m_capacity)
-        , m_writable_span(other.m_writable_span)
-        , m_readable_span(other.m_readable_span)
-    {
-        other.m_writable_span = {};
-        other.m_readable_span = {};
-    }
-
     data_segment(const data_segment&) = delete;
     data_segment& operator=(const data_segment&) = delete;
+
+    data_segment(data_segment&&) = delete;
     data_segment& operator=(data_segment&&) = delete;
 
     [[nodiscard]]

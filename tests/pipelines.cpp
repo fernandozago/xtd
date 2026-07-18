@@ -1704,40 +1704,6 @@ TEST_CASE("data_segment returns buffers to the pool on destruction")
     CHECK(pool.pool_count() == 3);
 }
 
-TEST_CASE("data_segment: move operations transfer readable state")
-{
-    xtd::fixed_buffer_pool pool(5, 1);
-    xtd::data_segment source(pool);
-    const std::array<std::byte, 3> bytes = {
-        std::byte{'1'},
-        std::byte{'2'},
-        std::byte{'3'},
-    };
-
-    REQUIRE(source.copy_from(bytes.data(), bytes.size()) == bytes.size());
-
-    xtd::data_segment moved(std::move(source));
-    CHECK(source.readable_size() == 0);
-    CHECK(source.writable_size() == 0);
-    CHECK(moved.capacity() == 5);
-    CHECK(moved.readable_size() == 3);
-    CHECK(moved.writable_size() == 2);
-
-    xtd::data_segment assigned(std::move(moved));
-
-    CHECK(moved.readable_size() == 0);
-    CHECK(moved.writable_size() == 0);
-    CHECK(assigned.capacity() == 5);
-    CHECK(assigned.readable_size() == 3);
-    CHECK(assigned.writable_size() == 2);
-
-    const std::span<const std::byte> readable = assigned.readable_bytes();
-    REQUIRE(readable.size() == 3);
-    CHECK(readable[0] == std::byte{'1'});
-    CHECK(readable[1] == std::byte{'2'});
-    CHECK(readable[2] == std::byte{'3'});
-}
-
 TEST_CASE("segmented_byte_view: Construction with segments from test helper")
 {
     std::vector<std::byte> seg1(10, std::byte{0x11});
