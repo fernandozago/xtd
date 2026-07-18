@@ -117,7 +117,7 @@ private:
     }
 
     [[nodiscard]]
-    bool has_available_data(std::size_t min_size) const noexcept
+    bool has_available_data(const std::size_t min_size) const noexcept
     {
         return m_reader_completed
             || m_writer_completed

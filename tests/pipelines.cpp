@@ -1420,7 +1420,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
 
 TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles")
 {
-    auto runBatch = [](std::size_t pipesCount)
+    auto runBatch = [](const std::size_t pipesCount)
     {
         constexpr std::size_t writesPerPipe = 24;
         constexpr std::size_t payloadSize = 4096;
@@ -1484,7 +1484,7 @@ TEST_CASE("pipeline: Feeds it self for 8GB of data")
     const std::size_t totalBytes = 8ULL * 1024 * 1024 * 1024;
     xtd::pipeline pipeline;
     xtd::pipe_writer& writer = pipeline.writer();
-    writer.write(std::string(1024 * 4, 'A'));
+    writer.write(std::string(1024 * 16, 'A'));
     
     xtd::pipe_reader& reader = pipeline.reader();
     std::size_t bytesRead = 0;
@@ -1598,7 +1598,7 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
 
 TEST_CASE("data_segment: starts empty with full writable capacity")
 {
-    xtd::fixed_buffer_pool pool(8, 2);
+    xtd::fixed_buffer_pool pool(8, 0);
     xtd::data_segment segment(pool);
 
     CHECK(segment.capacity() == 8);
@@ -1611,7 +1611,7 @@ TEST_CASE("data_segment: starts empty with full writable capacity")
 
 TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 {
-    xtd::fixed_buffer_pool pool(5, 2);
+    xtd::fixed_buffer_pool pool(5, 0);
     xtd::data_segment segment(pool);
     const std::array<std::byte, 7> source = {
         std::byte{'A'},
@@ -1649,7 +1649,7 @@ TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 
 TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consume")
 {
-    xtd::fixed_buffer_pool pool(6, 2);
+    xtd::fixed_buffer_pool pool(6, 0);
     xtd::data_segment segment(pool);
     const std::array<std::byte, 4> source = {
         std::byte{'x'},
@@ -1673,35 +1673,39 @@ TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consum
     CHECK(segment.readable_bytes().empty());
 }
 
+TEST_CASE("fixed_buffer_pool: empty") {
+    xtd::fixed_buffer_pool pool(1, 0);
+    CHECK(pool.pool_size() == 0);
+}
+
 TEST_CASE("data_segment returns buffers to the pool on destruction")
 {
     xtd::fixed_buffer_pool pool(1, 3);
-
-    CHECK(pool.pool_count() == 0);
+    CHECK(pool.pool_size() == 0);
 
     {
         xtd::data_segment segment1(pool);
-        CHECK(pool.pool_count() == 0);
+        CHECK(pool.pool_size() == 0);
     }
 
-    CHECK(pool.pool_count() == 1);
+    CHECK(pool.pool_size() == 1);
 
     {
         xtd::data_segment segment2(pool);
-        CHECK(pool.pool_count() == 0); // Reuses the pooled buffer.
+        CHECK(pool.pool_size() == 0); // Reuses the pooled buffer.
     }
 
-    CHECK(pool.pool_count() == 1);
+    CHECK(pool.pool_size() == 1);
 
     {
         xtd::data_segment segment1(pool);
         xtd::data_segment segment2(pool);
         xtd::data_segment segment3(pool);
 
-        CHECK(pool.pool_count() == 0);
+        CHECK(pool.pool_size() == 0);
     }
 
-    CHECK(pool.pool_count() == 3);
+    CHECK(pool.pool_size() == 3);
 }
 
 TEST_CASE("segmented_byte_view: Construction with segments from test helper")

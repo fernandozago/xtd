@@ -20,7 +20,7 @@ private:
     std::uint64_t m_sequence_id = 0;
     bool m_valid = false;
 
-    constexpr position(std::size_t offset, std::uint64_t sequence_id) noexcept
+    explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept
         : m_offset(offset)
         , m_sequence_id(sequence_id)
         , m_valid(true)
@@ -28,19 +28,19 @@ private:
     }
 
     [[nodiscard]]
-    constexpr std::size_t offset_in_sequence() const noexcept
+    std::size_t offset_in_sequence() const noexcept
     {
         return m_offset;
     }
 
     [[nodiscard]]
-    constexpr bool belongs_to(std::uint64_t sequence_id) const noexcept
+    bool belongs_to(std::uint64_t sequence_id) const noexcept
     {
         return m_valid && m_sequence_id == sequence_id;
     }
 
     [[nodiscard]]
-    constexpr bool operator>(const position& rhs) const noexcept
+    bool operator>(const position& rhs) const noexcept
     {
         return m_valid &&
                rhs.m_valid &&
@@ -49,15 +49,8 @@ private:
     }
 
 public:
-    constexpr position() noexcept = default;
-
-    [[nodiscard]]
-    constexpr bool valid() const noexcept
-    {
-        return m_valid;
-    }
-
-    explicit constexpr operator bool() const noexcept
+    position() noexcept = default;
+    explicit operator bool() const noexcept
     {
         return m_valid;
     }
@@ -65,7 +58,7 @@ public:
     // Returns a new position advanced by the given offset.
     // An invalid position remains invalid.
     [[nodiscard]]
-    constexpr position operator+(std::size_t offset) const noexcept
+    position operator+(const std::size_t offset) const noexcept
     {
         if (!m_valid) {
             return {};
@@ -78,7 +71,7 @@ public:
     }
 
     // Advances this position by the given offset.
-    constexpr position& operator+=(std::size_t offset) noexcept
+    position& operator+=(const std::size_t offset) noexcept
     {
         if (m_valid) {
             m_offset += offset;
@@ -88,14 +81,14 @@ public:
     }
 
     // Advances this position by one byte.
-    constexpr position& operator++() noexcept
+    position& operator++() noexcept
     {
         if (m_valid) { ++m_offset; }
         return *this;
     }
 
     // Advances this position by one byte and returns the previous value.
-    constexpr position operator++(int) noexcept
+    position operator++(int) noexcept
     {
         position previous = *this;
         ++(*this);
@@ -103,7 +96,7 @@ public:
     }
 
     [[nodiscard]]
-    constexpr bool operator==(const position& rhs) const noexcept
+    bool operator==(const position& rhs) const noexcept
     {
         if (!m_valid || !rhs.m_valid) {
             return m_valid == rhs.m_valid;
@@ -114,7 +107,7 @@ public:
     }
 
     [[nodiscard]]
-    constexpr bool operator!=(
+    bool operator!=(
         const position& rhs) const noexcept
     {
         return !(*this == rhs);

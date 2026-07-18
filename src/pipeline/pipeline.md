@@ -265,7 +265,7 @@ namespace xtd {
 class pipe_reader {
 public:
     read_result read();
-    read_result read_at_least(std::size_t min_bytes);
+    read_result read_at_least(const std::size_t min_bytes);
 
     void advance(const position& consumed, const position& examined);
     void advance(const position& consumed);
@@ -398,8 +398,8 @@ std::span<const std::span<const std::byte>> segments() const noexcept;
 
 segmented_byte_view slice(const position& end) const;
 segmented_byte_view slice(const position& begin, const position& end) const;
-segmented_byte_view slice(std::size_t beginOffset, const position& end) const;
-segmented_byte_view slice(std::size_t beginOffset, std::size_t size) const;
+segmented_byte_view slice(const std::size_t beginOffset, const position& end) const;
+segmented_byte_view slice(const std::size_t beginOffset, std::size_t size) const;
 
 position position_of(std::byte value) const;
 position position_of(char value) const;
@@ -446,8 +446,8 @@ struct position {
 
     explicit operator bool() const noexcept;
 
-    position operator+(std::size_t offset) const noexcept;
-    position& operator+=(std::size_t offset) noexcept;
+    position operator+(const std::size_t offset) const noexcept;
+    position& operator+=(const std::size_t offset) noexcept;
     position& operator++() noexcept;
     position operator++(int) noexcept;
 

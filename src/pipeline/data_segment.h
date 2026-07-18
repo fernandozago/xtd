@@ -60,7 +60,7 @@ public:
     }
 
     [[nodiscard]]
-    std::span<std::byte> writable_bytes() noexcept
+    const std::span<std::byte>& writable_bytes() noexcept
     {
         return m_writable_span;
     }
