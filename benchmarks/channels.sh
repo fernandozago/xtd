@@ -13,12 +13,11 @@ BENCH_OUTPUT="$RESULTS_DIR/channels-output.txt"
 
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
 
-cleanup() {
-    sudo setcap -r "$BENCH_BINARY" 2>/dev/null || true
-    rm -f "$BENCH_BINARY"
-}
-
-trap cleanup EXIT
+# cleanup() {
+#     sudo setcap -r "$BENCH_BINARY" 2>/dev/null || true
+#     rm -f "$BENCH_BINARY"
+# }
+# trap cleanup EXIT
 
 cd "$ROOT_DIR"
 
@@ -36,7 +35,7 @@ g++-15 \
     -pthread
 
 # Allow only performance-counter access for this temporary binary.
-sudo setcap cap_perfmon=ep "$BENCH_BINARY"
+# sudo setcap cap_perfmon=ep "$BENCH_BINARY"
 
 echo "Running benchmark..."
 echo "Output: $BENCH_OUTPUT"
