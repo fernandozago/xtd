@@ -194,7 +194,7 @@ public:
     }
 
     [[nodiscard]]
-    std::string to_string() const noexcept
+    std::string to_string() const
     {
         if (empty()) {
             return {};

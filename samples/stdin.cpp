@@ -72,8 +72,11 @@ void consume(xtd::pipe_reader& reader)
 
         while (xtd::position pos = buffer.position_of('\n'))
         {
-            std::println("\tECHO: {}", buffer.slice(pos).to_string());
-            std::println("\t-----");
+            const auto lineBytes = buffer.slice(pos);
+            const std::string echo_separator = std::string(lineBytes.size() + 6, '-');
+            std::println("\n{}", echo_separator);
+            std::println("ECHO: {}", lineBytes.to_string());
+            std::println("{}\n", echo_separator);
 
             buffer = buffer.slice(pos + 1, buffer.end());
         }
