@@ -10,9 +10,6 @@ namespace xtd
 
 class fixed_buffer_pool
 {
-private:
-    using buffer_ptr = std::unique_ptr<std::byte[]>;
-
 public:
     struct buffer_deleter
     {
@@ -20,7 +17,7 @@ public:
         void operator()(std::byte* const buffer) const noexcept
         {
             if (buffer == nullptr) return;
-            pool->release(buffer_ptr(buffer));
+            pool->release(buffer);
         }
     };
 
@@ -44,7 +41,7 @@ public:
             };
         }
 
-        buffer_ptr buffer = std::move(m_available_buffers.back());
+        std::unique_ptr<std::byte[]> buffer = std::move(m_available_buffers.back());
         m_available_buffers.pop_back();
 
         return {
@@ -71,19 +68,20 @@ public:
     fixed_buffer_pool& operator=(fixed_buffer_pool&&) = delete;
 
 private:
-    void release(buffer_ptr buffer) noexcept
+    void release(std::byte* const buffer) noexcept
     {
+        std::unique_ptr<std::byte[]> buffer_ptr(buffer);
         if (m_available_buffers.size() < m_max_pool_size) {
-            m_available_buffers.push_back(std::move(buffer));
+            m_available_buffers.push_back(std::move(buffer_ptr));
         }
 
-        // If the pool is full, `buffer` automatically frees the memory.
+        // If the pool is full, `buffer_ptr` automatically frees the memory.
     }
 
     const std::size_t m_buffer_size;
     const std::size_t m_max_pool_size;
 
-    std::vector<buffer_ptr> m_available_buffers;
+    std::vector<std::unique_ptr<std::byte[]>> m_available_buffers;
 };
 
 } // namespace xtd

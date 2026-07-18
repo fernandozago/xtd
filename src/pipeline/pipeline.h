@@ -195,8 +195,7 @@ private:
 
         while (remaining_consumed > 0) {
             data_segment& head = m_segments.front();
-            const std::size_t readable_size =
-                head.readable_size();
+            const std::size_t readable_size = head.readable_size();
 
             if (remaining_consumed < readable_size) {
                 head.advance(remaining_consumed);
@@ -218,9 +217,7 @@ private:
         }
 
         m_pending_read_size = 0;
-        m_pending_read_sequence_id = 0;
         m_has_pending_read = false;
-
         return m_writer_completed;
     }
 
