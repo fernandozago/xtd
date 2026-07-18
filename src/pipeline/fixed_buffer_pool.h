@@ -11,7 +11,7 @@ namespace xtd
 class fixed_buffer_pool
 {
 private:
-    using buffer_ref = std::unique_ptr<std::byte[]>;
+    using buffer_ptr = std::unique_ptr<std::byte[]>;
 
 public:
     struct buffer_deleter
@@ -20,7 +20,7 @@ public:
         void operator()(std::byte* const buffer) const noexcept
         {
             if (buffer == nullptr) return;
-            pool->release(buffer_ref(buffer));
+            pool->release(buffer_ptr(buffer));
         }
     };
 
@@ -44,7 +44,7 @@ public:
             };
         }
 
-        buffer_ref buffer = std::move(m_available_buffers.back());
+        buffer_ptr buffer = std::move(m_available_buffers.back());
         m_available_buffers.pop_back();
 
         return {
@@ -71,7 +71,7 @@ public:
     fixed_buffer_pool& operator=(fixed_buffer_pool&&) = delete;
 
 private:
-    void release(buffer_ref buffer) noexcept
+    void release(buffer_ptr buffer) noexcept
     {
         if (m_available_buffers.size() < m_max_pool_size) {
             m_available_buffers.push_back(std::move(buffer));
@@ -83,7 +83,7 @@ private:
     const std::size_t m_buffer_size;
     const std::size_t m_max_pool_size;
 
-    std::vector<buffer_ref> m_available_buffers;
+    std::vector<buffer_ptr> m_available_buffers;
 };
 
 } // namespace xtd
