@@ -93,7 +93,7 @@ int main()
     bench
         .title("xtd::channel throughput")
         .unit("message")
-        .epochs(20)
+        .epochs(25)
         .warmup(10)
         .minEpochTime(250ms)
         .maxEpochTime(2s)
