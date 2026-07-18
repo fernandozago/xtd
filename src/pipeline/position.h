@@ -22,8 +22,6 @@ public:
         return m_valid;
     }
 
-    // Returns a new position advanced by the given offset.
-    // An invalid position remains invalid.
     [[nodiscard]]
     position operator+(const std::size_t offset) const noexcept
     {
@@ -31,10 +29,7 @@ public:
             return position{};
         }
 
-        return position{
-            m_offset + offset,
-            m_sequence_id
-        };
+        return position{m_offset + offset, m_sequence_id};
     }
 
     // Advances this position by the given offset.
@@ -50,7 +45,9 @@ public:
     // Advances this position by one byte.
     position& operator++() noexcept
     {
-        if (m_valid) { ++m_offset; }
+        if (m_valid) { 
+            ++m_offset; 
+        }
         return *this;
     }
 
@@ -93,15 +90,9 @@ private:
     }
 
     [[nodiscard]]
-    std::size_t offset_in_sequence() const noexcept
+    std::size_t sequence_offset() const noexcept
     {
         return m_offset;
-    }
-
-    [[nodiscard]]
-    bool belongs_to(std::uint64_t sequence_id) const noexcept
-    {
-        return m_valid && m_sequence_id == sequence_id;
     }
 
     [[nodiscard]]

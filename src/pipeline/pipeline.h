@@ -226,8 +226,8 @@ private:
 
     void advance(const position& consumed, const position& examined)
     {
-        const std::size_t consumed_offset = consumed.offset_in_sequence();
-        const std::size_t examined_offset = examined.offset_in_sequence();
+        const std::size_t consumed_offset = consumed.sequence_offset();
+        const std::size_t examined_offset = examined.sequence_offset();
         argument_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
 
         {

@@ -30,14 +30,12 @@ friend class test_helper_segmented_byte_view;
 public:
     segmented_byte_view() = delete;
 
-    // Gets the inclusive beginning position.
     [[nodiscard]]
     position begin() const noexcept
     {
         return position{m_begin_offset, m_sequence_id};
     }
 
-    // Gets the exclusive ending position.
     [[nodiscard]]
     position end() const noexcept
     {
@@ -68,17 +66,15 @@ public:
         return {m_segments.data(), m_segments.size()};
     }
 
-    // Creates a slice from this view's beginning up to end.
     [[nodiscard]]
     segmented_byte_view slice(const position& end) const
     {
         argument_assert(end.m_sequence_id == m_sequence_id,
             "end must belong to this sequence");
 
-        return segmented_byte_view{*this, m_begin_offset, end.offset_in_sequence()};
+        return segmented_byte_view{*this, m_begin_offset, end.sequence_offset()};
     }
 
-    // Creates a slice between two positions.
     [[nodiscard]]
     segmented_byte_view slice(const position& begin, const position& end) const
     {
@@ -88,10 +84,9 @@ public:
         argument_assert(end.m_sequence_id == m_sequence_id,
             "end must belong to this sequence");
 
-        return segmented_byte_view{*this, begin.offset_in_sequence(), end.offset_in_sequence()};
+        return segmented_byte_view{*this, begin.sequence_offset(), end.sequence_offset()};
     }
 
-    // Creates a slice from a relative offset up to an absolute position.
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const position& end) const
     {
@@ -102,10 +97,9 @@ public:
             "slice begin offset is out of range");
 
         const std::size_t absolute_begin = m_begin_offset + begin_offset;
-        return segmented_byte_view{*this, absolute_begin, end.offset_in_sequence()};
+        return segmented_byte_view{*this, absolute_begin, end.sequence_offset()};
     }
 
-    // Creates a slice from a relative offset spanning size bytes.
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const std::size_t size) const
     {
@@ -114,7 +108,6 @@ public:
         return segmented_byte_view{*this, absolute_begin, absolute_begin + size};
     }
 
-    // Finds the first occurrence of value.
     [[nodiscard]]
     position position_of(const std::byte value) const
     {
@@ -150,25 +143,19 @@ public:
     [[nodiscard]]
     std::size_t copy_to(const std::span<std::byte>& destination) const noexcept
     {
-        const std::size_t target_size =
-            std::min(destination.size(), m_size);
-
+        const std::size_t target_size = std::min(destination.size(), m_size);
         if (target_size == 0) {
             return 0;
         }
 
         std::size_t copied = 0;
-
         for (const std::span<const std::byte>& segment : m_segments) {
             if (copied == target_size) {
                 break;
             }
 
             const std::size_t chunk_size = std::min(segment.size(), target_size - copied);
-
-            std::ranges::copy_n(segment.begin(), chunk_size,
-                destination.begin() + static_cast<std::ptrdiff_t>(copied));
-
+            std::ranges::copy_n(segment.begin(), chunk_size, destination.begin() + copied);
             copied += chunk_size;
         }
 
@@ -182,11 +169,7 @@ public:
         argument_assert(destination != nullptr || destination_size == 0,
             "destination must not be null when destination_size > 0");
 
-        return copy_to(
-            std::span<std::byte>{
-                destination,
-                destination_size
-            });
+        return copy_to(std::span<std::byte>{ destination, destination_size});
     }
 
     // Copies bytes into an existing vector.
@@ -202,16 +185,12 @@ public:
     [[nodiscard]]
     bool copy_to(T& destination) const
     {
-        argument_assert(
-            sizeof(T) <= m_size,
+        argument_assert(sizeof(T) <= m_size,
             "buffer size is smaller than the size of the destination type");
 
-        const std::span<std::byte> destination_bytes =
-            std::as_writable_bytes(
-                std::span<T, 1>{&destination, 1});
+        const std::span<std::byte> destination_bytes = std::as_writable_bytes(std::span<T, 1>{&destination, 1});
 
-        return copy_to(destination_bytes)
-            == destination_bytes.size();
+        return copy_to(destination_bytes) == destination_bytes.size();
     }
 
     [[nodiscard]]
@@ -314,19 +293,13 @@ private:
                 break;
             }
 
-            const std::size_t overlap_begin =
-                std::max(segment_begin, slice_begin);
-
-            const std::size_t overlap_end =
-                std::min(segment_end, slice_end);
-
-            const std::size_t overlap_size =
-                overlap_end - overlap_begin;
+            const std::size_t overlap_begin = std::max(segment_begin, slice_begin);
+            const std::size_t overlap_end = std::min(segment_end, slice_end);
+            const std::size_t overlap_size = overlap_end - overlap_begin;
 
             m_segments.emplace_back(
-                segment.subspan(
-                    overlap_begin - segment_begin,
-                    overlap_size));
+                segment.subspan(overlap_begin - segment_begin, overlap_size)
+            );
 
             m_size += overlap_size;
             segment_begin = segment_end;
