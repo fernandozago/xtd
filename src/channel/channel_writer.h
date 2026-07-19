@@ -78,8 +78,7 @@ namespace xtd
     private:
         friend class channel<T>;
 
-        explicit channel_writer(
-            channel<T>& channel) noexcept
+        explicit channel_writer(channel<T>& channel) noexcept
             : m_channel(channel)
         {
         }

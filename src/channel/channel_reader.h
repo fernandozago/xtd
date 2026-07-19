@@ -41,8 +41,7 @@ namespace xtd
     private:
         friend class channel<T>;
 
-        explicit channel_reader(
-            channel<T>& channel) noexcept
+        explicit channel_reader(channel<T>& channel) noexcept
             : m_channel(channel)
         {
         }
