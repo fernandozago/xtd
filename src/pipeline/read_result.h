@@ -3,7 +3,6 @@
 
 #include <cstdint>
 #include <deque>
-#include <ranges>
 #include <vector>
 
 #include "segmented_byte_view.h"
