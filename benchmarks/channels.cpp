@@ -1,14 +1,15 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
+#include "third_party/nanobench.h"
 
 #include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <future>
 #include <print>
+#include <memory>
+#include <vector>
 
-#include "third_party/nanobench.h"
 #include "channel/channel.h"
 #include "utils/utils.h"
 
@@ -16,39 +17,62 @@ using namespace std::chrono_literals;
 
 static std::vector<std::string> results;
 
-void run_push_read_benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bool single_thread, 
-    xtd::channel_writer<int>& writer, xtd::channel_reader<int>& reader)
+class consumer {
+public:
+    explicit consumer(xtd::channel_reader<int>& reader)
+        : m_reader(reader)
+        , m_thread(&consumer::consume, this)
+    {
+    }
+
+    ~consumer()
+    {
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+    }
+
+    std::size_t get_received_messages()
+    {
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+
+        return m_received_messages;
+    }
+
+private:
+    xtd::channel_reader<int>& m_reader;
+    std::thread m_thread;
+    std::size_t m_received_messages = 0;
+
+    void consume()
+    {
+        while (m_reader.read()) {
+            ++m_received_messages;
+        }
+    }
+};
+
+void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bool single_thread, xtd::channel<int>&& channel)
 {
     std::size_t total_messages_received = 0;
 
-    std::future<std::size_t> reader_task[2];
-
-    if (!single_thread)
-    {
-        reader_task[0] = std::async(std::launch::async,
-            [&reader] {
-                std::size_t received_message = 0;
-                while (const auto read = reader.read())
-                    ++received_message;
-
-                return received_message;
-            });
-        
-        reader_task[1] = std::async(std::launch::async,
-            [&reader] {
-                std::size_t received_message = 0;
-                while (const auto read = reader.read())
-                    ++received_message;
-
-                return received_message;
-            });
+    // Consumer creates its own thread to read from the channel.
+    // To make it simple, consumer must be in a stable location in memory.
+    // So we use a vector of unique_ptr to manage the lifetime of the consumer objects.
+    xtd::channel_reader<int>& reader = channel.reader();
+    std::vector<std::unique_ptr<consumer>> consumers;
+    if (!single_thread) {
+        consumers.emplace_back(std::make_unique<consumer>(reader));
+        consumers.emplace_back(std::make_unique<consumer>(reader));
     }
 
     std::uint64_t total_messages_enqueued = 0;
 
-    bench
-        .run(name,
-            [&writer, single_thread, &reader, &total_messages_enqueued, &total_messages_received]
+    xtd::channel_writer<int>& writer = channel.writer();
+    bench.run(name,
+            [&reader, &writer, single_thread, &total_messages_enqueued, &total_messages_received]
             {
                 if (const auto write = writer.push(0); write) {
                     ++total_messages_enqueued;
@@ -64,10 +88,9 @@ void run_push_read_benchmark(ankerl::nanobench::Bench& bench, const std::string 
 
     writer.complete();
 
-    for (auto& task : reader_task)
+    for (auto& consumer : consumers)
     {
-        if (task.valid())
-            total_messages_received += task.get();
+        total_messages_received += consumer->get_received_messages();
     }
 
     assert(total_messages_enqueued == total_messages_received);
@@ -90,46 +113,17 @@ int main()
         .performanceCounters(true)
         .batch(1);
 
-    {
-        const auto bounded_channel = std::make_unique<xtd::channel<int>>(1024);
-        run_push_read_benchmark(
-            bench,
-            "single-thread / bounded_channel",
-            true,
-            bounded_channel->writer(),
-            bounded_channel->reader());
-    }
+    benchmark(bench, "single-thread / bounded_channel", true,
+        xtd::channel<int>(1024));
 
-    {
-        const auto unbounded_channel = std::make_unique<xtd::channel<int>>();
-        run_push_read_benchmark(
-            bench,
-            "single-thread / unbounded_channel",
-            true,
-            unbounded_channel->writer(),
-            unbounded_channel->reader());
-    }
+    benchmark(bench, "single-thread / unbounded_channel", true,
+        xtd::channel<int>());
 
-    {
-        const auto bounded_channel = std::make_unique<xtd::channel<int>>(1024);
+    benchmark(bench, "multi-thread / bounded_channel", false,
+        xtd::channel<int>(1024));
 
-        run_push_read_benchmark(
-            bench,
-            "multi-thread / bounded_channel",
-            false,
-            bounded_channel->writer(),
-            bounded_channel->reader());
-    }
-
-    {
-        const auto unbounded_channel = std::make_unique<xtd::channel<int>>();
-        run_push_read_benchmark(
-            bench,
-            "multi-thread / unbounded_channel",
-            false,
-            unbounded_channel->writer(),
-            unbounded_channel->reader());
-    }
+    benchmark(bench, "multi-thread / unbounded_channel", false,
+        xtd::channel<int>());
 
     // Uncomment for detailed JSON output
     // std::ofstream output("./benchmarks/results/channels.json", std::ios::out | std::ios::trunc);

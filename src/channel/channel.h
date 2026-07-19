@@ -1,5 +1,5 @@
-#ifndef CHANNEL_CHANNEL_CORE_H
-#define CHANNEL_CHANNEL_CORE_H
+#ifndef CHANNEL_CHANNEL_H
+#define CHANNEL_CHANNEL_H
 
 #include "block_strategy.h"
 #include "channel_reader.h"
@@ -158,4 +158,4 @@ namespace xtd
     };
 }
 
-#endif
+#endif // CHANNEL_CHANNEL_H
