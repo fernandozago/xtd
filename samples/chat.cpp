@@ -52,9 +52,9 @@ public:
     connection_handler(const connection_handler&) = delete;
     connection_handler& operator=(const connection_handler&) = delete;
 
-    void receive_data(const char* data, std::size_t size)
+    void receive_data(const std::byte* data, std::size_t size)
     {
-        writer.write(reinterpret_cast<const std::byte*>(data), size);
+        writer.write(data, size);
     }
 
     void close() noexcept
@@ -76,9 +76,7 @@ private:
         {
             println_locked("client connected");
 
-            send(
-                "[Server: You are connected. "
-                "This is a sample echo server. Welcome using EPOLL!]\n");
+            send("[Server: You are connected. This is a sample echo server. Welcome using EPOLL!]\n");
 
             auto& reader = pipeline.reader();
 
@@ -118,12 +116,12 @@ private:
 
 class server
 {
-    struct connection_data
-    {
-        std::atomic<int> fd{-1};
-        std::mutex m_send_mutex;
-        std::shared_ptr<connection_handler> m_connection;
-    };
+struct connection_data
+{
+    std::atomic<int> fd{-1};
+    std::mutex m_send_mutex;
+    std::shared_ptr<connection_handler> m_connection;
+};
 
 public:
     explicit server(std::uint16_t port)
@@ -201,14 +199,14 @@ public:
     }
 
 private:
-    static constexpr int ListenBacklog = 128;
-    static constexpr int EpollMaxEvents = 256;
+    static constexpr int ListenBacklog = 16;
+    static constexpr int EpollMaxEvents = 128;
 
     std::uint16_t m_port;
     int m_listenFd = -1;
     int m_epollFd = -1;
 
-    std::mutex m_clientsMutex;
+    std::mutex m_clients_mutex;
     std::unordered_map<int, std::shared_ptr<connection_data>> m_clients;
 
     [[noreturn]]
@@ -278,7 +276,7 @@ private:
             if (fd >= 0)
             {
                 try {
-                    start_client(fd);
+                    start_connection_handler(fd);
                 }
                 catch (const std::exception& ex) {
                     println_locked(
@@ -301,18 +299,16 @@ private:
         }
     }
 
-    void start_client(int fd)
+    void start_connection_handler(int fd)
     {
         auto client = std::make_shared<connection_data>();
         client->fd = fd;
 
         try
         {
-            std::weak_ptr<connection_data> weakClient = client;
-
             client->m_connection = std::make_shared<connection_handler>(
-                [this, weakClient](std::string_view message) {
-                    if (auto client = weakClient.lock()) {
+                [this, weak_client = std::weak_ptr<connection_data>(client)](std::string_view message) {
+                    if (auto client = weak_client.lock()) {
                         send_data(*client, message);
                     }
                 },
@@ -322,7 +318,7 @@ private:
 
             add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP);
 
-            std::scoped_lock lock(m_clientsMutex);
+            std::scoped_lock lock(m_clients_mutex);
 
             if (!m_clients.emplace(fd, client).second) {
                 throw std::runtime_error("connection is already registered");
@@ -370,7 +366,7 @@ private:
 
     std::shared_ptr<connection_data> find_client(int fd)
     {
-        std::scoped_lock lock(m_clientsMutex);
+        std::scoped_lock lock(m_clients_mutex);
 
         const auto it = m_clients.find(fd);
 
@@ -393,15 +389,11 @@ private:
                 return false;
             }
 
-            const ssize_t received =
-                ::recv(fd, buffer.data(), buffer.size(), 0);
+            const ssize_t received = ::recv(fd, buffer.data(), buffer.size(), 0);
 
             if (received > 0)
             {
-                client.m_connection->receive_data(
-                    buffer.data(),
-                    static_cast<std::size_t>(received));
-
+                client.m_connection->receive_data(static_cast<std::byte*>(buffer.data()), static_cast<std::size_t>(received));
                 continue;
             }
 
@@ -464,7 +456,7 @@ private:
         std::vector<std::shared_ptr<connection_data>> clients;
 
         {
-            std::scoped_lock lock(m_clientsMutex);
+            std::scoped_lock lock(m_clients_mutex);
 
             clients.reserve(m_clients.size());
 
@@ -489,7 +481,7 @@ private:
         std::shared_ptr<connection_data> client;
 
         {
-            std::scoped_lock lock(m_clientsMutex);
+            std::scoped_lock lock(m_clients_mutex);
             
             const auto it = m_clients.find(fd);
             if (it == m_clients.end()) {
@@ -577,7 +569,7 @@ private:
         std::unordered_map<int, std::shared_ptr<connection_data>> clients;
 
         {
-            std::scoped_lock lock(m_clientsMutex);
+            std::scoped_lock lock(m_clients_mutex);
             clients.swap(m_clients);
         }
 
