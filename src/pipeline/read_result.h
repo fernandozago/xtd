@@ -40,18 +40,23 @@ private:
     segmented_byte_view m_buffer;
     bool m_completed = false;
 
+    static std::vector<std::span<const std::byte>>make_readable_segments(const std::deque<data_segment>& segments)
+    {
+        std::vector<std::span<const std::byte>> result;
+        result.reserve(segments.size());
+
+        for (const data_segment& segment : segments) {
+            if (segment.readable_size() != 0) {
+                result.push_back(segment.readable_bytes());
+            }
+        }
+
+        return result;
+    }
+
     // read_result is constructed by the pipeline to represent the root result of a read operation.
     explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed)
-        : m_buffer(segments
-            | std::views::filter(
-                [](const data_segment& segment) noexcept {
-                    return segment.readable_size() > 0;
-                })
-            | std::views::transform(
-                [](const data_segment& segment) noexcept {
-                    return segment.readable_bytes();
-                })
-            | std::ranges::to<std::vector>(), sequence_id)
+        : m_buffer(make_readable_segments(segments), sequence_id)
         , m_completed(completed)
     {
     }

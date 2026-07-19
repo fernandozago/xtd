@@ -229,6 +229,7 @@ private:
         const std::size_t examined_offset = examined.sequence_offset();
         argument_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
 
+        bool notify_writer = false;
         {
             std::scoped_lock lock{m_mutex};
             runtime_assert(!m_reader_completed, "pipeline reader is completed");
@@ -237,10 +238,14 @@ private:
             argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
             argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
 
+             const bool was_paused = m_writer_paused;
             advance_core(consumed_offset, examined_offset);
+            notify_writer = was_paused && !m_writer_paused;
         }
 
-        m_space_available.notify_all();
+        if (notify_writer) {
+            m_space_available.notify_one();
+        }
         m_data_available.notify_all();
     }
 
@@ -314,6 +319,11 @@ private:
             if (notify_data_available) {
                 lock.unlock();
                 m_data_available.notify_one();
+
+                if (remaining.empty()) {
+                    return length;
+                }
+
                 lock.lock();
             }
         }
