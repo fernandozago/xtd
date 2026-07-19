@@ -119,7 +119,7 @@ class server
 struct connection_data
 {
     std::atomic<int> fd{-1};
-    std::mutex m_send_mutex;
+    mutable std::mutex m_send_mutex;
     std::shared_ptr<connection_handler> m_connection;
 };
 
@@ -208,6 +208,9 @@ private:
 
     std::mutex m_clients_mutex;
     std::unordered_map<int, std::shared_ptr<connection_data>> m_clients;
+
+    std::array<char, 4096> receive_buffer{};
+    std::array<char, 4096> enter_buffer{};
 
     [[noreturn]]
     static void throw_system_error(const std::string& message, int error = errno)
@@ -377,10 +380,8 @@ private:
         return it->second;
     }
 
-    bool receive_data(connection_data& client)
+    bool receive_data(const connection_data& client)
     {
-        std::array<char, 4096> buffer{};
-
         while (true)
         {
             const int fd = client.fd.load();
@@ -389,11 +390,11 @@ private:
                 return false;
             }
 
-            const ssize_t received = ::recv(fd, buffer.data(), buffer.size(), 0);
+            const ssize_t received = ::recv(fd, receive_buffer.data(), receive_buffer.size(), 0);
 
             if (received > 0)
             {
-                client.m_connection->receive_data(reinterpret_cast<std::byte*>(buffer.data()), static_cast<std::size_t>(received));
+                client.m_connection->receive_data(reinterpret_cast<std::byte*>(receive_buffer.data()), static_cast<std::size_t>(received));
                 continue;
             }
 
@@ -413,7 +414,7 @@ private:
         }
     }
 
-    void send_data(connection_data& client, std::string_view message)
+    void send_data(const connection_data& client, std::string_view message)
     {
         std::scoped_lock lock(client.m_send_mutex);
 
@@ -542,19 +543,13 @@ private:
         }
     }
 
-    static bool enter_pressed()
+    bool enter_pressed()
     {
-        std::array<char, 256> buffer{};
-
-        const ssize_t size =
-            ::read(STDIN_FILENO, buffer.data(), buffer.size());
+        const ssize_t size = ::read(STDIN_FILENO, enter_buffer.data(), enter_buffer.size());
 
         if (size > 0)
         {
-            return std::find(
-                buffer.begin(),
-                buffer.begin() + size,
-                '\n') != buffer.begin() + size;
+            return std::find(enter_buffer.begin(), enter_buffer.begin() + size, '\n') != enter_buffer.begin() + size;
         }
 
         if (size < 0 && errno != EINTR) {
@@ -577,11 +572,7 @@ private:
         {
             if (m_epollFd >= 0)
             {
-                ::epoll_ctl(
-                    m_epollFd,
-                    EPOLL_CTL_DEL,
-                    fd,
-                    nullptr);
+                ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
             }
 
             close_socket(*client);
