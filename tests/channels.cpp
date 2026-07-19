@@ -386,7 +386,7 @@ TEST_CASE("BoundedChannel push blocks when full and resumes after read")
 TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
 {
     xtd::bounded_channel<int, 1> channel;
-    auto& writer = channel.writer();
+    xtd::channel_writer<int>& writer = channel.writer();
 
     CHECK(writer.push(1));
 
