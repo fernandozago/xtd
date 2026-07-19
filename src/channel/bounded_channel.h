@@ -56,7 +56,9 @@ namespace xtd
 		mutable std::mutex m_mutex;
 		mutable std::condition_variable m_not_full;
 		mutable std::condition_variable m_not_empty;
-
+		
+		std::size_t m_read_waiters = 0;
+		std::size_t m_write_waiters = 0;
 		std::size_t m_head = 0;
 		std::size_t m_tail = 0;
 		std::size_t m_size = 0;
@@ -71,11 +73,16 @@ namespace xtd
 		bool push(auto&& value, block_strategy strategy) 
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
+
+			m_write_waiters++;
+
 			if (strategy == block_strategy::WAIT && !m_completed && m_size == capacity) {
 				m_not_full.wait(lock, [this] {
 					return m_completed || m_size < capacity;
 				});
 			}
+
+			m_write_waiters--;
 			
 			if (m_completed || m_size == capacity) return false;
 			m_buffer[m_tail].emplace(std::forward<decltype(value)>(value));
@@ -85,9 +92,12 @@ namespace xtd
 				m_tail = 0;
 			}
 			++m_size;
-
+			const bool notify_reader = m_read_waiters != 0;
 			lock.unlock();
-			m_not_empty.notify_one();
+
+			if (notify_reader) {
+				m_not_empty.notify_one();
+			}
 			return true;
 		}
 
@@ -107,9 +117,13 @@ namespace xtd
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
 			if (strategy == block_strategy::WAIT && !m_completed && m_size == 0) {
+				++m_read_waiters;
+
 				m_not_empty.wait(lock, [this] {
 					return m_completed || m_size != 0;
 				});
+
+				--m_read_waiters;
 			} 
 			
 			if (m_size == 0) {
@@ -123,9 +137,12 @@ namespace xtd
 				m_head = 0;
 			}
 			--m_size;
-			
+			const bool notify_writer = m_write_waiters != 0;
 			lock.unlock();
-			m_not_full.notify_one();
+			
+			if (notify_writer) {
+				m_not_full.notify_one();
+			}
 			return result;
 		}
 

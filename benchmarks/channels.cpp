@@ -18,12 +18,8 @@ using namespace std::chrono_literals;
 
 static std::vector<std::string> results;
 
-void run_push_read_benchmark(
-    ankerl::nanobench::Bench& bench,
-    const std::string name,
-    const bool single_thread,
-    xtd::channel_writer<int>& writer,
-    xtd::channel_reader<int>& reader)
+void run_push_read_benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bool single_thread, 
+    xtd::channel_writer<int>& writer, xtd::channel_reader<int>& reader)
 {
     std::size_t total_messages_received = 0;
 
@@ -31,10 +27,8 @@ void run_push_read_benchmark(
 
     if (!single_thread)
     {
-        reader_task[0] = std::async(
-            std::launch::async,
-            [&reader]
-            {
+        reader_task[0] = std::async(std::launch::async,
+            [&reader] {
                 std::size_t received_message = 0;
                 while (const auto read = reader.read())
                     ++received_message;
@@ -42,10 +36,8 @@ void run_push_read_benchmark(
                 return received_message;
             });
         
-        reader_task[1] = std::async(
-            std::launch::async,
-            [&reader]
-            {
+        reader_task[1] = std::async(std::launch::async,
+            [&reader] {
                 std::size_t received_message = 0;
                 while (const auto read = reader.read())
                     ++received_message;
@@ -95,7 +87,7 @@ int main()
         .unit("message")
         .epochs(25)
         .warmup(10)
-        .minEpochTime(250ms)
+        .minEpochTime(500ms)
         .maxEpochTime(2s)
         .performanceCounters(true)
         .batch(1);

@@ -53,6 +53,7 @@ namespace xtd
 
 		mutable std::mutex m_mutex;
 		mutable std::condition_variable m_not_empty;
+		std::size_t m_read_waiters = 0;
 		std::queue<T> m_queue;
 		
 		bool m_completed = false;
@@ -67,8 +68,12 @@ namespace xtd
 			if (m_completed) return false;
 			m_queue.emplace(std::forward<decltype(value)>(value));
 
+			const bool notify_reader = m_read_waiters != 0;
 			lock.unlock();			
-			m_not_empty.notify_one();
+
+			if (notify_reader) {
+				m_not_empty.notify_one();
+			}
 			return true;
 		}
 
@@ -87,9 +92,11 @@ namespace xtd
 		{
 			std::unique_lock<std::mutex> lock(m_mutex);
 			if (strategy == block_strategy::WAIT && !m_completed && m_queue.empty()) {
+				m_read_waiters++;
 				m_not_empty.wait(lock, [this] {
 					return m_completed || !m_queue.empty();
 				});
+				m_read_waiters--;
 			} 
 			
 			if (m_queue.empty()) {
