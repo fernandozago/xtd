@@ -101,10 +101,7 @@ namespace xtd
         {
             std::unique_lock lock(m_mutex);
 
-            if (
-                strategy == block_strategy::WAIT &&
-                !m_completed &&
-                m_queue.empty())
+            if (strategy == block_strategy::WAIT && !m_completed && m_queue.empty())
             {
                 ++m_read_waiters;
 
@@ -119,10 +116,7 @@ namespace xtd
                 return std::nullopt;
             }
 
-            std::optional<T> result(
-                std::in_place,
-                std::move(m_queue.front()));
-
+            std::optional<T> result(std::in_place, std::move(m_queue.front()));
             m_queue.pop_front();
 
             const bool notify_writer = m_write_waiters != 0;
