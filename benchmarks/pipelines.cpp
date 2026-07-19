@@ -32,6 +32,12 @@ static double bytes_to_gib(const std::size_t bytes)
            static_cast<double>(bytes_per_gib);
 }
 
+static double bytes_to_mib(const std::size_t bytes)
+{
+    return static_cast<double>(bytes) /
+           static_cast<double>(bytes_per_mib);
+}
+
 static std::vector<std::string> results;
 void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_size)
 {
@@ -68,38 +74,28 @@ void benchmark_writer_throughput(ankerl::nanobench::Bench& bench, const std::siz
 
     std::size_t total_bytes_written = 0;
 
-    const auto payload =
-        std::make_unique<std::byte[]>(write_chunk_size);
-
-    std::mt19937 generator{std::random_device{}()};
-
-    std::uniform_int_distribution<unsigned int> distribution{
-        0,
-        255
-    };
+    const auto payload = std::make_unique<std::byte[]>(write_chunk_size);
 
     std::generate_n(
         payload.get(),
         write_chunk_size,
-        [&generator, &distribution]
+        []
         {
-            return static_cast<std::byte>(
-                distribution(generator));
+            std::mt19937 generator{std::random_device{}()};
+            std::uniform_int_distribution<unsigned int> distribution{
+                0,
+                255
+            };
+            return static_cast<std::byte>(distribution(generator));
         });
 
     std::string bench_name = std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes";
     bench
-        .batch(bytes_to_gib(write_chunk_size))
-        .run(
-            bench_name,
-            [&writer,
-             &total_bytes_written,
-             write_chunk_size,
-             &payload]
+        .batch(bytes_to_mib(write_chunk_size))
+        .run(bench_name,
+            [&writer, &total_bytes_written, write_chunk_size, &payload]
             {
-                total_bytes_written += writer.write(
-                    payload.get(),
-                    write_chunk_size);
+                total_bytes_written += writer.write(payload.get(), write_chunk_size);
             });
 
     writer.complete();
@@ -126,13 +122,13 @@ int main()
 
     bench
         .title("xtd::pipeline throughput")
-        .timeUnit(1ms, "ms")
+        .timeUnit(1us, "μs")
         .epochs(20)
         .warmup(10)
         .minEpochTime(250ms)
         .maxEpochTime(2s)
         .performanceCounters(true)
-        .unit("GiB");
+        .unit("MiB");
 
     for (const std::size_t write_chunk_size : chunks)
     {

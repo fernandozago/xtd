@@ -172,9 +172,11 @@ private:
     
     read_result read_at_least(const std::size_t min_size)
     {
+        runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
+
         std::unique_lock lock{m_mutex};
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
         m_data_available.wait(lock, [this, min_size] { return has_available_data(min_size); });
+
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
 
@@ -234,6 +236,7 @@ private:
             argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
             argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
             argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
+
             advance_core(consumed_offset, examined_offset);
         }
 
@@ -257,9 +260,9 @@ private:
 
     std::size_t write(const std::byte* data, const std::size_t length)
     {
-        argument_assert(
-            length == 0 || data != nullptr,
-            "data must not be null when length > 0");
+        if (length == 0 || data == nullptr) {
+            return 0;
+        }
 
         runtime_assert(!m_writer_completed, "pipeline writer is completed");
         runtime_assert(!m_reader_completed, "pipeline reader is completed");

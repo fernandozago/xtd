@@ -1,3 +1,4 @@
+#include <memory>
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
@@ -234,10 +235,11 @@ TEST_CASE("Writer: rejects null data when length is non-zero")
     xtd::pipeline pipeline;
     xtd::pipe_writer& writer = pipeline.writer();
 
-    CHECK_THROWS_AS(
-        writer.write(nullptr, 1),
-        std::invalid_argument
-    );
+    CHECK(writer.write(nullptr, 10) == 0);
+    {
+        const auto t1 = std::make_unique<std::byte[]>(0);
+        CHECK(writer.write(t1.get(), 0) == 0);
+    }
 }
 
 TEST_CASE("Writer: write after complete throws")

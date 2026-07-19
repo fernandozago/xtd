@@ -34,15 +34,14 @@ public:
     [[nodiscard]]
     fixed_buffer_ptr get_buffer()
     {
+        std::unique_ptr<std::byte[]> buffer;
         if (m_available_buffers.empty()) {
-            return {
-                new std::byte[m_buffer_size], // new here is ok, because we are using a unique_ptr to manage the memory and ensure it is freed.
-                unique_ptr_releaser{this} // this custom deleter will relate the buffer back to the pool when it is no longer needed.
-            };
+            buffer = std::make_unique_for_overwrite<std::byte[]>(m_buffer_size);
         }
-
-        std::unique_ptr<std::byte[]> buffer = std::move(m_available_buffers.back());
-        m_available_buffers.pop_back();
+        else {
+            buffer = std::move(m_available_buffers.back());
+            m_available_buffers.pop_back();
+        }
 
         return {
             buffer.release(),
