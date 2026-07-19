@@ -2,8 +2,7 @@
 #include "third_party/doctest.h"
 #include <future>
 #include <memory>
-#include "channel/unbounded_channel.h"
-#include "channel/bounded_channel.h"
+#include "channel/channel.h"
 
 using namespace std::chrono_literals;
 
@@ -20,7 +19,7 @@ TEST_CASE("BoundedChannel semantics - copy, move, emplace")
     };
 
     {
-        xtd::bounded_channel<ChannelSemanticsProbe, 5> channel;
+        xtd::channel<ChannelSemanticsProbe> channel(5);
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(42);
 
@@ -38,7 +37,7 @@ TEST_CASE("BoundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::bounded_channel<ChannelSemanticsProbe, 5> channel;
+        xtd::channel<ChannelSemanticsProbe> channel(5);
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(43);
 
@@ -56,7 +55,7 @@ TEST_CASE("BoundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::bounded_channel<ChannelSemanticsProbe, 5> channel;
+        xtd::channel<ChannelSemanticsProbe> channel(5);
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(44);
 
@@ -74,7 +73,7 @@ TEST_CASE("BoundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::bounded_channel<ChannelSemanticsProbe, 5> channel;
+        xtd::channel<ChannelSemanticsProbe> channel(5);
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(45);
 
@@ -92,7 +91,7 @@ TEST_CASE("BoundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::bounded_channel<ChannelSemanticsProbe, 5> channel;
+        xtd::channel<ChannelSemanticsProbe> channel(5);
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
 
         CHECK(writer.emplace(46));
@@ -121,7 +120,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     };
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(42);
 
@@ -140,7 +139,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(43);
 
@@ -159,7 +158,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         writer.complete(); // complete the channel before pushing data
         
@@ -171,7 +170,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(44);
 
@@ -190,7 +189,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
         ChannelSemanticsProbe data(45);
 
@@ -209,7 +208,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
     }
 
     {
-        xtd::unbounded_channel<ChannelSemanticsProbe> channel;
+        xtd::channel<ChannelSemanticsProbe> channel;
         xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
 
         CHECK(writer.emplace(46));
@@ -228,7 +227,7 @@ TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
 
 TEST_CASE("BoundedChannel try_push returns false when full and does not block")
 {
-    xtd::bounded_channel<int, 1> channel;
+    xtd::channel<int> channel(1);
     xtd::channel_writer<int>& writer = channel.writer();
 
     CHECK(writer.try_push(1));
@@ -243,7 +242,7 @@ TEST_CASE("BoundedChannel try_push returns false when full and does not block")
 
 TEST_CASE("BoundedChannel try_push returns false after completion")
 {
-    xtd::bounded_channel<int, 2> channel;
+    xtd::channel<int> channel(2);
     xtd::channel_writer<int>& writer = channel.writer();
 
     writer.complete();
@@ -255,7 +254,7 @@ TEST_CASE("BoundedChannel try_push returns false after completion")
 
 TEST_CASE("BoundedChannel try_emplace returns false when full and does not block")
 {
-    xtd::bounded_channel<int, 1> channel;
+    xtd::channel<int> channel(1);
     xtd::channel_writer<int>& writer = channel.writer();
 
     CHECK(writer.try_emplace(1));
@@ -270,7 +269,7 @@ TEST_CASE("BoundedChannel try_emplace returns false when full and does not block
 
 TEST_CASE("BoundedChannel try_emplace returns false after completion")
 {
-    xtd::bounded_channel<int, 2> channel;
+    xtd::channel<int> channel(2);
     xtd::channel_writer<int>& writer = channel.writer();
 
     writer.complete();
@@ -280,7 +279,7 @@ TEST_CASE("BoundedChannel try_emplace returns false after completion")
 
 TEST_CASE("UnboundedChannel try_emplace succeeds before completion and fails after")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     xtd::channel_writer<int>& writer = channel.writer();
     xtd::channel_reader<int>& reader = channel.reader();
 
@@ -296,7 +295,7 @@ TEST_CASE("UnboundedChannel try_emplace succeeds before completion and fails aft
 
 TEST_CASE("UnboundedChannel try_push succeeds before completion and fails after")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     xtd::channel_writer<int>& writer = channel.writer();
     xtd::channel_reader<int>& reader = channel.reader();
 
@@ -318,7 +317,7 @@ TEST_CASE("UnboundedChannel try_push succeeds before completion and fails after"
 
 TEST_CASE("BoundedChannel reader get_size reflects enqueue and dequeue")
 {
-    xtd::bounded_channel<int, 3> channel;
+    xtd::channel<int> channel(3);
     xtd::channel_writer<int>& writer = channel.writer();
     xtd::channel_reader<int>& reader = channel.reader();
 
@@ -335,7 +334,7 @@ TEST_CASE("BoundedChannel reader get_size reflects enqueue and dequeue")
 
 TEST_CASE("UnboundedChannel reader get_size reflects enqueue and dequeue")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     xtd::channel_writer<int>& writer = channel.writer();
     xtd::channel_reader<int>& reader = channel.reader();
 
@@ -352,7 +351,7 @@ TEST_CASE("UnboundedChannel reader get_size reflects enqueue and dequeue")
 
 TEST_CASE("BoundedChannel push blocks when full and resumes after read")
 {
-    xtd::bounded_channel<int, 1> channel;
+    xtd::channel<int> channel(1);
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
@@ -385,7 +384,7 @@ TEST_CASE("BoundedChannel push blocks when full and resumes after read")
 
 TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
 {
-    xtd::bounded_channel<int, 1> channel;
+    xtd::channel<int> channel(1);
     xtd::channel_writer<int>& writer = channel.writer();
 
     CHECK(writer.push(1));
@@ -404,7 +403,7 @@ TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
 
 TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 {
-    xtd::bounded_channel<int, 2> channel;
+    xtd::channel<int> channel(2);
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
@@ -422,7 +421,7 @@ TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 
 TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
@@ -440,7 +439,7 @@ TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
 
 TEST_CASE("UnboundedChannel read blocks while empty and unblocks on pushed value")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
@@ -462,7 +461,7 @@ TEST_CASE("UnboundedChannel read blocks while empty and unblocks on pushed value
 
 TEST_CASE("UnboundedChannel read returns nullopt after completion when empty")
 {
-    xtd::unbounded_channel<int> channel;
+    xtd::channel<int> channel;
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 
@@ -476,7 +475,7 @@ TEST_CASE("UnboundedChannel read returns nullopt after completion when empty")
 
 TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
 {
-    xtd::bounded_channel<int, 3> channel;
+    xtd::channel<int> channel(3);
     auto& writer = channel.writer();
     auto& reader = channel.reader();
 

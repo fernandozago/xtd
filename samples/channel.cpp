@@ -4,8 +4,7 @@
 #include <barrier>
 #include <string>
 #include "utils/utils.h"
-#include "channel/unbounded_channel.h"
-#include "channel/bounded_channel.h"
+#include "channel/channel.h"
 
 
 struct TestData {
@@ -32,11 +31,11 @@ int main(int argc, char* argv[])
 
 	std::string mode = argv[1];
 	if (is_equal_ignore_case(mode, "bounded")) {
-		xtd::bounded_channel<TestData, 500> channel;
+		xtd::channel<TestData> channel(500);
 		return run_sample(channel, "Bounded");
 	}
 	else if (is_equal_ignore_case(mode, "unbounded")) {
-		xtd::unbounded_channel<TestData> channel;
+		xtd::channel<TestData> channel;
 		return run_sample(channel, "Unbounded");
 	}
 	

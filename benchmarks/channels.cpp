@@ -6,12 +6,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <future>
-#include <memory>
 #include <print>
 
 #include "third_party/nanobench.h"
-#include "channel/bounded_channel.h"
-#include "channel/unbounded_channel.h"
+#include "channel/channel.h"
 #include "utils/utils.h"
 
 using namespace std::chrono_literals;
@@ -93,7 +91,7 @@ int main()
         .batch(1);
 
     {
-        const auto bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
+        const auto bounded_channel = std::make_unique<xtd::channel<int>>(1024);
         run_push_read_benchmark(
             bench,
             "single-thread / bounded_channel",
@@ -103,7 +101,7 @@ int main()
     }
 
     {
-        const auto unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
+        const auto unbounded_channel = std::make_unique<xtd::channel<int>>();
         run_push_read_benchmark(
             bench,
             "single-thread / unbounded_channel",
@@ -113,7 +111,7 @@ int main()
     }
 
     {
-        const auto bounded_channel = std::make_unique<xtd::bounded_channel<int, 1024>>();
+        const auto bounded_channel = std::make_unique<xtd::channel<int>>(1024);
 
         run_push_read_benchmark(
             bench,
@@ -124,7 +122,7 @@ int main()
     }
 
     {
-        const auto unbounded_channel = std::make_unique<xtd::unbounded_channel<int>>();
+        const auto unbounded_channel = std::make_unique<xtd::channel<int>>();
         run_push_read_benchmark(
             bench,
             "multi-thread / unbounded_channel",
