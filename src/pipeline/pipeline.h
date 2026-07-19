@@ -88,7 +88,8 @@ private:
     std::size_t m_buffered_size = 0;
     std::size_t m_examined_size = 0;
     std::size_t m_pending_read_size = 0;
-
+    
+    bool m_reader_waiting = false;
     bool m_has_pending_read = false;
     bool m_writer_completed = false;
     bool m_reader_completed = false;
@@ -98,12 +99,9 @@ private:
     pipe_reader m_reader;
 
     [[nodiscard]]
-    static std::size_t calculate_max_pooled_segments(
-        const std::size_t buffer_size,
-        const std::size_t pause_writer_threshold) noexcept
+    static std::size_t calculate_max_pooled_segments(const std::size_t buffer_size, const std::size_t pause_writer_threshold) noexcept
     {
         assert(buffer_size > 0);
-
         const std::size_t segments_for_threshold =
             pause_writer_threshold / buffer_size +
             (pause_writer_threshold % buffer_size != 0);
@@ -175,7 +173,9 @@ private:
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
 
         std::unique_lock lock{m_mutex};
+        m_reader_waiting = true;
         m_data_available.wait(lock, [this, min_size] { return has_available_data(min_size); });
+        m_reader_waiting = false;
 
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
@@ -309,7 +309,7 @@ private:
 
                 remaining = remaining.subspan(copied_size);
                 m_buffered_size += copied_size;
-                notify_data_available = true;
+                notify_data_available = m_reader_waiting;
 
                 if (m_buffered_size == m_pause_writer_threshold) {
                     m_writer_paused = true;
@@ -331,7 +331,7 @@ private:
         return length;
     }
 
-    void complete_writer() noexcept {
+    void complete_writer() {
         {
             std::scoped_lock lock(m_mutex);
             m_writer_completed = true;
@@ -341,7 +341,7 @@ private:
         m_space_available.notify_all();
     }
 
-    void complete_reader() noexcept {
+    void complete_reader() {
         {
             std::scoped_lock lock(m_mutex);
             m_reader_completed = true;
@@ -375,7 +375,7 @@ inline std::size_t pipe_writer::write(const T& value) {
     }
 }
 
-inline void pipe_writer::complete() noexcept {
+inline void pipe_writer::complete() {
     m_state.complete_writer();
 }
 
@@ -399,7 +399,7 @@ inline void pipe_reader::advance(const segmented_byte_view& sequence) {
     advance(sequence.begin(), sequence.end());
 }
 
-inline void pipe_reader::complete() noexcept {
+inline void pipe_reader::complete() {
     m_state.complete_reader();
 }
 

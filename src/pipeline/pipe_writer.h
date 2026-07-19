@@ -33,7 +33,7 @@ public:
     std::size_t write(const T& value);
 
     // Marks the writer as complete and wakes waiting readers.
-    void complete() noexcept;
+    void complete();
 
 private:
     pipeline& m_state;

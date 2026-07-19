@@ -41,7 +41,7 @@ public:
     void advance(const segmented_byte_view& sequence);
 
     // Completes the reader, clears buffered state, and wakes waiting writers/readers.
-    void complete() noexcept;
+    void complete();
 
 private:
     pipeline& m_state;

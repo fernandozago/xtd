@@ -58,4 +58,4 @@ jobs:
 
       - name: Run benchmarks
         run: ./benchmarks/all.sh
-
+        
