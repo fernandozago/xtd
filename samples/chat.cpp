@@ -393,7 +393,7 @@ private:
 
             if (received > 0)
             {
-                client.m_connection->receive_data(static_cast<std::byte*>(buffer.data()), static_cast<std::size_t>(received));
+                client.m_connection->receive_data(reinterpret_cast<std::byte*>(buffer.data()), static_cast<std::size_t>(received));
                 continue;
             }
 
