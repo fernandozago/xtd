@@ -141,7 +141,7 @@ int main()
     // bench.render(ankerl::nanobench::templates::json(), output);
 
     std::println();
-    std::println("|    Total Transfered | xtd::pipeline throughput ");
+    std::println("|   Total Transferred | xtd::pipeline throughput ");
     std::println("|--------------------:|:-------------------------");
     for (const std::string& result : results)
     {

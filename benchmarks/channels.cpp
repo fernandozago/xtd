@@ -1,6 +1,5 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 
-#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -26,39 +25,40 @@ void run_push_read_benchmark(
     xtd::channel_writer<int>& writer,
     xtd::channel_reader<int>& reader)
 {
-    std::atomic<std::size_t> total_messages_received = 0;
+    std::size_t total_messages_received = 0;
 
-    std::future<void> reader_task[2];
+    std::future<std::size_t> reader_task[2];
 
     if (!single_thread)
     {
         reader_task[0] = std::async(
             std::launch::async,
-            [&reader, &total_messages_received]
+            [&reader]
             {
+                std::size_t received_message = 0;
                 while (const auto read = reader.read())
-                    ++total_messages_received;
+                    ++received_message;
+
+                return received_message;
             });
         
         reader_task[1] = std::async(
             std::launch::async,
-            [&reader, &total_messages_received]
+            [&reader]
             {
+                std::size_t received_message = 0;
                 while (const auto read = reader.read())
-                    ++total_messages_received;
+                    ++received_message;
+
+                return received_message;
             });
     }
 
     std::uint64_t total_messages_enqueued = 0;
 
     bench
-        .run(
-            name,
-            [&writer,
-             single_thread,
-             &reader,
-             &total_messages_enqueued,
-             &total_messages_received]
+        .run(name,
+            [&writer, single_thread, &reader, &total_messages_enqueued, &total_messages_received]
             {
                 if (const auto write = writer.push(0); write) {
                     ++total_messages_enqueued;
@@ -77,7 +77,7 @@ void run_push_read_benchmark(
     for (auto& task : reader_task)
     {
         if (task.valid())
-            task.get();
+            total_messages_received += task.get();
     }
 
     assert(total_messages_enqueued == total_messages_received);
