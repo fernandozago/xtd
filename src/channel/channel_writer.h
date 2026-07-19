@@ -13,7 +13,8 @@ namespace xtd
 
     template<typename T>
     class channel_writer
-    {
+    {   
+    friend class channel<T>;
     public:
         channel_writer(const channel_writer&) = delete;
         channel_writer& operator=(const channel_writer&) = delete;
@@ -62,12 +63,10 @@ namespace xtd
 
         void complete()
         {
-            m_channel.complete();
+            m_channel.complete_writer();
         }
 
     private:
-        friend class channel<T>;
-
         explicit channel_writer(channel<T>& channel) noexcept
             : m_channel(channel)
         {

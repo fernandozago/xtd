@@ -14,6 +14,7 @@ namespace xtd
     template<typename T>
     class channel_reader
     {
+    friend class channel<T>;
     public:
         channel_reader(const channel_reader&) = delete;
         channel_reader& operator=(const channel_reader&) = delete;
@@ -39,8 +40,6 @@ namespace xtd
         }
 
     private:
-        friend class channel<T>;
-
         explicit channel_reader(channel<T>& channel) noexcept
             : m_channel(channel)
         {

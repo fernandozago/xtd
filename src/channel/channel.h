@@ -17,6 +17,8 @@ namespace xtd
     template<typename T>
     class channel
     {
+    friend class channel_writer<T>;
+    friend class channel_reader<T>;
     public:
         explicit channel(const std::size_t capacity = 0)
             : m_capacity(capacity)
@@ -46,11 +48,7 @@ namespace xtd
         {
             return m_reader;
         }
-
     private:
-        friend class channel_writer<T>;
-        friend class channel_reader<T>;
-
         [[nodiscard]]
         bool full() const noexcept
         {
