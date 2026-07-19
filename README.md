@@ -7,8 +7,8 @@ A header-only C++ library (`namespace xtd`) with two concurrency primitives:
 
 ## Channel Benchmark
 
-> Full benchmark output: [channels-output.txt](benchmarks/results/channels-output.txt)
+> Full benchmark output: [channels.md](benchmarks/results/channels.md)
 
 ## Pipeline Benchmark
 
-> Full benchmark output: [pipelines-output.txt](benchmarks/results/pipelines-output.txt)
+> Full benchmark output: [pipelines.md](benchmarks/results/pipelines.md)

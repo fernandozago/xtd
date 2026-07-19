@@ -9,7 +9,7 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 
 BENCH_SOURCE="$SCRIPT_DIR/channels.cpp"
 BENCH_BINARY="$BIN_DIR/channels"
-BENCH_OUTPUT="$RESULTS_DIR/channels-output.txt"
+BENCH_OUTPUT="$RESULTS_DIR/channels.md"
 
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
 

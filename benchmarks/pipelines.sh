@@ -9,7 +9,7 @@ RESULTS_DIR="$SCRIPT_DIR/results"
 
 BENCH_SOURCE="$SCRIPT_DIR/pipelines.cpp"
 BENCH_BINARY="$BIN_DIR/pipelines"
-BENCH_OUTPUT="$RESULTS_DIR/pipelines-output.txt"
+BENCH_OUTPUT="$RESULTS_DIR/pipelines.md"
 
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
 
