@@ -18,7 +18,7 @@ namespace xtd
     class channel
     {
     public:
-        explicit channel(std::size_t capacity = 0)
+        explicit channel(const std::size_t capacity = 0)
             : m_capacity(capacity)
             , m_writer(*this)
             , m_reader(*this)
