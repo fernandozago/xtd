@@ -3,9 +3,13 @@
 
 #include <cstdint>
 
+namespace xtd
+{
 enum class block_strategy : std::uint8_t
 {
     WAIT,
     TRY
 };
+} // namespace xtd
+
 #endif // CHANNEL_BLOCK_STRATEGY_H

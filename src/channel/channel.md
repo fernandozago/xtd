@@ -201,7 +201,7 @@ Do not copy the endpoint:
 
 ```cpp
 // Does not compile: channel_writer is non-copyable.
-auto writer = channel.writer();
+auto& writer = channel.writer();
 ```
 
 ### `push`
@@ -328,7 +328,7 @@ Do not copy the endpoint:
 
 ```cpp
 // Does not compile: channel_reader is non-copyable.
-auto reader = channel.reader();
+auto& reader = channel.reader();
 ```
 
 ### `try_read`

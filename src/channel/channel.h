@@ -25,6 +25,11 @@ namespace xtd
         {
         }
 
+        ~channel()
+        {
+            complete();
+        }
+
         channel(const channel&) = delete;
         channel& operator=(const channel&) = delete;
         channel(channel&&) = delete;
@@ -52,8 +57,9 @@ namespace xtd
             return m_capacity > 0 && m_queue.size() >= m_capacity;
         }
 
-        template<typename U>
-        bool push(U&& value, block_strategy strategy)
+        template<typename... Args>
+        requires std::constructible_from<T, Args...>
+        bool emplace(block_strategy strategy, Args&&... args)
         {
             std::unique_lock lock(m_mutex);
 
@@ -72,7 +78,7 @@ namespace xtd
                 return false;
             }
 
-            m_queue.emplace_back(std::forward<U>(value));
+            m_queue.emplace_back(std::forward<Args>(args)...);
 
             const bool notify_reader = m_read_waiters != 0;
 

@@ -506,3 +506,48 @@ TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
 
     CHECK_FALSE(reader.read().has_value());
 }
+
+TEST_CASE("emplace constructs the value in place")
+{
+    struct probe
+    {
+        probe(int, int& moves, int& constructions)
+            : moves(&moves)
+            , constructions(&constructions)
+        {
+            ++constructions;
+        }
+
+        probe(probe&& other) noexcept
+            : moves(other.moves)
+            , constructions(other.constructions)
+        {
+            ++*moves;
+        }
+
+        probe(const probe&) = delete;
+        probe& operator=(const probe&) = delete;
+        probe& operator=(probe&&) = delete;
+
+        int* moves;
+        int* constructions;
+    };
+
+    int moves = 0;
+    int constructions = 0;
+
+    xtd::channel<probe> channel(1);
+
+    {   // should construct in place and not move
+        CHECK(channel.writer().try_emplace(42, moves, constructions));
+        CHECK(moves == 0);
+        CHECK(constructions == 1);
+    }
+    
+
+    {   // should NOT call constructor or move constructor since channel is full
+        CHECK_FALSE(channel.writer().try_emplace(42, moves, constructions));
+        CHECK(moves == 0);
+        CHECK(constructions == 1);
+    }
+}

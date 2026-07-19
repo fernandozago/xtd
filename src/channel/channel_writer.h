@@ -23,51 +23,41 @@ namespace xtd
         [[nodiscard]]
         bool push(const T& value)
         {
-            return m_channel.push(
-                value,
-                block_strategy::WAIT);
+            return m_channel.emplace(block_strategy::WAIT, value);
         }
 
         [[nodiscard]]
         bool push(T&& value)
         {
-            return m_channel.push(
-                std::move(value),
-                block_strategy::WAIT);
+            return m_channel.emplace(block_strategy::WAIT, std::move(value));
         }
 
         [[nodiscard]]
         bool try_push(const T& value)
         {
-            return m_channel.push(
-                value,
-                block_strategy::TRY);
+            return m_channel.emplace(block_strategy::TRY, value);
         }
 
         [[nodiscard]]
         bool try_push(T&& value)
         {
-            return m_channel.push(
-                std::move(value),
-                block_strategy::TRY);
+            return m_channel.emplace(block_strategy::TRY, std::move(value));
         }
 
         template<typename... Args>
-            requires std::constructible_from<T, Args...>
+        requires std::constructible_from<T, Args...>
         [[nodiscard]]
         bool emplace(Args&&... args)
         {
-            return push(
-                T(std::forward<Args>(args)...));
+            return m_channel.emplace(block_strategy::WAIT, std::forward<Args>(args)...);
         }
 
         template<typename... Args>
-            requires std::constructible_from<T, Args...>
+        requires std::constructible_from<T, Args...>
         [[nodiscard]]
         bool try_emplace(Args&&... args)
         {
-            return try_push(
-                T(std::forward<Args>(args)...));
+            return m_channel.emplace(block_strategy::TRY, std::forward<Args>(args)...);
         }
 
         void complete()
