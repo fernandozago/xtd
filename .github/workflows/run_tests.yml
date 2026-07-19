@@ -45,3 +45,10 @@ jobs:
 
       - name: Run tests
         run: ./tests/all.sh
+
+      - name: Make benchmarks script executable
+        run: chmod +x ./benchmarks/all.sh
+
+      - name: Run benchmarks
+        run: ./benchmarks/all.sh
+
