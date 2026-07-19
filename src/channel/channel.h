@@ -27,7 +27,7 @@ namespace xtd
 
         ~channel()
         {
-            complete();
+            complete_writer();
         }
 
         channel(const channel&) = delete;
@@ -48,8 +48,8 @@ namespace xtd
         }
 
     private:
-        friend class xtd::channel_writer<T>;
-        friend class xtd::channel_reader<T>;
+        friend class channel_writer<T>;
+        friend class channel_reader<T>;
 
         [[nodiscard]]
         bool full() const noexcept
@@ -63,18 +63,18 @@ namespace xtd
         {
             std::unique_lock lock(m_mutex);
 
-            if (strategy == block_strategy::WAIT && !m_completed && full())
+            if (strategy == block_strategy::WAIT && !m_writer_completed && full())
             {
                 ++m_write_waiters;
 
                 m_not_full.wait(lock, [this] {
-                    return m_completed || !full();
+                    return m_writer_completed || !full();
                 });
 
                 --m_write_waiters;
             }
 
-            if (m_completed || full()) {
+            if (m_writer_completed || full()) {
                 return false;
             }
 
@@ -91,11 +91,11 @@ namespace xtd
             return true;
         }
 
-        void complete()
+        void complete_writer()
         {
             {
                 std::lock_guard lock(m_mutex);
-                m_completed = true;
+                m_writer_completed = true;
             }
 
             m_not_empty.notify_all();
@@ -107,12 +107,12 @@ namespace xtd
         {
             std::unique_lock lock(m_mutex);
 
-            if (strategy == block_strategy::WAIT && !m_completed && m_queue.empty())
+            if (strategy == block_strategy::WAIT && !m_writer_completed && m_queue.empty())
             {
                 ++m_read_waiters;
 
                 m_not_empty.wait(lock, [this] {
-                    return m_completed || !m_queue.empty();
+                    return m_writer_completed || !m_queue.empty();
                 });
 
                 --m_read_waiters;
@@ -153,7 +153,7 @@ namespace xtd
         std::size_t m_write_waiters = 0;
 
         std::queue<T> m_queue;
-        bool m_completed = false;
+        bool m_writer_completed = false;
 
         channel_writer<T> m_writer;
         channel_reader<T> m_reader;
