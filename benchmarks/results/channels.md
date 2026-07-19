@@ -12,14 +12,14 @@ Recommendations
 
 |          ns/message |           message/s |    err% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------:|:------------------------
-|               16.81 |       59,482,069.78 |    2.7% |     14.39 | `single-thread / bounded_channel`
-|               15.70 |       63,693,147.72 |    0.5% |     13.45 | `single-thread / unbounded_channel`
-|              161.25 |        6,201,705.75 |    1.4% |     13.75 | `multi-thread / bounded_channel`
-|              151.60 |        6,596,114.45 |    0.8% |     13.72 | `multi-thread / unbounded_channel`
+|               17.46 |       57,274,126.39 |    0.8% |     13.56 | `single-thread / bounded_channel`
+|               16.06 |       62,284,323.84 |    0.6% |     13.67 | `single-thread / unbounded_channel`
+|              162.37 |        6,158,867.80 |    1.9% |     13.66 | `multi-thread / bounded_channel`
+|              151.90 |        6,583,174.28 |    6.3% |     14.13 | :wavy_dash: `multi-thread / unbounded_channel` (Unstable with ~3,700,304.9 iters. Increase `minEpochIterations` to e.g. 37003049)
 
 | Total Messages Enqueued | xtd::channel throughput 
 |------------------------:|:-------------------------
-|             847,911,122 | `single-thread / bounded_channel`
-|             853,941,888 | `single-thread / unbounded_channel`
-|              86,453,329 | `multi-thread / bounded_channel`
-|              92,094,655 | `multi-thread / unbounded_channel`
+|             784,227,074 | `single-thread / bounded_channel`
+|             862,322,462 | `single-thread / unbounded_channel`
+|              84,926,302 | `multi-thread / bounded_channel`
+|              93,618,733 | `multi-thread / unbounded_channel`

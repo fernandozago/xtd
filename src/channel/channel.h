@@ -7,7 +7,7 @@
 
 #include <condition_variable>
 #include <cstddef>
-#include <deque>
+#include <queue>
 #include <mutex>
 #include <optional>
 #include <utility>
@@ -78,7 +78,7 @@ namespace xtd
                 return false;
             }
 
-            m_queue.emplace_back(std::forward<Args>(args)...);
+            m_queue.emplace(std::forward<Args>(args)...);
 
             const bool notify_reader = m_read_waiters != 0;
 
@@ -123,7 +123,7 @@ namespace xtd
             }
 
             std::optional<T> result(std::in_place, std::move(m_queue.front()));
-            m_queue.pop_front();
+            m_queue.pop();
 
             const bool notify_writer = m_write_waiters != 0;
 
@@ -152,7 +152,7 @@ namespace xtd
         std::size_t m_read_waiters = 0;
         std::size_t m_write_waiters = 0;
 
-        std::deque<T> m_queue;
+        std::queue<T> m_queue;
         bool m_completed = false;
 
         channel_writer<T> m_writer;
