@@ -1,6 +1,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -23,16 +24,19 @@
 #include "utils/utils.h"
 
 
-using SendFn = std::function<void(std::string_view)>;
-using BroadcastFn = std::function<void(std::string)>;
+static constexpr int ListenBacklog = 16;
+static constexpr int EpollMaxEvents = 128;
+
+using reply_fn = std::function<void(std::string_view)>;
+using broadcast_fn = std::function<void(std::string)>;
 
 class connection_handler
 {
 public:
-    connection_handler(SendFn sendFn, BroadcastFn broadcastFn)
+    connection_handler(reply_fn sendFn, broadcast_fn broadcastFn)
         : pipeline()
         , writer(pipeline.writer())
-        , send(std::move(sendFn))
+        , reply(std::move(sendFn))
         , broadcast(std::move(broadcastFn))
         , workerThread(&connection_handler::process_incoming_data, this)
     {
@@ -66,8 +70,8 @@ private:
     xtd::pipeline pipeline;
     xtd::pipe_writer& writer;
 
-    SendFn send;
-    BroadcastFn broadcast;
+    reply_fn reply;
+    broadcast_fn broadcast;
     std::thread workerThread;
 
     void process_incoming_data() noexcept
@@ -76,7 +80,7 @@ private:
         {
             println_locked("client connected");
 
-            send("[Server: You are connected. This is a sample echo server. Welcome using EPOLL!]\n");
+            reply("[Server: You are connected. This is a sample echo server. Welcome using EPOLL!]\n");
 
             auto& reader = pipeline.reader();
 
@@ -160,10 +164,11 @@ public:
         println_locked("Press Enter to stop the server.");
 
         std::array<epoll_event, EpollMaxEvents> events{};
+        const int events_size = static_cast<int>(events.size());
 
         while (true)
         {
-            const int count = ::epoll_wait(m_epollFd, events.data(), static_cast<int>(events.size()), -1);
+            const int count = ::epoll_wait(m_epollFd, events.data(), events_size, -1);
 
             if (count < 0)
             {
@@ -173,35 +178,36 @@ public:
 
                 throw_system_error("epoll_wait failed");
             }
-
-            for (int i = 0; i < count; ++i)
+            
+            const std::size_t max_count = static_cast<std::size_t>(count);
+            for (std::size_t i = 0; i < max_count; ++i)
             {
-                const epoll_event& event = events[static_cast<std::size_t>(i)];
-
+                const epoll_event& event = events[i];
                 const int fd = event.data.fd;
 
-                if (fd == m_listenFd)
-                {
-                    accept_connections();
+                // check if the fd is the listening socket
+                if (fd == m_listenFd) {
+                    handle_incoming_connection();
+                    continue;
                 }
-                else if (fd == STDIN_FILENO)
+
+                // check if the fd is stdin
+                if (fd == STDIN_FILENO)
                 {
                     if (enter_pressed()) {
                         return;
                     }
+
+                    continue;
                 }
-                else
-                {
-                    process_client_event(fd, event.events);
-                }
+
+                // otherwise, it must be a client socket
+                process_client_event(fd, event.events);
             }
         }
     }
 
 private:
-    static constexpr int ListenBacklog = 16;
-    static constexpr int EpollMaxEvents = 128;
-
     std::uint16_t m_port;
     int m_listenFd = -1;
     int m_epollFd = -1;
@@ -270,7 +276,7 @@ private:
         }
     }
 
-    void accept_connections()
+    void handle_incoming_connection()
     {
         while (true)
         {
@@ -282,9 +288,7 @@ private:
                     start_connection_handler(fd);
                 }
                 catch (const std::exception& ex) {
-                    println_locked(
-                        "failed to start connection: {}",
-                        ex.what());
+                    println_locked("failed to start connection: {}", ex.what());
                 }
 
                 continue;
@@ -340,30 +344,24 @@ private:
 
     void process_client_event(int fd, std::uint32_t events)
     {
-        const auto client = find_client(fd);
+        if (auto client = find_client(fd)) {
+            try {
+                bool leave_open = true;
 
-        if (!client) {
-            return;
-        }
+                if (events & EPOLLIN) {
+                    leave_open = receive_data(*client);
+                }
 
-        try
-        {
-            bool open = true;
-
-            if (events & EPOLLIN) {
-                open = receive_data(*client);
+                if (!leave_open || (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+                    println_locked("client disconnected");
+                    close_client(fd);
+                }
             }
-
-            if (!open ||
-                (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)))
+            catch (const std::exception& ex)
             {
+                println_locked("client error: {}", ex.what());
                 close_client(fd);
             }
-        }
-        catch (const std::exception& ex)
-        {
-            println_locked("client error: {}", ex.what());
-            close_client(fd);
         }
     }
 
@@ -570,8 +568,7 @@ private:
 
         for (auto& [fd, client] : clients)
         {
-            if (m_epollFd >= 0)
-            {
+            if (m_epollFd >= 0) {
                 ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
             }
 
@@ -582,14 +579,12 @@ private:
             }
         }
 
-        if (m_listenFd >= 0)
-        {
+        if (m_listenFd >= 0) {
             ::close(m_listenFd);
             m_listenFd = -1;
         }
 
-        if (m_epollFd >= 0)
-        {
+        if (m_epollFd >= 0) {
             ::close(m_epollFd);
             m_epollFd = -1;
         }
@@ -606,8 +601,12 @@ int main(int argc, char** argv)
             throw std::invalid_argument("invalid port");
         }
 
-        server server(static_cast<std::uint16_t>(port));
-        server.run();
+        {
+            server server(static_cast<std::uint16_t>(port));
+            server.run();
+        }
+        println_locked("Server stopped");
+        
 
         return 0;
     }
