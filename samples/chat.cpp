@@ -3,15 +3,14 @@
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <memory>
 #include <mutex>
 #include <poll.h>
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <thread>
 #include <unordered_map>
-#include <functional>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -20,103 +19,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "pipeline/pipeline.h"
 #include "utils/utils.h"
+#include "chat/connection_handler.h"
 
 
 static constexpr int ListenBacklog = 16;
 static constexpr int EpollMaxEvents = 128;
 
-using reply_fn = std::function<void(std::string_view)>;
-using broadcast_fn = std::function<void(std::string)>;
 
-class connection_handler
-{
-public:
-    connection_handler(reply_fn sendFn, broadcast_fn broadcastFn)
-        : pipeline()
-        , writer(pipeline.writer())
-        , reply(std::move(sendFn))
-        , broadcast(std::move(broadcastFn))
-        , workerThread(&connection_handler::process_incoming_data, this)
-    {
-    }
-
-    ~connection_handler()
-    {
-        close();
-
-        if (workerThread.joinable()) {
-            workerThread.join();
-        }
-
-        println_locked("Connection destroyed");
-    }
-
-    connection_handler(const connection_handler&) = delete;
-    connection_handler& operator=(const connection_handler&) = delete;
-
-    void receive_data(const std::byte* data, std::size_t size)
-    {
-        writer.write(data, size);
-    }
-
-    void close() noexcept
-    {
-        writer.complete();
-    }
-
-private:
-    xtd::pipeline pipeline;
-    xtd::pipe_writer& writer;
-
-    reply_fn reply;
-    broadcast_fn broadcast;
-    std::thread workerThread;
-
-    void process_incoming_data() noexcept
-    {
-        try
-        {
-            println_locked("client connected");
-
-            reply("[Server: You are connected. This is a sample echo server. Welcome using EPOLL!]\n");
-
-            auto& reader = pipeline.reader();
-
-            while (const xtd::read_result result = reader.read())
-            {
-                xtd::segmented_byte_view data = result.buffer();
-
-                while (xtd::position newline = data.position_of('\n'))
-                {
-                    std::string message = data.slice(newline).to_string();
-                    println_locked("Broadcasting: [Server: {}]", message);
-                    broadcast("[Server: " + message + "]\n");
-                    data = data.slice(newline + 1, data.end());
-                }
-
-                reader.advance(data.begin(), data.end());
-
-                if (result.completed()) {
-                    break;
-                }
-            }
-
-            reader.complete();
-        }
-        catch (const std::exception& ex)
-        {
-            println_locked("client error: {}", ex.what());
-        }
-        catch (...)
-        {
-            println_locked("client error: unknown exception");
-        }
-
-        println_locked("client disconnected");
-    }
-};
 
 class server
 {
@@ -125,6 +35,7 @@ struct connection_data
     std::atomic<int> fd{-1};
     mutable std::mutex m_send_mutex;
     std::shared_ptr<connection_handler> m_connection;
+    std::string name;
 };
 
 public:
@@ -172,10 +83,7 @@ public:
 
             if (count < 0)
             {
-                if (errno == EINTR) {
-                    continue;
-                }
-
+                if (errno == EINTR) continue;
                 throw_system_error("epoll_wait failed");
             }
             
@@ -195,6 +103,7 @@ public:
                 if (fd == STDIN_FILENO)
                 {
                     if (enter_pressed()) {
+                        broadcast_data("[Server Says: I'm shutting down... Bye! =)]\n");
                         return;
                     }
 
@@ -291,6 +200,7 @@ private:
                     println_locked("failed to start connection: {}", ex.what());
                 }
 
+                println_locked("accepted client fd: {}", fd);
                 continue;
             }
 
@@ -310,26 +220,22 @@ private:
     {
         auto client = std::make_shared<connection_data>();
         client->fd = fd;
+        client->name = std::format("{}", fd);
 
         try
         {
-            client->m_connection = std::make_shared<connection_handler>(
-                [this, weak_client = std::weak_ptr<connection_data>(client)](std::string_view message) {
-                    if (auto client = weak_client.lock()) {
-                        send_data(*client, message);
-                    }
-                },
-                [this](std::string message) {
-                    broadcast(message);
-                });
-
-            add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP);
-
-            std::scoped_lock lock(m_clients_mutex);
-
             if (!m_clients.emplace(fd, client).second) {
                 throw std::runtime_error("connection is already registered");
             }
+            
+            client->m_connection = std::make_shared<connection_handler>(fd,
+                [this](const int fd, const std::string_view message) { reply(fd, message); },
+                [this](const int fd, const std::string_view message) { broadcast(fd, message); },
+                [this](const int fd, const std::string_view name) { set_name(fd, name); }
+            );
+            
+            add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP);
+            std::scoped_lock lock(m_clients_mutex);
         }
         catch (...)
         {
@@ -353,7 +259,7 @@ private:
                 }
 
                 if (!leave_open || (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                    println_locked("client disconnected");
+                    println_locked("disconnecting client fd: {}", fd);
                     close_client(fd);
                 }
             }
@@ -450,7 +356,7 @@ private:
         }
     }
 
-    void broadcast(const std::string& message)
+    void broadcast_data(std::string_view message)
     {
         std::vector<std::shared_ptr<connection_data>> clients;
 
@@ -472,6 +378,28 @@ private:
             catch (const std::exception& ex) {
                 println_locked("broadcast error: {}", ex.what());
             }
+        }
+    }
+
+    void reply(const int originFd, const std::string_view message) {
+        if (auto client = find_client(originFd)) {
+            const std::string server_message = std::format("[Server Says: {}]\n", message);
+            send_data(*client, server_message);
+        }
+    }
+
+    void set_name(const int originFd, const std::string_view name) {
+        if (auto client = find_client(originFd)) {
+            const std::string old_name = client->name;
+            client->name = name;
+            broadcast_data(std::format("[Server Says: `{}` is now known as: `{}`]\n", old_name, name));
+        }
+    }
+
+    void broadcast(const int originFd, const std::string_view message)
+    {
+        if (auto originClient = find_client(originFd)) {
+            broadcast_data(std::format("['{}' Says: {}]\n", originClient->name, message));
         }
     }
 
@@ -566,17 +494,17 @@ private:
             clients.swap(m_clients);
         }
 
-        for (auto& [fd, client] : clients)
+        for (auto& client : clients)
         {
+            if (client.second->m_connection) {
+                client.second->m_connection->close(); 
+            }
+            
             if (m_epollFd >= 0) {
-                ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
+                ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, client.first, nullptr);
             }
-
-            close_socket(*client);
-
-            if (client->m_connection) {
-                client->m_connection->close();
-            }
+            
+            close_socket(*client.second);
         }
 
         if (m_listenFd >= 0) {
