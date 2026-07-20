@@ -19,15 +19,10 @@ inline bool is_equal_ignore_case(const std::string_view& a, const std::string_vi
 inline constinit std::mutex __utils_get_println_mutex__;
 
 template<typename... Args>
-void println_locked(
-	std::format_string<Args...> format,
-	Args&&... args)
+void println_locked(std::format_string<Args...> format, Args&&... args)
 {
 	std::lock_guard lock(__utils_get_println_mutex__);
-
-	std::println(
-		format,
-		std::forward<Args>(args)...);
+	std::println(format, std::forward<Args>(args)...);
 }
 
 
