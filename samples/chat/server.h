@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 #include <poll.h>
-
+#include <unordered_map>
 #include "../utils/utils.h"
 #include "connection_handler.h"
 
@@ -13,14 +13,6 @@ static constexpr int EpollMaxEvents = 128;
 
 class server
 {
-struct connection_data
-{
-    std::atomic<int> fd{-1};
-    mutable std::mutex m_send_mutex;
-    std::shared_ptr<connection_handler> m_connection;
-    std::string name;
-};
-
 public:
     explicit server(std::uint16_t port)
         : m_port(port)
@@ -100,6 +92,38 @@ public:
     }
 
 private:
+    void reply(const int originFd, const std::string_view message) {
+        if (auto client = find_client(originFd)) {
+            const std::string server_message = std::format("[📣: {}]\n", message);
+            send_data(*client, server_message);
+        }
+    }
+
+    void set_name(const int originFd, const std::string_view name) {
+        if (auto client = find_client(originFd)) {
+            const std::string old_name = client->name;
+            client->name = name;
+            broadcast_data(std::format("[📣: `{}` is now known as: `{}`]\n", old_name, name));
+        }
+    }
+
+    void broadcast(const int originFd, const std::string_view message)
+    {
+        if (auto originClient = find_client(originFd)) {
+            broadcast_data(std::format("[`{}`: {}]\n", originClient->name, message));
+        }
+    }
+
+    friend connection_handler<server>;
+    using connection_handler_t = connection_handler<server>;
+    struct connection_data
+    {
+        std::atomic<int> fd{-1};
+        mutable std::mutex m_send_mutex;
+        std::shared_ptr<connection_handler_t> m_connection;
+        std::string name;
+    };
+
     std::uint16_t m_port;
     int m_listenFd = -1;
     int m_epollFd = -1;
@@ -214,11 +238,7 @@ private:
                 }
             }
             
-            client->m_connection = std::make_shared<connection_handler>(fd,
-                [this](const int fd, const std::string_view message) { reply(fd, message); },
-                [this](const int fd, const std::string_view message) { broadcast(fd, message); },
-                [this](const int fd, const std::string_view name) { set_name(fd, name); }
-            );
+            client->m_connection = std::make_shared<connection_handler_t>(fd, *this);
             
             broadcast_data(std::format("[📣: `{}` has joined the chat!]\n", client->name));
             add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP);
@@ -364,28 +384,6 @@ private:
             catch (const std::exception& ex) {
                 println_locked("broadcast error: {}", ex.what());
             }
-        }
-    }
-
-    void reply(const int originFd, const std::string_view message) {
-        if (auto client = find_client(originFd)) {
-            const std::string server_message = std::format("[📣: {}]\n", message);
-            send_data(*client, server_message);
-        }
-    }
-
-    void set_name(const int originFd, const std::string_view name) {
-        if (auto client = find_client(originFd)) {
-            const std::string old_name = client->name;
-            client->name = name;
-            broadcast_data(std::format("[📣: `{}` is now known as: `{}`]\n", old_name, name));
-        }
-    }
-
-    void broadcast(const int originFd, const std::string_view message)
-    {
-        if (auto originClient = find_client(originFd)) {
-            broadcast_data(std::format("[`{}`: {}]\n", originClient->name, message));
         }
     }
 
