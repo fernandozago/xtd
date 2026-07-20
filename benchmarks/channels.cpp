@@ -88,8 +88,7 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
 
     writer.complete();
 
-    for (auto& consumer : consumers)
-    {
+    for (auto& consumer : consumers) {
         total_messages_received += consumer->get_received_messages();
     }
 

@@ -14,7 +14,6 @@ This page documents the public channel API in a style similar to cppreference.
 8. [Complexity](#8-complexity)
 9. [How-to guides](#9-how-to-guides)
 10. [Examples](#10-examples)
-11. [Migration notes](#11-migration-notes)
 
 ## 1) Overview
 
@@ -798,39 +797,6 @@ for (auto& producer : producers) {
 writer.complete();
 consumer.join();
 ```
-
-## 11) Migration notes
-
-### Cancellable overload order
-
-The channel writer API uses token-first overloads:
-
-```cpp
-writer.push(stop_token, value);
-writer.emplace(stop_token, args...);
-```
-
-It does **not** use:
-
-```cpp
-writer.push(value, stop_token); // not the public signature
-```
-
-### `emplace` behavior
-
-`emplace` now constructs directly in the internal queue after capacity,
-completion, and cancellation checks. Documentation that describes creation of a
-temporary followed by `push` is outdated.
-
-### Cancellation return values
-
-No new result type was introduced:
-
-- cancelled writes return `false`;
-- cancelled reads return `std::nullopt`.
-
-Use `stop_token.stop_requested()` when the reason must be distinguished from
-completion or capacity-related failure.
 
 ## See also
 

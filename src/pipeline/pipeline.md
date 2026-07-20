@@ -19,7 +19,6 @@ This page documents the public pipeline API in a style similar to cppreference.
 13. [Complexity](#13-complexity)
 14. [How-to guides](#14-how-to-guides)
 15. [Examples](#15-examples)
-16. [Migration notes](#16-migration-notes)
 
 ## 1) Overview
 
@@ -1107,59 +1106,6 @@ std::jthread producer([&](std::stop_token stop_token) {
     writer.complete();
 });
 ```
-
-## 16) Migration notes
-
-### All blocking pipeline operations now accept a token
-
-```cpp
-reader.read(stop_token);
-reader.read_at_least(min_bytes, stop_token);
-writer.write(data, length, stop_token);
-writer.write(value, stop_token);
-```
-
-The token is the last argument in the pipeline API.
-
-This differs from channel writer overloads, where the token is first.
-
-### `read_result` now represents cancellation
-
-Use:
-
-```cpp
-if (!result) {
-    // Cancelled.
-}
-```
-
-Only successful results establish pending-read state.
-
-### Writes can return partial counts
-
-Previously, code may have assumed a successful return always equaled the input
-size or that cancellation could not interrupt the call.
-
-With cancellation, always compare the return value with the requested byte
-count.
-
-### Backpressure documentation change
-
-Documentation that allows examined bytes alone to resume the writer is outdated.
-
-The current code resumes based only on unconsumed buffered bytes:
-
-```cpp
-buffered_size <= resume_writer_threshold
-```
-
-This prevents unbounded growth when a parser repeatedly examines data without
-consuming it.
-
-### Null raw pointer behavior
-
-The current implementation returns `0` when `data == nullptr`, including when
-`length > 0`. It does not throw `std::invalid_argument` for that case.
 
 ## See also
 
