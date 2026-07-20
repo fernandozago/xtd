@@ -11,6 +11,7 @@
 #include <mutex>
 #include <optional>
 #include <utility>
+#include <stop_token>
 
 namespace xtd
 {
@@ -101,7 +102,7 @@ namespace xtd
         }
 
         [[nodiscard]]
-        std::optional<T> read(block_strategy strategy)
+        std::optional<T> read(block_strategy strategy, std::stop_token stop_token = {})
         {
             std::unique_lock lock(m_mutex);
 
@@ -109,9 +110,14 @@ namespace xtd
             {
                 ++m_read_waiters;
 
-                m_not_empty.wait(lock, [this] {
+                auto result = m_not_empty.wait(lock, stop_token, [this] {
                     return m_writer_completed || !m_queue.empty();
                 });
+
+                if (!result) {
+                    --m_read_waiters;
+                    return std::nullopt;
+                }
 
                 --m_read_waiters;
             }
@@ -144,8 +150,8 @@ namespace xtd
         const std::size_t m_capacity;
 
         mutable std::mutex m_mutex;
-        std::condition_variable m_not_full;
-        std::condition_variable m_not_empty;
+        std::condition_variable_any m_not_full;
+        std::condition_variable_any m_not_empty;
 
         std::size_t m_read_waiters = 0;
         std::size_t m_write_waiters = 0;

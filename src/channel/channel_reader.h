@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <stop_token>
 
 namespace xtd
 {
@@ -28,9 +29,9 @@ namespace xtd
         }
 
         [[nodiscard]]
-        std::optional<T> read()
+        std::optional<T> read(std::stop_token stopToken = {})
         {
-            return m_channel.read(block_strategy::WAIT);
+            return m_channel.read(block_strategy::WAIT, stopToken);
         }
 
         [[nodiscard]]
