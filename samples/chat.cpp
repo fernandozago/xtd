@@ -1,5 +1,23 @@
 #include "chat/server.h"
 
+/*
+ Simple chat server
+ 
+ Build and run:
+  ./samples/run.sh chat.cpp        # Uses the default port (9090)
+  ./samples/run.sh chat.cpp 8080   # Uses port 8080
+ 
+ Connect using netcat (nc):
+   nc <server-ip-address> <port>
+ 
+ Inside the chat:
+   - Type a message and press Enter to send it.
+   - Use `/name <your_name>` to change your name.
+   - Press Ctrl+C to disconnect.
+ 
+ Make sure the selected port is allowed through the server's firewall.
+ */
+
 int main(int argc, char** argv)
 {
     try

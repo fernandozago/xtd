@@ -78,7 +78,7 @@ public:
                 if (fd == STDIN_FILENO)
                 {
                     if (enter_pressed()) {
-                        broadcast_data("[📣: I'm shutting down... Bye! 👋]\n");
+                        broadcast("[📣: I'm shutting down... Bye! 👋]\n");
                         return;
                     }
 
@@ -94,23 +94,29 @@ public:
 private:
     void reply(const int originFd, const std::string_view message) {
         if (auto client = find_client(originFd)) {
-            const std::string server_message = std::format("[📣: {}]\n", message);
-            send_data(*client, server_message);
+            send_data(*client, message);
         }
     }
 
-    void set_name(const int originFd, const std::string_view name) {
-        if (auto client = find_client(originFd)) {
-            const std::string old_name = client->name;
-            client->name = name;
-            broadcast_data(std::format("[📣: `{}` is now known as: `{}`]\n", old_name, name));
-        }
-    }
-
-    void broadcast(const int originFd, const std::string_view message)
+    void broadcast(const std::string_view message)
     {
-        if (auto originClient = find_client(originFd)) {
-            broadcast_data(std::format("[`{}`: {}]\n", originClient->name, message));
+        std::vector<std::shared_ptr<connection_data>> clients;
+        {
+            std::scoped_lock lock(m_clients_mutex);
+            clients.reserve(m_clients.size());
+            for (const auto& [fd, client] : m_clients) {
+                clients.push_back(client);
+            }
+        }
+
+        for (const auto& client : clients)
+        {
+            try {
+                send_data(*client, message);
+            }
+            catch (const std::exception& ex) {
+                println_locked("broadcast error: {}", ex.what());
+            }
         }
     }
 
@@ -121,7 +127,6 @@ private:
         std::atomic<int> fd{-1};
         mutable std::mutex m_send_mutex;
         std::shared_ptr<connection_handler_t> m_connection;
-        std::string name;
     };
 
     std::uint16_t m_port;
@@ -182,9 +187,12 @@ private:
 
     void add_to_epoll(int fd, std::uint32_t events) const
     {
-        epoll_event event{};
-        event.events = events;
-        event.data.fd = fd;
+        epoll_event event {
+            .events = events,
+            .data = {
+                .fd = fd
+            }
+        };
 
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0)
         {
@@ -227,7 +235,6 @@ private:
     {
         auto client = std::make_shared<connection_data>();
         client->fd = fd;
-        client->name = std::format("{}", fd);
 
         try
         {
@@ -239,8 +246,6 @@ private:
             }
             
             client->m_connection = std::make_shared<connection_handler_t>(fd, *this);
-            
-            broadcast_data(std::format("[📣: `{}` has joined the chat!]\n", client->name));
             add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP);
         }
         catch (...)
@@ -265,7 +270,6 @@ private:
                 }
 
                 if (!leave_open || (events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                    broadcast_data(std::format("[📣: `{}` has left the chat.]\n", client->name));
                     close_client(fd);
                 }
             }
@@ -362,31 +366,6 @@ private:
         }
     }
 
-    void broadcast_data(std::string_view message)
-    {
-        std::vector<std::shared_ptr<connection_data>> clients;
-
-        {
-            std::scoped_lock lock(m_clients_mutex);
-
-            clients.reserve(m_clients.size());
-
-            for (const auto& [fd, client] : m_clients) {
-                clients.push_back(client);
-            }
-        }
-
-        for (const auto& client : clients)
-        {
-            try {
-                send_data(*client, message);
-            }
-            catch (const std::exception& ex) {
-                println_locked("broadcast error: {}", ex.what());
-            }
-        }
-    }
-
     void close_client(int fd)
     {
         std::shared_ptr<connection_data> client;
@@ -439,8 +418,7 @@ private:
                     return;
                 }
 
-                throw std::runtime_error(
-                    "socket is no longer writable");
+                throw std::runtime_error("socket is no longer writable");
             }
 
             if (result < 0 && errno == EINTR) {

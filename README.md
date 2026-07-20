@@ -12,3 +12,7 @@ A header-only C++ library (`namespace xtd`) with two concurrency primitives:
 ## Pipeline Benchmark
 
 > Full benchmark output: [pipelines.md](benchmarks/results/pipelines.md)
+
+## Samples
+
+> Chat (Everyone likes this): [chat.md](samples/chat.md)
