@@ -12,6 +12,7 @@
 #include <optional>
 #include <utility>
 #include <stop_token>
+#include <atomic>
 
 namespace xtd
 {
@@ -92,11 +93,7 @@ namespace xtd
 
         void complete_writer()
         {
-            {
-                std::lock_guard lock(m_mutex);
-                m_writer_completed = true;
-            }
-
+            m_writer_completed = true;
             m_not_empty.notify_all();
             m_not_full.notify_all();
         }
@@ -157,7 +154,7 @@ namespace xtd
         std::size_t m_write_waiters = 0;
 
         std::queue<T> m_queue;
-        bool m_writer_completed = false;
+        std::atomic<bool> m_writer_completed = false;
 
         channel_writer<T> m_writer;
         channel_reader<T> m_reader;
