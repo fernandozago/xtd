@@ -5,51 +5,72 @@ This page documents the public pipeline API in a style similar to cppreference.
 ## Contents
 
 1. [Overview](#1-overview)
-2. [Headers and Types](#2-headers-and-types)
+2. [Headers and public types](#2-headers-and-public-types)
 3. [`xtd::pipe_options`](#3-xtdpipe_options)
 4. [`xtd::pipeline`](#4-xtdpipeline)
 5. [`xtd::pipe_writer`](#5-xtdpipe_writer)
 6. [`xtd::pipe_reader`](#6-xtdpipe_reader)
-7. [`xtd::read_result`](#7-xtdread_result)
-8. [`xtd::segmented_byte_view`](#8-xtdsegmented_byte_view)
-9. [`xtd::position`](#9-xtdposition)
-10. [`xtd::pipe_utils`](#10-xtdpipe_utils)
-11. [Semantics and Guarantees](#11-semantics-and-guarantees)
-12. [Complexity](#12-complexity)
-13. [How-to Guides](#13-how-to-guides)
-14. [Examples](#14-examples)
+7. [Cancellation with `std::stop_token`](#7-cancellation-with-stdstop_token)
+8. [`xtd::read_result`](#8-xtdread_result)
+9. [`xtd::segmented_byte_view`](#9-xtdsegmented_byte_view)
+10. [`xtd::position`](#10-xtdposition)
+11. [`xtd::pipe_utils`](#11-xtdpipe_utils)
+12. [Semantics and guarantees](#12-semantics-and-guarantees)
+13. [Complexity](#13-complexity)
+14. [How-to guides](#14-how-to-guides)
+15. [Examples](#15-examples)
+16. [Migration notes](#16-migration-notes)
 
 ## 1) Overview
 
-`xtd::pipeline` is a byte-oriented producer/consumer primitive for incremental parsing.
+`xtd::pipeline` is a byte-oriented producer/consumer primitive for incremental
+parsing.
 
 Core model:
 
-- Writer appends bytes via `pipe_writer::write(...)`.
-- Reader receives snapshots via `pipe_reader::read()` or `pipe_reader::read_at_least(...)`.
-- Reader must call `advance(...)` exactly once per successful read before the next read call.
-- Backpressure is controlled by `pipe_options` thresholds.
+- the writer appends bytes through `pipe_writer::write(...)`;
+- the reader obtains snapshots through `read()` or `read_at_least(...)`;
+- each successful read must be matched by exactly one `advance(...)`;
+- bounded memory growth is controlled by pause/resume thresholds;
+- blocking reads and writes support cooperative cancellation.
 
 Typical use cases:
 
-- Delimiter-based protocol parsing.
-- Incremental binary framing.
-- Streaming file/socket ingestion while controlling memory growth.
+- delimiter-based protocol parsing;
+- incremental binary framing;
+- streaming file or socket ingestion;
+- producer/consumer byte transfer with backpressure;
+- cancellation-aware `std::jthread` processing.
 
-## 2) Headers and Types
+The pipeline is designed for one logical writer and one logical reader, which
+may run concurrently.
 
-### Namespace
-
-```cpp
-namespace xtd { /* ... */ }
-```
-
-### Main headers
+## 2) Headers and public types
 
 ```cpp
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
 ```
+
+Cancellation support uses:
+
+```cpp
+#include <stop_token>
+```
+
+Main public types:
+
+```cpp
+xtd::pipe_options
+xtd::pipeline
+xtd::pipe_writer
+xtd::pipe_reader
+xtd::read_result
+xtd::segmented_byte_view
+xtd::position
+xtd::pipe_utils
+```
+
 ## 3) `xtd::pipe_options`
 
 ### Synopsis
@@ -66,100 +87,49 @@ struct pipe_options {
 }
 ```
 
-### Validation rules
+### Members
 
-- `buffer_size > 0`
-- `pause_writer_threshold > 0`
-- `resume_writer_threshold <= pause_writer_threshold`
+| Member | Meaning |
+|---|---|
+| `buffer_size` | Capacity of each internal data segment |
+| `resume_writer_threshold` | Buffered-byte level at which a paused writer may resume |
+| `pause_writer_threshold` | Buffered-byte level at which the writer pauses |
 
-Invalid values throw `std::invalid_argument` during `pipeline` construction.
+### Validation
 
-### Threshold behavior
+Construction throws `std::invalid_argument` unless:
 
-- Writer pauses when buffered bytes reach `pause_writer_threshold`.
-- Writer resumes when either:
-- total buffered bytes drop to `resume_writer_threshold` or below
-- unexamined bytes drop to `resume_writer_threshold` or below
+- `buffer_size > 0`;
+- `pause_writer_threshold > 0`;
+- `resume_writer_threshold <= pause_writer_threshold`.
 
-Exact resume condition:
+### Current threshold policy
+
+The current implementation bases writer resumption only on the number of
+**unconsumed buffered bytes**:
 
 ```cpp
 writer_resumes =
-    buffered_bytes <= resume_writer_threshold ||
-    unexamined_bytes <= resume_writer_threshold;
+    buffered_bytes <= resume_writer_threshold;
 ```
 
-This second rule is important for parser loops that examine data before consuming it.
+Examining bytes without consuming them does not release storage and therefore
+does not resume the writer.
 
-Why this does not permit unbounded growth when the parser examines data but consumes nothing:
+The pause and resume thresholds should be large enough to hold the largest
+application-level frame that may need to remain buffered while parsing.
 
-- If the reader repeatedly examines all currently buffered data, `unexamined_bytes` falls to 0 after each `advance(consumed, examined)` call.
-- That satisfies the resume condition and allows the writer to make progress.
-- The writer is still paused again whenever total buffered bytes reach `pause_writer_threshold`.
-- As a result, growth remains bounded by the configured pause/resume thresholds and ongoing reader progress; repeatedly examining data does not disable backpressure.
+### Large writes
 
-Resume state table:
+A large write is incremental rather than atomic:
 
-| buffered_bytes | unexamined_bytes | Result |
-|---|---|---|
-| above `resume_writer_threshold` | above `resume_writer_threshold` | writer remains paused |
-| below-or-equal `resume_writer_threshold` | above `resume_writer_threshold` | writer resumes |
-| above `resume_writer_threshold` | below-or-equal `resume_writer_threshold` | writer resumes |
-| below-or-equal `resume_writer_threshold` | below-or-equal `resume_writer_threshold` | writer resumes |
+1. bytes are copied into one or more internal segments;
+2. once `pause_writer_threshold` is reached, the writer pauses;
+3. the same `write()` call waits for reader consumption;
+4. it resumes when buffered bytes fall to the resume threshold;
+5. it continues until complete, cancelled, or failed.
 
-Large writes are not atomic with respect to backpressure:
-
-- `write()` appends bytes incrementally.
-- If a write reaches the pause threshold partway through, that same `write()` call blocks mid-write.
-- After the reader advances enough data to satisfy resume policy, the same `write()` call continues appending the remaining bytes.
-- Backpressure is therefore applied during a large write, not only before or after it.
-
-Example:
-
-```cpp
-pause_writer_threshold = 128;
-writer.write(buffer_of_1024_bytes);
-```
-
-Actual behavior:
-
-- The call may append some prefix of the 1024 bytes.
-- Once buffered bytes reach the pause threshold, the call blocks.
-- After the reader advances enough data, the same call resumes and writes more bytes.
-- The function returns only after all 1024 bytes have been written or an error occurs.
-
-Minimal example:
-
-```cpp
-xtd::pipeline pipe(xtd::pipe_options{
-    .buffer_size = 64,
-    .resume_writer_threshold = 64,
-    .pause_writer_threshold = 128,
-});
-
-auto& writer = pipe.writer();
-auto& reader = pipe.reader();
-const std::string payload(1024, 'x');
-
-auto producer = std::async(std::launch::async, [&]() {
-    writer.write(payload); // blocks partway through
-    writer.complete();
-});
-
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
-
-    // First read typically reaches the pause threshold (128 bytes here).
-    reader.advance(seq.end(), seq.end());
-
-    if (rr.completed()) break;
-}
-
-producer.wait();
-reader.complete();
-```
-
-This behavior is covered by `tests/pipelines.cpp`.
+A successful `write()` can therefore block in the middle of its input.
 
 ## 4) `xtd::pipeline`
 
@@ -171,22 +141,52 @@ namespace xtd {
 class pipeline {
 public:
     explicit pipeline(pipe_options options = {});
+    ~pipeline();
 
-    [[nodiscard]] 
+    pipeline(const pipeline&) = delete;
+    pipeline& operator=(const pipeline&) = delete;
+    pipeline(pipeline&&) = delete;
+    pipeline& operator=(pipeline&&) = delete;
+
+    [[nodiscard]]
     pipe_reader& reader() noexcept;
 
-    [[nodiscard]] 
+    [[nodiscard]]
     pipe_writer& writer() noexcept;
 };
 
 }
 ```
 
-### Notes
+### Construction
 
-- `pipeline` owns shared state for one reader endpoint and one writer endpoint object.
-- `reader()` and `writer()` return references to those endpoint objects.
-- Endpoint objects themselves are non-copyable and non-movable.
+```cpp
+xtd::pipeline pipe;
+
+xtd::pipeline tuned({
+    .buffer_size = 4096,
+    .resume_writer_threshold = 32768,
+    .pause_writer_threshold = 131072,
+});
+```
+
+The pipeline creates and owns one reader endpoint and one writer endpoint.
+
+### Lifetime
+
+The endpoints are returned by reference and must not outlive the pipeline.
+
+The pipeline destructor completes both sides. Threads using the endpoints must
+still stop and join before destruction; destructor completion is not a lifetime
+synchronization mechanism.
+
+### Internal segment pooling
+
+The implementation stores data in fixed-size segments and maintains a pool
+sized from `buffer_size` and `pause_writer_threshold`.
+
+Snapshots are exposed as segmented views, avoiding the need to flatten all
+buffered data into one contiguous allocation.
 
 ## 5) `xtd::pipe_writer`
 
@@ -197,63 +197,117 @@ namespace xtd {
 
 class pipe_writer {
 public:
-    std::size_t write(const std::byte* data, std::size_t length);
+    std::size_t write(
+        const std::byte* data,
+        std::size_t length,
+        std::stop_token stop_token = {});
 
     template<class T>
-    std::size_t write(const T& value);
+        requires (
+            std::convertible_to<T, std::string_view> ||
+            std::is_trivially_copyable_v<T>)
+    std::size_t write(
+        const T& value,
+        std::stop_token stop_token = {});
 
-    void complete() noexcept;
+    void complete();
 };
 
 }
 ```
 
-### `write(const std::byte*, std::size_t)`
+The endpoint is non-copyable and non-movable.
+
+### `write(const std::byte*, std::size_t, std::stop_token)`
+
+```cpp
+std::size_t write(
+    const std::byte* data,
+    std::size_t length,
+    std::stop_token stop_token = {});
+```
 
 Writes raw bytes.
 
-- Throws `std::invalid_argument` if `data == nullptr && length > 0`.
-- `write(nullptr, 0)` is a valid no-op.
-- Throws `std::runtime_error` if writer is completed.
-- Throws `std::runtime_error` if reader is completed.
-- May block due to backpressure.
-- A large write may block after partially appending its input; it is not atomic with respect to backpressure.
-- Returns the number of bytes written (`length` on success).
+Behavior:
 
-### `write(const T&)`
+- `length == 0` returns `0`;
+- `data == nullptr` returns `0`, including for non-zero length;
+- writing after writer completion throws `std::runtime_error`;
+- writing after reader completion throws `std::runtime_error`;
+- the call may block due to backpressure;
+- successful completion returns `length`;
+- cancellation returns the number of bytes already committed.
 
-Behavior by type category:
+A cancelled write is not rolled back:
 
-- If `T` is convertible to `std::string_view`: writes string bytes.
-- Else if `T` is trivially copyable: writes `sizeof(T)` raw bytes.
-- Otherwise: this overload does not participate in overload resolution.
+```cpp
+const std::size_t written =
+    writer.write(data, length, stop_token);
 
-Supported-type rule:
+// 0 <= written && written <= length
+```
 
-- This overload is available only for types that are convertible to `std::string_view` or trivially copyable.
-- Unsupported types are rejected at compile time rather than producing a runtime exception.
+When `written < length`, the prefix `[data, data + written)` may already be
+visible to the reader.
 
-Practical examples:
+### Typed `write`
 
-- `writer.write("abc")` writes 3 bytes.
-- `writer.write(std::string("abc"))` writes 3 bytes.
-- `writer.write(std::array<uint32_t, 3>{...})` writes raw array bytes.
-- Non-trivially-copyable non-string-like structs must be serialized manually.
+```cpp
+template<class T>
+std::size_t write(
+    const T& value,
+    std::stop_token stop_token = {});
+```
 
-Portability warning:
+The overload participates only when `T` is string-view-convertible or trivially
+copyable.
 
-- Writing a trivially copyable object writes its native object representation.
-- This format is not inherently portable between architectures, processes built with different ABIs, or machines with different byte order.
-- Raw object bytes may depend on endianness, integer representation, ABI/layout rules, and compiler/platform choices.
-- Padding bytes inside structs may contain unspecified values and will also be written.
-- For network or persistent formats, serialize fields explicitly and use a defined byte order.
+#### String-like values
 
-### `complete()`
+For `T` convertible to `std::string_view`, the string's byte sequence is
+written:
 
-- Marks writer completed.
-- Unblocks threads currently waiting in `read()` or `write()` on this pipeline.
-- `pipe_writer::complete()` is idempotent.
-- After `pipe_writer::complete()`, subsequent `write(...)` calls throw `std::runtime_error`.
+```cpp
+writer.write("abc");                 // 3 bytes
+writer.write(std::string{"abc"});    // 3 bytes
+writer.write(std::string_view{"abc"});
+```
+
+#### Trivially copyable values
+
+Otherwise, the native object representation is written:
+
+```cpp
+writer.write(std::uint32_t{42});
+writer.write(std::array{1, 2, 3});
+```
+
+This is not portable serialization:
+
+- endianness may differ;
+- object layout and ABI may differ;
+- padding bytes are included;
+- persistent or network protocols should encode fields explicitly.
+
+Cancellation can produce a partial object representation. Applications that
+require atomic records should frame or stage records above the pipeline.
+
+### `complete`
+
+```cpp
+void complete();
+```
+
+Marks the writer completed and wakes blocked readers and writers.
+
+Properties:
+
+- idempotent;
+- buffered bytes remain readable;
+- later `write(...)` calls throw `std::runtime_error`;
+- completion does not imply that buffered data ends on an application message
+  boundary.
 
 ## 6) `xtd::pipe_reader`
 
@@ -264,74 +318,229 @@ namespace xtd {
 
 class pipe_reader {
 public:
-    read_result read();
-    read_result read_at_least(const std::size_t min_bytes);
+    [[nodiscard]]
+    read_result read(std::stop_token stop_token = {}) const;
 
-    void advance(const position& consumed, const position& examined);
+    [[nodiscard]]
+    read_result read_at_least(
+        std::size_t min_bytes,
+        std::stop_token stop_token = {}) const;
+
+    void advance(
+        const position& consumed,
+        const position& examined);
+
     void advance(const position& consumed);
     void advance(const segmented_byte_view& sequence);
 
-    void complete() noexcept;
+    void complete();
 };
 
 }
 ```
 
-### `read()`
+The endpoint is non-copyable and non-movable.
 
-Returns a snapshot (`read_result`) of currently visible bytes.
+### `read`
 
-- Blocks while no data is available and writer is not completed.
-- Throws `std::runtime_error` if called again before `advance(...)`.
-- Throws `std::runtime_error` if reader has been completed.
+```cpp
+read_result read(std::stop_token stop_token = {}) const;
+```
 
-### `read_at_least(min_bytes)`
+Equivalent to:
 
-Returns a snapshot (`read_result`) and waits until one of these is true:
+```cpp
+reader.read_at_least(0, stop_token);
+```
 
-- reader is completed (then throws `std::runtime_error`),
-- writer is completed, or
-- buffered data size is greater than `min_bytes`.
+The call waits until:
 
-Notes:
+- new unexamined data is available;
+- the writer is completed;
+- the reader is completed; or
+- cancellation is requested.
 
-- `read()` is equivalent to `read_at_least(0)`.
-- Uses the same pending-read protocol as `read()`: call `advance(...)` exactly once before calling another read operation.
-- Throws `std::runtime_error` if called again before `advance(...)`.
-- Throws `std::runtime_error` if reader has been completed.
+A successful read creates a pending-read state. Exactly one matching
+`advance(...)` is required before the next read.
+
+The call throws `std::runtime_error` when:
+
+- the reader was completed;
+- a previous successful read has not been advanced.
+
+A cancelled read returns a cancelled `read_result`; it does not create a pending
+read and does not require `advance(...)`.
+
+### `read_at_least`
+
+```cpp
+read_result read_at_least(
+    std::size_t min_bytes,
+    std::stop_token stop_token = {}) const;
+```
+
+Waits until one of these conditions is true:
+
+- the writer is completed;
+- the reader is completed;
+- at least `min_bytes` are buffered and some data remains unexamined;
+- cancellation is requested.
+
+Writer completion may return fewer than `min_bytes`.
+
+The minimum is a wake/read condition, not a guarantee after completion.
 
 ### `advance(consumed, examined)`
 
-Reports progress for the most recent `read()` buffer.
+```cpp
+void advance(
+    const position& consumed,
+    const position& examined);
+```
 
-- `consumed <= examined` is required.
-- Positions must come from the most recent read buffer.
-- Throws `std::runtime_error` if there is no pending read.
-- Throws `std::runtime_error` if reader is completed.
-- Throws `std::invalid_argument` for stale/foreign/out-of-range positions.
+Reports progress for the most recent successful read.
 
-Behavioral meaning:
+- `consumed`: bytes before this position may be discarded and recycled.
+- `examined`: bytes before this position were inspected by the parser.
 
-- `consumed`: bytes that can be discarded.
-- `examined`: bytes that parser looked at.
+Requirements:
+
+- one successful read is pending;
+- `consumed <= examined`;
+- both positions belong to the most recent read sequence;
+- `examined` does not exceed the pending read length;
+- the reader is not completed.
+
+Errors:
+
+- protocol-state violations throw `std::runtime_error`;
+- foreign, stale, reversed, or out-of-range positions throw
+  `std::invalid_argument`.
+
+Consuming data reduces `buffered_size` and can resume a paused writer.
+
+Examining without consuming changes when the next read becomes eligible, but
+does not free storage or independently resume the writer.
 
 ### Convenience overloads
 
-- `advance(consumed)` is shorthand for `advance(consumed, consumed)`.
-- Semantic meaning: bytes up to `consumed` were consumed, and nothing beyond `consumed` was examined.
-- `advance(sequence)` is shorthand for `advance(sequence.begin(), sequence.end())`.
-- Semantic meaning: consume up to `sequence.begin()` and mark up to `sequence.end()` as examined.
+```cpp
+reader.advance(consumed);
+```
 
-### `complete()`
+Equivalent to:
 
-- Completes reader.
-- Clears buffered state and pending read state.
-- Subsequent `read()` and `advance(...)` calls throw `std::runtime_error`.
-- Unblocks threads currently waiting in `write()`.
-- `pipe_reader::complete()` is idempotent.
-- Calling `pipe_reader::complete()` before or after `pipe_writer::complete()` is valid.
+```cpp
+reader.advance(consumed, consumed);
+```
 
-## 7) `xtd::read_result`
+And:
+
+```cpp
+reader.advance(sequence);
+```
+
+Equivalent to:
+
+```cpp
+reader.advance(sequence.begin(), sequence.end());
+```
+
+This consumes up to `sequence.begin()` and marks through `sequence.end()` as
+examined.
+
+### `complete`
+
+```cpp
+void complete();
+```
+
+Completes the reader.
+
+Effects:
+
+- clears buffered bytes;
+- clears pending-read state;
+- clears writer pause state;
+- wakes blocked readers and writers;
+- later reads and advances throw `std::runtime_error`;
+- idempotent.
+
+Completing the reader intentionally discards unread data.
+
+## 7) Cancellation with `std::stop_token`
+
+Supported blocking operations:
+
+| Endpoint | Operation | Cancellation result |
+|---|---|---|
+| Writer | `write(..., stop_token)` | Number of bytes already written |
+| Reader | `read(stop_token)` | Cancelled/false `read_result` |
+| Reader | `read_at_least(n, stop_token)` | Cancelled/false `read_result` |
+
+A default-constructed token preserves non-cancellable behavior.
+
+A stop request:
+
+- wakes the corresponding `condition_variable_any` wait;
+- does not complete either endpoint;
+- does not discard committed bytes;
+- does not undo a previous successful read;
+- does not create a pending read when cancellation occurs before a snapshot.
+
+### Detecting a cancelled read
+
+`read_result` has an explicit Boolean conversion:
+
+```cpp
+xtd::read_result result = reader.read(stop_token);
+
+if (!result) {
+    // The read was cancelled.
+}
+```
+
+Cancellation is directly represented by `operator bool()`, unlike channel
+reads, which use `std::nullopt` for both cancellation and completion.
+
+### Already-stopped tokens
+
+```cpp
+std::stop_source source;
+source.request_stop();
+
+xtd::read_result result = reader.read(source.get_token());
+// !result
+
+std::size_t written =
+    writer.write("payload", source.get_token());
+// written == 0
+```
+
+### Partial write policy
+
+A caller must handle partial writes explicitly:
+
+```cpp
+const std::size_t written =
+    writer.write(frame.data(), frame.size(), stop_token);
+
+if (written != frame.size()) {
+    // A frame prefix may already be in the stream.
+    // Decide whether to complete, abort the protocol, or discard the pipeline.
+}
+```
+
+Cancellation does not provide transactional framing.
+
+### Pending read interaction
+
+Cancellation only applies while obtaining a new snapshot.
+
+Once a successful `read_result` exists, the caller must still call
+`advance(...)`, even if its token is later stopped.
+
+## 8) `xtd::read_result`
 
 ### Synopsis
 
@@ -339,146 +548,198 @@ Behavioral meaning:
 namespace xtd {
 
 struct read_result {
-    read_result(const read_result&) = delete;
-    read_result& operator=(const read_result&) = delete;
+    read_result() = delete;
 
-    read_result(read_result&&) noexcept = default;
-    read_result& operator=(read_result&&) noexcept = default;
+    explicit constexpr
+    operator bool() const noexcept;
 
-    [[nodiscard]] 
-    segmented_byte_view buffer() const noexcept;
-    [[nodiscard]] 
+    [[nodiscard]]
+    const segmented_byte_view& buffer() const noexcept;
+
+    [[nodiscard]]
     bool completed() const noexcept;
 };
 
 }
 ```
 
-### Notes
+The current type exposes a non-owning buffer reference and cancellation state.
 
-- Move-only object.
-- `completed()` indicates writer completion state at read time.
-- `completed()` can be `true` while `buffer()` is non-empty.
-- Copying the returned `segmented_byte_view` is typically cheap relative to copying payload bytes: it copies sequence metadata and segment/span views, not the underlying byte storage.
-- `segmented_byte_view` is a non-owning view over pipeline-owned memory; copies of the sequence share the same underlying snapshot lifetime.
+### `operator bool`
+
+```cpp
+explicit operator bool() const noexcept;
+```
+
+Returns:
+
+- `true` for a normal read result;
+- `false` for a cancelled read.
+
+### `buffer`
+
+```cpp
+const segmented_byte_view& buffer() const noexcept;
+```
+
+Returns the read snapshot.
+
+The view is non-owning and references pipeline-managed storage.
+
+### `completed`
+
+```cpp
+bool completed() const noexcept;
+```
+
+Reports the writer-completed state captured when the read result was created.
+
+`completed()` can be `true` while `buffer()` is non-empty.
 
 ### Buffer lifetime
 
-A buffer returned by `read_result::buffer()`, including all slices, positions, segment spans, and byte spans derived from it, remains valid only until the matching call to `pipe_reader::advance(...)`, `pipe_reader::complete()`, or destruction of the pipeline.
+The buffer, its slices, spans, positions, and pointers remain valid only until:
 
-Do not retain pointers, spans, positions, or sequences after advancing the reader.
+- the matching `advance(...)`;
+- reader completion;
+- pipeline destruction.
 
-Invalid example:
+Do not retain them after advancing.
 
-```cpp
-auto result = reader.read();
-auto sequence = result.buffer();
-auto segments = sequence.segments();
+## 9) `xtd::segmented_byte_view`
 
-reader.advance(sequence.end());
-
-// Invalid: segments refers to the previous read snapshot.
-consume(segments);
-```
-
-## 8) `xtd::segmented_byte_view`
-
-Represents a logical byte range that may span multiple segments.
+Represents a logical byte range backed by zero or more segments.
 
 ### Key members
 
 ```cpp
-const position& begin() const noexcept;
-const position& end() const noexcept;
+position begin() const noexcept;
+position end() const noexcept;
+
 std::size_t size() const noexcept;
 bool empty() const noexcept;
+std::size_t segment_count() const noexcept;
 
-std::size_t segment_count() const;
-std::span<const std::span<const std::byte>> segments() const noexcept;
+std::span<const std::span<const std::byte>>
+segments() const noexcept;
 
 segmented_byte_view slice(const position& end) const;
-segmented_byte_view slice(const position& begin, const position& end) const;
-segmented_byte_view slice(const std::size_t beginOffset, const position& end) const;
-segmented_byte_view slice(const std::size_t beginOffset, std::size_t size) const;
+
+segmented_byte_view slice(
+    const position& begin,
+    const position& end) const;
+
+segmented_byte_view slice(
+    std::size_t begin_offset,
+    const position& end) const;
+
+segmented_byte_view slice(
+    std::size_t begin_offset,
+    std::size_t size) const;
 
 position position_of(std::byte value) const;
 position position_of(char value) const;
 
-std::size_t copy_to(std::byte* destination, std::size_t destinationSize) const;
-std::size_t copy_to(std::vector<std::byte>& destination) const;
+std::size_t copy_to(
+    std::span<std::byte> destination) const noexcept;
+
+std::size_t copy_to(
+    std::byte* destination,
+    std::size_t destination_size) const;
+
+std::size_t copy_to(
+    std::vector<std::byte>& destination) const noexcept;
 
 template<class T>
+    requires (
+        std::is_trivially_copyable_v<T> &&
+        !std::is_convertible_v<T, std::string_view>)
 bool copy_to(T& destination) const;
 
 std::string to_string() const;
 ```
 
-### Slicing semantics
+### Segment access
 
-- `slice(const position& end)` returns `[begin, end)`.
-- `slice(const position& begin, const position& end)` returns `[begin, end)`.
-- `slice(beginOffset, size)` uses offsets relative to current sequence begin.
-- Position-based slicing requires positions from the same sequence identity.
+`segments()` exposes the currently sliced spans. It does not copy payload bytes.
 
-### Copying semantics
+The returned span is subject to the same lifetime as the read snapshot.
 
-- `copy_to(nullptr, n)` throws when `n > 0`.
-- Copy count is truncated to `min(sequence.size(), destinationSize)`.
-- `copy_to(T&)` requires trivially copyable `T` and exact size match.
+### Slicing
 
-### Multi-segment behavior
+Position-based slices use absolute offsets and require matching sequence
+identity.
 
-- `to_string()`, `copy_to(...)`, `position_of(...)`, and `slice(...)` work across segment boundaries.
-- `position_of(...)` returns a `position`; when no match exists, it returns an invalid `position{}`.
-- Prefer condition declarations such as `while (xtd::position pos = seq.position_of(...))`.
+Offset-based slices are relative to the current view's beginning.
 
-## 9) `xtd::position`
+Invalid ranges throw `std::out_of_range`. Foreign positions throw
+`std::invalid_argument`.
 
-A lightweight cursor in a `segmented_byte_view`.
-
-### Synopsis
+### Searching
 
 ```cpp
-namespace xtd {
+xtd::position newline = sequence.position_of('\n');
+```
 
-struct position {
-    position() = default;
+Returns an invalid/default position when no match exists:
 
-    explicit operator bool() const noexcept;
-
-    position operator+(const std::size_t offset) const noexcept;
-    position& operator+=(const std::size_t offset) noexcept;
-    position& operator++() noexcept;
-    position operator++(int) noexcept;
-
-    bool operator==(const position& rhs) const noexcept;
-};
-
+```cpp
+if (xtd::position newline = sequence.position_of('\n')) {
+    // Found.
 }
 ```
 
-### Notes
+Search works across segment boundaries.
 
-- Carries internal sequence identity.
-- Supports condition-declaration patterns via explicit `operator bool()`.
-- Use positions from the same read buffer when calling `advance()` or `slice(...)`.
-- `operator+`, `operator+=`, and increment operators do not perform bounds checking against a sequence end.
-- If position arithmetic produces an offset outside the valid range of the target sequence, later calls to `slice(...)` or `advance(...)` reject that position.
-- Position arithmetic uses unsigned `std::size_t` math. Callers must avoid integer overflow; wrapped arithmetic does not represent a valid logical forward position.
+### Copying
 
-### Arithmetic validity
-
-Position arithmetic does not clamp to the end of a sequence.
+Pointer/span/vector copies truncate to the smaller of source and destination
+sizes.
 
 ```cpp
-xtd::position past_end = seq.end() + 1;
+std::vector<std::byte> destination(128);
+const std::size_t copied = sequence.copy_to(destination);
 ```
 
-- `past_end` keeps the same sequence identity, but its offset is outside the sequence range.
-- Passing such a position to `slice(...)` or `advance(...)` throws because the position is out of range for that sequence/read buffer.
-- The arithmetic operators themselves are `noexcept` and perform no bounds checks.
+Typed copying requires enough source bytes for `sizeof(T)` and copies exactly
+the destination object size.
 
-## 10) `xtd::pipe_utils`
+### `to_string`
+
+Copies the complete logical view into a `std::string`, preserving segment order.
+
+## 10) `xtd::position`
+
+A lightweight cursor associated with one segmented sequence identity.
+
+Typical operations include:
+
+```cpp
+explicit operator bool() const noexcept;
+
+position operator+(std::size_t offset) const noexcept;
+position& operator+=(std::size_t offset) noexcept;
+
+position& operator++() noexcept;
+position operator++(int) noexcept;
+
+bool operator==(const position&) const noexcept;
+```
+
+Position arithmetic:
+
+- is forward-only;
+- is `noexcept`;
+- does not clamp;
+- does not validate against a sequence end;
+- uses unsigned `std::size_t` arithmetic.
+
+A position can therefore be constructed past the end. Later slicing or
+advancing rejects it.
+
+Positions from older reads are stale after `advance(...)`.
+
+## 11) `xtd::pipe_utils`
 
 ### Synopsis
 
@@ -489,392 +750,424 @@ struct pipe_utils {
     static std::thread threaded_copy_file_from_path(
         const std::string& path,
         pipe_writer& writer,
-        std::size_t chunkSize = 4096);
+        std::size_t chunk_size = 4096);
 
     static std::thread threaded_copy_from_socket(
-        int socketFd,
+        int socket_fd,
         pipe_writer& writer,
-        std::size_t chunkSize = 4096);
+        std::size_t chunk_size = 4096);
 };
 
 }
 ```
 
-### Behavior
+### File copy
 
-- Starts a background thread and returns it.
-- Worker thread always calls `writer.complete()` before exit.
+Starts a joinable thread that reads a file in chunks, writes each chunk to the
+pipeline, and completes the writer before exiting.
 
-### Errors
+Throws before starting the thread when:
 
-- `threaded_copy_file_from_path(...)`:
-- throws `std::invalid_argument` for `chunkSize == 0`
-- throws `std::runtime_error` when file cannot be opened initially
-- `threaded_copy_from_socket(...)`:
-- throws `std::invalid_argument` for `socketFd < 0`
-- throws `std::invalid_argument` for `chunkSize == 0`
+- `chunk_size == 0`;
+- the file cannot be opened by the initial probe.
 
-## 11) Semantics and Guarantees
+The worker completes the writer even if reopening the file fails.
+
+### Socket copy
+
+Starts a joinable thread that receives from a socket and writes to the pipeline.
+
+Validation:
+
+- negative descriptors throw `std::invalid_argument`;
+- zero chunk size throws `std::invalid_argument`.
+
+The receive loop:
+
+- continues after `EINTR`;
+- stops on EOF;
+- stops on other socket errors;
+- completes the writer before thread exit.
+
+### Cancellation limitation
+
+The current `pipe_utils` helpers do not accept a `std::stop_token`.
+
+They use the non-cancellable writer overload and can therefore remain blocked by
+pipeline backpressure until reader progress or endpoint completion occurs.
+
+Applications requiring cancellable file/socket ingestion should build their own
+`std::jthread` loop and pass its token to `writer.write(...)`.
+
+## 12) Semantics and guarantees
 
 ### Read/advance protocol
 
-For each successful read (`read()` or `read_at_least(...)`):
+For each successful read:
 
-1. Parse `read_result.buffer()`.
-2. Call exactly one `advance(...)` for that read.
-3. Call another read operation.
+1. inspect `result.buffer()`;
+2. choose consumed and examined positions;
+3. call exactly one `advance(...)`;
+4. perform the next read.
 
-Calling any read operation twice without `advance(...)` is an error.
+A cancelled result is not a successful read and requires no advance.
 
-### Completion semantics
+Calling another read while one successful read remains pending throws.
 
-- Writer completion does not drop buffered bytes.
-- Reader can observe remaining bytes with `completed() == true`.
-- After buffered bytes are drained, `read()` returns empty buffer with `completed() == true`.
-- Reader completion clears pending read state, terminates further read/advance calls, and wakes blocked writers.
-- Calling `pipe_writer::complete()` multiple times has no additional effect beyond the first completion.
-- Calling `pipe_reader::complete()` multiple times has no additional effect beyond the first completion.
-- After `pipe_writer::complete()`, later `write(...)` calls fail with `std::runtime_error`.
-- `pipe_reader::complete(); pipe_writer::complete();` is valid; both endpoints remain completed.
-- `completed() == true` does not imply the current buffer ends at a logical message boundary.
-- Parser code must decide what to do with trailing incomplete data still present when completion is observed.
+### Data availability and examined bytes
 
-### Examined vs consumed interaction
+A read becomes eligible when:
 
-- If you consume none and examine all, next `read()` may wait for data size change.
-- If you consume none and examine none, next `read()` can return immediately with same data.
-- Advancing examined can still help unblock writers under threshold policy.
+- the writer or reader completes; or
+- data exists beyond the previously examined prefix and the minimum-size
+  requirement is met.
+
+Consequences:
+
+- consume none, examine none: the same bytes can be returned again;
+- consume none, examine all: the next read waits for a data-size/state change;
+- consume bytes: storage is released and a paused writer may resume.
 
 ### Backpressure
 
-Writer pause/resume is threshold driven:
-
-- pause when `buffered >= pause_writer_threshold`
-- resume when total buffered or unexamined bytes fall to `resume_writer_threshold` or below
-
-Backpressure can stop a single large `write()` call partway through.
-
-- It does not wait for one whole `write()` call to finish before applying pause logic.
-- It does not reject the write before writing anything unless the writer is already paused when the call begins.
-- It does not guarantee that one `write()` may freely exceed the pause threshold and finish in one uninterrupted step.
-
-### Thread-safety
-
-A pipeline supports one logical writer and one logical reader.
-
-- The writer side and reader side may be used concurrently from separate threads.
-- `pipe_writer::write()` may run concurrently with `pipe_reader::read()`, `pipe_reader::advance(...)`, and `pipe_reader::complete()`.
-- `pipe_writer::complete()` may run concurrently with `pipe_reader::read()`, `pipe_reader::advance(...)`, and `pipe_reader::complete()`.
-- `pipe_writer::write()` and `pipe_writer::complete()` are internally synchronized with each other.
-- `pipe_reader::read()`, `pipe_reader::advance(...)`, and `pipe_reader::complete()` are internally synchronized with each other.
-
-Reader-side protocol remains single-consumer:
-
-- Concurrent calls on the same `pipe_reader` are not a supported usage model.
-- In particular, two threads should not call `read()` concurrently, and one thread should not call `advance(...)` while another thread is still processing the same pending read.
-
-Writer-side notes:
-
-- Concurrent calls on the same `pipe_writer` are serialized by internal synchronization.
-- However, the pipeline is documented as one logical writer; do not treat it as a multi-writer message queue with guaranteed per-thread ordering or fairness.
-
-Blocking behavior is synchronization-based; plan lifetime/order of `complete()` and thread joins accordingly.
-
-## 12) Complexity
-
-Typical complexity (not counting blocking wait time):
-
-- `pipe_writer::write`: O(n) for `n` bytes written
-- `pipe_reader::read`: O(s) where `s` is number of visible segments
-- `segmented_byte_view::slice`: O(s) in multi-segment case, near O(1) in single-segment fast path
-- `segmented_byte_view::position_of`: O(n)
-- `segmented_byte_view::copy_to`: O(n) where n is `min(destination_size, origin_size)`
-
-## 13) How-to Guides
-
-### How to parse newline-delimited data
+The writer pauses at:
 
 ```cpp
-xtd::pipeline pipe;
-auto& writer = pipe.writer();
-auto& reader = pipe.reader();
+buffered_size >= pause_writer_threshold
+```
 
-writer.write("one\ntwo\n");
-writer.complete();
+It resumes at:
 
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
+```cpp
+buffered_size <= resume_writer_threshold
+```
 
-    while (xtd::position pos = seq.position_of('\n')) {
-        std::string line = seq.slice(pos).to_string();
-        // process line (line excludes '\n')
-        seq = seq.slice(pos + 1, seq.end());
-    }
+Only consumption reduces `buffered_size`.
 
-    reader.advance(seq.begin(), seq.end());
-    if (rr.completed()) {
-        if (!seq.empty()) {
-            // Trailing data without a final delimiter.
-            // Choose a policy: process it, reject it, or discard it deliberately.
-        }
-        break;
-    }
+A single write may cross multiple pause/resume cycles.
+
+### Completion
+
+Writer completion:
+
+- preserves buffered bytes;
+- allows the reader to observe `completed() == true`;
+- makes future writes fail.
+
+Reader completion:
+
+- discards buffered bytes;
+- invalidates pending state;
+- makes future reads and advances fail;
+- wakes blocked writers.
+
+### Cancellation
+
+Cancellation:
+
+- is operation-scoped;
+- preserves endpoint state;
+- preserves bytes already written;
+- returns a false read result or partial write count.
+
+### Thread safety
+
+Supported model:
+
+- one logical writer;
+- one logical reader;
+- writer and reader may run concurrently.
+
+Writer operations are internally synchronized with each other.
+
+Reader operations are internally synchronized, but the read/advance protocol is
+single-consumer. Do not concurrently:
+
+- call `read()` from multiple threads;
+- advance while another thread processes the pending snapshot;
+- reuse positions from another snapshot.
+
+No fairness guarantee is provided.
+
+### Notifications
+
+A writer notifies a waiting reader after appending data.
+
+Reader advancement notifies waiting readers and can notify one paused writer
+when consumption crosses the resume threshold.
+
+Completion notifies all relevant waits.
+
+## 13) Complexity
+
+Typical costs, excluding blocking and allocation:
+
+| Operation | Typical complexity |
+|---|---:|
+| Append bytes | O(number of copied bytes) |
+| Build read snapshot | O(number of readable segments) |
+| Consume bytes | O(number of removed/partially advanced segments) |
+| `position_of` | O(view size) |
+| `copy_to` | O(number of copied bytes) |
+| `to_string` | O(view size) |
+| Position arithmetic | O(1) |
+
+The segment pool limits repeated allocations during steady-state use, but the
+exact allocation behavior depends on thresholds and workload.
+
+## 14) How-to guides
+
+### Configure backpressure
+
+```cpp
+xtd::pipeline pipe({
+    .buffer_size = 4096,
+    .resume_writer_threshold = 32 * 1024,
+    .pause_writer_threshold = 128 * 1024,
+});
+```
+
+Choose a pause threshold large enough for the largest frame that may remain
+unconsumed during parsing.
+
+### Consume an entire snapshot
+
+```cpp
+xtd::read_result result = reader.read();
+
+if (result) {
+    const auto& buffer = result.buffer();
+    process(buffer);
+    reader.advance(buffer.end());
 }
 ```
 
-If the input may end with an incomplete trailing record such as `"one\ntwo"`, the final `seq` may contain `"two"` when `rr.completed()` becomes `true`.
-
-### How to parse binary headers safely
+### Retain an incomplete suffix
 
 ```cpp
-struct Header {
-    std::uint32_t id;
-    std::uint32_t payload_size;
-};
+auto result = reader.read();
+const auto& buffer = result.buffer();
 
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
+xtd::position delimiter = buffer.position_of('\n');
 
-    while (seq.size() >= sizeof(Header)) {
-        Header h{};
-        if (!seq.slice(0, sizeof(Header)).copy_to(h)) {
-            break;
-        }
-
-        // parsed header
-        seq = seq.slice(sizeof(Header), seq.end());
-    }
-
-    reader.advance(seq.begin(), seq.end());
-    if (rr.completed()) {
-        if (!seq.empty()) {
-            throw std::runtime_error("Incomplete frame at end of stream");
-        }
-        break;
-    }
+if (delimiter) {
+    process(buffer.slice(buffer.begin(), delimiter));
+    reader.advance(delimiter + 1, buffer.end());
+} else {
+    reader.advance(buffer.begin(), buffer.end());
 }
 ```
 
-### How to serialize non-trivial types
+This consumes nothing and examines all data when no delimiter is found.
+
+### Read a minimum number of bytes
 
 ```cpp
-struct Message {
-    std::uint32_t id;
-    std::string text;
-};
+auto result = reader.read_at_least(header_size, stop_token);
 
-void write_message(xtd::pipe_writer& writer, const Message& m) {
-    writer.write(m.id);
-    writer.write(static_cast<std::uint32_t>(m.text.size()));
-    writer.write(m.text);
+if (!result) {
+    // Cancelled.
+} else if (result.buffer().size() >= header_size) {
+    parse_header(result.buffer());
 }
 ```
 
-`writer.write(T)` does not accept non-trivial, non-string-like objects directly. Serialize field-by-field.
+Writer completion can still produce fewer bytes.
 
-### How to keep partial data for incremental parsing
+### Cancel a blocked write
 
 ```cpp
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
+const std::size_t written =
+    writer.write(payload.data(), payload.size(), stop_token);
 
-    if (xtd::position pos = seq.position_of('\n')) {
-        const xtd::position consumed = pos + 1; // consume through delimiter
-        reader.advance(consumed, seq.end());
-    } else {
-        // No full message yet: keep all bytes, but mark all examined.
-        // This can make the next read wait for new data/size change.
-        reader.advance(seq.begin(), seq.end());
-    }
-
-    if (rr.completed()) break;
+if (written != payload.size()) {
+    handle_partial_stream(written);
 }
 ```
 
-### How to stream from a file
+### Copy a view into a struct
 
 ```cpp
-xtd::pipeline pipe;
-std::thread producer = xtd::pipe_utils::threaded_copy_file_from_path("input.bin", pipe.writer());
+Header header{};
 
-auto& reader = pipe.reader();
-std::size_t total = 0;
-
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
-
-    total += seq.size();
-    reader.advance(seq.end(), seq.end());
-    // Equivalent convenience call: reader.advance(seq.end());
-    // (consumed == examined == seq.end())
-
-    if (rr.completed()) break;
-}
-
-reader.complete();
-producer.join();
-```
-
-### How to stream from a socket
-
-```cpp
-xtd::pipeline pipe;
-std::thread producer = xtd::pipe_utils::threaded_copy_from_socket(socketFd, pipe.writer(), 4096);
-
-auto& reader = pipe.reader();
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
-
-    reader.advance(seq.end(), seq.end());
-
-    if (rr.completed()) break;
-}
-
-reader.complete();
-producer.join();
-```
-
-### How to avoid unnecessary copies
-
-```cpp
-while (const xtd::read_result rr = reader.read()) {
-    xtd::segmented_byte_view seq = rr.buffer();
-
-    while (xtd::position delimiter = seq.position_of('|')) {
-        // Parse using slices/positions first.
-        xtd::segmented_byte_view field = seq.slice(delimiter);
-        std::string text = field.to_string(); // materialize only when needed
-        seq = seq.slice(delimiter + 1, seq.end());
-    }
-
-    reader.advance(seq.begin(), seq.end());
-    if (rr.completed()) break;
+if (buffer.copy_to(header)) {
+    // Native representation was copied.
 }
 ```
 
-## 14) Examples
+Use explicit serialization for portable protocols.
 
-### Example A: Minimal text pipeline
+## 15) Examples
+
+### Cancellable reader loop
 
 ```cpp
 #include "pipeline/pipeline.h"
 
-int main() {
-    xtd::pipeline pipe;
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
-
-    writer.write("hello");
-    writer.complete();
-
-    std::string result;
-    while (const xtd::read_result rr = reader.read()) {
-        xtd::segmented_byte_view seq = rr.buffer();
-
-        result += seq.to_string();
-        reader.advance(seq.begin(), seq.end());
-
-        if (rr.completed()) break;
-    }
-
-    if (result != "hello") return 1;
-    reader.complete();
-    return 0;
-}
-```
-
-### Example B: Delimiter parser across segmented buffers
-
-```cpp
-#include <vector>
-#include <string>
-#include "pipeline/pipeline.h"
-
-int main() {
-    xtd::pipeline pipe(xtd::pipe_options{ .buffer_size = 3 });
-    auto& writer = pipe.writer();
-    auto& reader = pipe.reader();
-
-    writer.write("ab\ncd\nef\n");
-    writer.complete();
-
-    std::vector<std::string> lines;
-
-    while (const xtd::read_result rr = reader.read()) {
-        xtd::segmented_byte_view seq = rr.buffer();
-
-        while (xtd::position pos = seq.position_of('\n')) {
-            lines.push_back(seq.slice(pos).to_string());
-            seq = seq.slice(pos + 1, seq.end());
-        }
-
-        reader.advance(seq.begin(), seq.end());
-        if (rr.completed()) {
-            if (!seq.empty()) {
-                // Final trailing bytes without '\n'.
-                // Choose a policy: process them, reject them, or discard them deliberately.
-            }
-            break;
-        }
-    }
-
-    return lines.size() == 3 ? 0 : 1;
-}
-```
-
-### Example C: Backpressure with producer thread
-
-```cpp
-#include <future>
+#include <stop_token>
 #include <thread>
-#include "pipeline/pipeline.h"
 
-int main() {
-    using namespace std::chrono_literals;
+xtd::pipeline pipe;
 
-    xtd::pipeline pipe(xtd::pipe_options{
-        .buffer_size = 4,
-        .resume_writer_threshold = 4,
-        .pause_writer_threshold = 8,
-    });
-
-    auto& writer = pipe.writer();
+std::jthread parser([&](std::stop_token stop_token) {
     auto& reader = pipe.reader();
 
-    auto producer = std::async(std::launch::async, [&]() {
-        writer.write("12345678");
-        writer.write("abcd"); // will block until reader advances
-        writer.complete();
-    });
+    while (true) {
+        xtd::read_result result = reader.read(stop_token);
 
-    bool firstRead = true;
-    std::string lastView;
-
-    while (const xtd::read_result rr = reader.read()) {
-        xtd::segmented_byte_view seq = rr.buffer();
-        lastView = seq.to_string();
-
-        if (firstRead) {
-            reader.advance(seq.slice(0, 4).end());
-            firstRead = false;
-        } else {
-            reader.advance(seq.end());
+        if (!result) {
+            break;
         }
 
-        if (rr.completed()) break;
+        const xtd::segmented_byte_view& buffer = result.buffer();
+
+        parse(buffer);
+        reader.advance(buffer.end(), buffer.end());
+
+        if (result.completed()) {
+            break;
+        }
+    }
+});
+```
+
+### Large cancellable writer
+
+```cpp
+std::jthread producer([&](std::stop_token stop_token) {
+    auto& writer = pipe.writer();
+
+    const std::size_t written =
+        writer.write(payload.data(), payload.size(), stop_token);
+
+    if (written == payload.size()) {
+        writer.complete();
+    } else {
+        // The reader may already have seen the written prefix.
+        handle_cancelled_write(written);
+        writer.complete();
+    }
+});
+```
+
+### Delimiter parser retaining an incomplete suffix
+
+```cpp
+while (xtd::read_result result = reader.read(stop_token)) {
+    const auto& buffer = result.buffer();
+    xtd::segmented_byte_view remaining = buffer;
+
+    while (xtd::position newline = remaining.position_of('\n')) {
+        process_line(
+            remaining.slice(remaining.begin(), newline));
+
+        remaining =
+            remaining.slice(newline + 1, remaining.end());
     }
 
-    producer.wait();
-    if (lastView != "5678abcd") return 1;
-    reader.complete();
+    reader.advance(remaining.begin(), remaining.end());
 
-    return 0;
+    if (result.completed()) {
+        if (!remaining.empty()) {
+            handle_incomplete_final_line(remaining);
+        }
+
+        break;
+    }
 }
 ```
+
+### Cancellable file ingestion without `pipe_utils`
+
+```cpp
+std::jthread producer([&](std::stop_token stop_token) {
+    std::ifstream input(path, std::ios::binary);
+    std::vector<std::byte> buffer(4096);
+
+    while (!stop_token.stop_requested() && input) {
+        input.read(
+            reinterpret_cast<char*>(buffer.data()),
+            static_cast<std::streamsize>(buffer.size()));
+
+        const std::size_t count =
+            static_cast<std::size_t>(input.gcount());
+
+        if (count == 0) {
+            break;
+        }
+
+        const std::size_t written =
+            writer.write(buffer.data(), count, stop_token);
+
+        if (written != count) {
+            break;
+        }
+    }
+
+    writer.complete();
+});
+```
+
+## 16) Migration notes
+
+### All blocking pipeline operations now accept a token
+
+```cpp
+reader.read(stop_token);
+reader.read_at_least(min_bytes, stop_token);
+writer.write(data, length, stop_token);
+writer.write(value, stop_token);
+```
+
+The token is the last argument in the pipeline API.
+
+This differs from channel writer overloads, where the token is first.
+
+### `read_result` now represents cancellation
+
+Use:
+
+```cpp
+if (!result) {
+    // Cancelled.
+}
+```
+
+Only successful results establish pending-read state.
+
+### Writes can return partial counts
+
+Previously, code may have assumed a successful return always equaled the input
+size or that cancellation could not interrupt the call.
+
+With cancellation, always compare the return value with the requested byte
+count.
+
+### Backpressure documentation change
+
+Documentation that allows examined bytes alone to resume the writer is outdated.
+
+The current code resumes based only on unconsumed buffered bytes:
+
+```cpp
+buffered_size <= resume_writer_threshold
+```
+
+This prevents unbounded growth when a parser repeatedly examines data without
+consuming it.
+
+### Null raw pointer behavior
+
+The current implementation returns `0` when `data == nullptr`, including when
+`length > 0`. It does not throw `std::invalid_argument` for that case.
 
 ## See also
 
-- `tests/pipelines.cpp` for behavior-oriented and edge-case coverage.
-- `src/pipeline/pipeline.h`
-- `src/pipeline/segmented_byte_view.h`
-- `src/pipeline/pipe_utils.h`
+- [`tests/pipelines.cpp`](../../tests/pipelines.cpp)
+- [`pipeline.h`](pipeline.h)
+- [`pipe_writer.h`](pipe_writer.h)
+- [`pipe_reader.h`](pipe_reader.h)
+- [`read_result.h`](read_result.h)
+- [`segmented_byte_view.h`](segmented_byte_view.h)
+- [`position.h`](position.h)
+- [`pipe_utils.h`](pipe_utils.h)
