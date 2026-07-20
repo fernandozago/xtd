@@ -255,6 +255,26 @@ TEST_CASE("Writer: write after complete throws")
     );
 }
 
+TEST_CASE("Reader: cancel read via std::stop_token")
+{
+    xtd::pipeline pipeline;
+    xtd::pipe_reader& reader = pipeline.reader();
+
+    std::stop_source stopSource;
+    stopSource.request_stop();
+    CHECK_FALSE(reader.read(stopSource.get_token()));
+}
+
+TEST_CASE("Writer: cancel write via std::stop_token")
+{
+    xtd::pipeline pipeline;
+    xtd::pipe_writer& writer = pipeline.writer();
+
+    std::stop_source stopSource;
+    stopSource.request_stop();
+    CHECK(writer.write("x", stopSource.get_token()) == 0);
+}
+
 TEST_CASE("Writer: write after reader complete throws")
 {
     xtd::pipeline pipeline;

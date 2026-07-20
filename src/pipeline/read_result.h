@@ -20,7 +20,7 @@ public:
 
     explicit constexpr operator bool() const noexcept
     {
-        return true; // Always true, as a read result is always valid.
+        return !m_cancelled;
     }
 
     [[nodiscard]]
@@ -37,7 +37,8 @@ public:
 
 private:
     segmented_byte_view m_buffer;
-    bool m_completed = false;
+    bool m_completed;
+    bool m_cancelled;
 
     static std::vector<std::span<const std::byte>>make_readable_segments(const std::deque<data_segment>& segments)
     {
@@ -57,6 +58,14 @@ private:
     explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed)
         : m_buffer(make_readable_segments(segments), sequence_id)
         , m_completed(completed)
+        , m_cancelled(false)
+    {
+    }
+
+    explicit read_result(bool cancelled)
+        : m_buffer(segmented_byte_view{})
+        , m_completed(false)
+        , m_cancelled(cancelled)
     {
     }
 };

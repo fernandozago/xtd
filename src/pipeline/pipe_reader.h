@@ -1,6 +1,8 @@
 #ifndef PIPELINE_PIPE_READER_H
 #define PIPELINE_PIPE_READER_H
 
+#include <stop_token>
+
 #include "position.h"
 #include "segmented_byte_view.h"
 #include "read_result.h"
@@ -22,10 +24,10 @@ public:
     // Reads currently available data from the pipeline.
     // Returns a read result containing the buffer and completion status.
     [[nodiscard]] 
-    read_result read() const;
+    read_result read(std::stop_token stop_token = {}) const;
 
     [[nodiscard]]
-    read_result read_at_least(const std::size_t min_bytes) const;
+    read_result read_at_least(const std::size_t min_bytes, std::stop_token stop_token = {}) const;
 
     // Advances the reader by consumed and examined positions from the most recent read buffer.
     // consumed: The position up to which data has been consumed.

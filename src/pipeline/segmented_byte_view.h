@@ -28,8 +28,6 @@ friend struct read_result;
 friend class test_helper_segmented_byte_view;
 
 public:
-    segmented_byte_view() = delete;
-
     [[nodiscard]]
     position begin() const noexcept
     {
@@ -327,6 +325,14 @@ private:
         , m_sequence_id(sequence_id)
         , m_begin_offset(0)
         , m_size(calculate_size(m_segments))
+    {
+    }
+
+    explicit segmented_byte_view()
+        : m_segments()
+        , m_sequence_id(0)
+        , m_begin_offset(0)
+        , m_size(0)
     {
     }
 };

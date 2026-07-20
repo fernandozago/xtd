@@ -9,6 +9,7 @@
 #include <mutex>
 #include <span>
 #include <stdexcept>
+#include <stop_token>
 
 #include "data_segment.h"
 #include "fixed_buffer_pool.h"
@@ -80,8 +81,8 @@ private:
     std::deque<data_segment> m_segments;
 
     mutable std::mutex m_mutex;
-    mutable std::condition_variable m_data_available;
-    mutable std::condition_variable m_space_available;
+    mutable std::condition_variable_any m_data_available;
+    mutable std::condition_variable_any m_space_available;
 
     std::uint64_t m_pending_read_sequence_id = 0;
 
@@ -168,14 +169,18 @@ private:
             );
     }
     
-    read_result read_at_least(const std::size_t min_size)
+    read_result read_at_least(const std::size_t min_size, std::stop_token stop_token)
     {
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
 
         std::unique_lock lock{m_mutex};
         m_reader_waiting = true;
-        m_data_available.wait(lock, [this, min_size] { return has_available_data(min_size); });
+        const bool w_result = m_data_available.wait(lock, stop_token, [this, min_size] { return has_available_data(min_size); });
         m_reader_waiting = false;
+
+        if (!w_result || stop_token.stop_requested()) {
+            return read_result(true);
+        }
 
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
@@ -238,7 +243,7 @@ private:
             argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
             argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
 
-             const bool was_paused = m_writer_paused;
+            const bool was_paused = m_writer_paused;
             advance_core(consumed_offset, examined_offset);
             notify_writer = was_paused && !m_writer_paused;
         }
@@ -263,7 +268,7 @@ private:
             || should_resume_writer();
     }
 
-    std::size_t write(const std::byte* data, const std::size_t length)
+    std::size_t write(const std::byte* data, const std::size_t length, std::stop_token stop_token)
     {
         if (length == 0 || data == nullptr) {
             return 0;
@@ -279,11 +284,15 @@ private:
         runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
         while (!remaining.empty()) {
-            m_space_available.wait(lock, [this] {
+            const bool w_result = m_space_available.wait(lock, stop_token, [this] {
                 return m_writer_completed ||
                     m_reader_completed ||
                     has_available_space();
             });
+
+            if (!w_result || stop_token.stop_requested())  {
+                return length - remaining.size();
+            }
 
             runtime_assert(!m_writer_completed, "pipeline writer is completed");
             runtime_assert(!m_reader_completed, "pipeline reader is completed");
@@ -357,21 +366,21 @@ private:
     }
 };
 
-inline std::size_t pipe_writer::write(const std::byte* data, std::size_t length) {
-    return m_state.write(data, length);
+inline std::size_t pipe_writer::write(const std::byte* data, std::size_t length, std::stop_token stop_token) {
+    return m_state.write(data, length, stop_token);
 }
 
 template <typename T>
 requires (std::convertible_to<const T&, std::string_view> || std::is_trivially_copyable_v<T>)
-inline std::size_t pipe_writer::write(const T& value) {
+inline std::size_t pipe_writer::write(const T& value, std::stop_token stop_token) {
     if constexpr (std::convertible_to<const T&, std::string_view>)
     {
         std::string_view strView = static_cast<std::string_view>(value);
-        return m_state.write(reinterpret_cast<const std::byte*>(strView.data()), strView.size());
+        return m_state.write(reinterpret_cast<const std::byte*>(strView.data()), strView.size(), stop_token);
     }
     else
     {
-        return m_state.write(reinterpret_cast<const std::byte*>(&value), sizeof(T));
+        return m_state.write(reinterpret_cast<const std::byte*>(&value), sizeof(T), stop_token);
     }
 }
 
@@ -379,12 +388,12 @@ inline void pipe_writer::complete() {
     m_state.complete_writer();
 }
 
-inline read_result pipe_reader::read() const {
-    return m_state.read_at_least(0);
+inline read_result pipe_reader::read(std::stop_token stop_token) const {
+    return m_state.read_at_least(0, stop_token);
 }
 
-inline read_result pipe_reader::read_at_least(const std::size_t min_size) const {
-    return m_state.read_at_least(min_size);
+inline read_result pipe_reader::read_at_least(const std::size_t min_size, std::stop_token stop_token) const {
+    return m_state.read_at_least(min_size, stop_token);
 }
 
 inline void pipe_reader::advance(const position& consumed, const position& examined) {

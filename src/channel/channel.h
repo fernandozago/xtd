@@ -59,22 +59,20 @@ namespace xtd
 
         template<typename... Args>
         requires std::constructible_from<T, Args...>
-        bool emplace(block_strategy strategy, Args&&... args)
+        bool emplace(std::stop_token stop_token, block_strategy strategy, Args&&... args)
         {
+            bool w_result = true;
             std::unique_lock lock(m_mutex);
-
             if (strategy == block_strategy::WAIT && !m_writer_completed && full())
             {
                 ++m_write_waiters;
-
-                m_not_full.wait(lock, [this] {
+                w_result = m_not_full.wait(lock, stop_token, [this] {
                     return m_writer_completed || !full();
                 });
-
                 --m_write_waiters;
             }
 
-            if (m_writer_completed || full()) {
+            if (!w_result || stop_token.stop_requested() || m_writer_completed || full()) {
                 return false;
             }
 
@@ -101,25 +99,18 @@ namespace xtd
         [[nodiscard]]
         std::optional<T> read(block_strategy strategy, std::stop_token stop_token = {})
         {
+            bool w_result = true;
             std::unique_lock lock(m_mutex);
-
             if (strategy == block_strategy::WAIT && !m_writer_completed && m_queue.empty())
             {
                 ++m_read_waiters;
-
-                auto result = m_not_empty.wait(lock, stop_token, [this] {
+                w_result = m_not_empty.wait(lock, stop_token, [this] {
                     return m_writer_completed || !m_queue.empty();
                 });
-
-                if (!result) {
-                    --m_read_waiters;
-                    return std::nullopt;
-                }
-
                 --m_read_waiters;
             }
 
-            if (m_queue.empty()) {
+            if (!w_result || stop_token.stop_requested() || m_queue.empty()) {
                 return std::nullopt;
             }
 

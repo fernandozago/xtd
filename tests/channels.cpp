@@ -1,9 +1,10 @@
-#include "channel/channel_reader.h"
-#include <stop_token>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
+
 #include <future>
 #include <memory>
+#include <stop_token>
 #include "channel/channel.h"
 
 using namespace std::chrono_literals;
@@ -478,12 +479,8 @@ TEST_CASE("UnboundedChannel read returns nullopt after completion when empty")
 TEST_CASE("channel_reader - test stop token when block reading")
 {
     xtd::channel<int> channel;
-    xtd::channel_writer<int>& writer = channel.writer();
     xtd::channel_reader<int>& reader = channel.reader();
 
-    CHECK(writer.emplace(42));
-    CHECK(reader.read().has_value());
-    
     // Create a stop source and request stop
     std::stop_source stopSource;
     stopSource.request_stop();
@@ -492,11 +489,27 @@ TEST_CASE("channel_reader - test stop token when block reading")
     CHECK_FALSE(reader.read(stopSource.get_token()).has_value());
 }
 
+TEST_CASE("channel_writer - test stop token when block writing")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    // Create a stop source and request stop
+    std::stop_source stopSource;
+    stopSource.request_stop();
+
+    // Attempt to push with the stop token, should return false immediately
+    int value = 2;
+    CHECK_FALSE(writer.push(stopSource.get_token(), value));
+    CHECK_FALSE(writer.push(stopSource.get_token(), 1));
+    CHECK_FALSE(writer.emplace(stopSource.get_token(), 2));
+}
+
 TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
 {
     xtd::channel<int> channel(3);
-    auto& writer = channel.writer();
-    auto& reader = channel.reader();
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
 
     CHECK(writer.push(1));
     CHECK(writer.push(2));
