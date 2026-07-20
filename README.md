@@ -44,6 +44,20 @@ See the complete [Channel API reference](src/channel/channel.md).
 
 See the complete [Pipeline API reference](src/pipeline/pipeline.md).
 
+# Contributing
+
+If you enjoy modern C++, concurrency, or simply like building high-quality libraries, you're welcome here.
+
+This project is still evolving, and there are plenty of opportunities to make it better—whether that's improving the implementation, optimizing performance, expanding the documentation, fixing bugs, or creating practical examples.
+
+Contributions of every size are appreciated.
+
+Even if you're not sure your contribution is valuable, open an issue or start a discussion. Fresh perspectives often lead to the best improvements.
+
+If this project interests you, feel free to fork it, experiment, and submit a pull request. We'd love to see what you build with **xtd**.
+
+---
+
 ## Requirements
 
 * A C++23 compiler.
