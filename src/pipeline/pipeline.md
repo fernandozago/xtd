@@ -499,8 +499,7 @@ if (!result) {
 }
 ```
 
-Cancellation is directly represented by `operator bool()`, unlike channel
-reads, which use `std::nullopt` for both cancellation and completion.
+Cancellation is directly represented by `operator bool()`.
 
 ### Already-stopped tokens
 
