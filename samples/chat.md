@@ -39,6 +39,10 @@ nc 192.168.1.100 9090
   ```
 - Press **Ctrl+C** to disconnect.
 
+## Screenshot
+
+![Screenshot description](../.images/chat.png)
+
 ## Notes
 
 - The default server port is **9090**.
