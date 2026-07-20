@@ -137,14 +137,6 @@ GitHub Actions currently builds and runs the tests and benchmarks with GCC 15:
 
 * [Test workflow](.github/workflows/run_tests.yml)
 
-## Contributing
-
-If you enjoy modern C++, concurrency, or building high-quality libraries, contributions are welcome.
-
-The project is still evolving. Useful contributions include implementation improvements, performance work, documentation, tests, portability fixes, practical examples, and new ideas that fit the existing APIs.
-
-Contributions of every size are appreciated. Open an issue or discussion when an idea needs design feedback, or submit a pull request when it is ready for review.
-
 ## Project TODO
 
 ### Documentation
