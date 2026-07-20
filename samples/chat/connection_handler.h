@@ -1,8 +1,7 @@
-#include <format>
-#include <string>
-#include <string_view>
-#include <thread>
+#pragma once
+
 #include <functional>
+#include <thread>
 
 #include "pipeline/pipeline.h"
 #include "../utils/utils.h"
@@ -45,9 +44,6 @@ public:
     {
         if (!m_closed) {
             m_writer.complete();
-            if (m_thread.joinable()) {
-                m_thread.join();
-            }
             m_closed = true;
         }
     }
