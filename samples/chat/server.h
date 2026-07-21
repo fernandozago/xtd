@@ -333,10 +333,10 @@ private:
         {
             std::scoped_lock lock(client.m_send_mutex);
             ::close(fd);
-            println_locked("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
         }
 
         if (client.m_connection) {
+            println_locked("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
             client.m_connection->close();
         }
     }
