@@ -33,11 +33,19 @@ nc 192.168.1.100 9090
 ## Chat Commands
 
 - Type a message and press **Enter** to send it.
+- List all available commands
+  ```text
+  /help
+  ```
 - Change your display name with:
   ```text
   /name <your_name>
   ```
-- Press **Ctrl+C** to disconnect.
+- Disconnect form the server
+  ```text
+  /quit
+  ```
+- Press **Ctrl+C** or **/quit** to disconnect.
 
 ## Screenshot
 
