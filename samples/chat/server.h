@@ -102,7 +102,7 @@ private:
     void user_quit(int client_id) noexcept
     {
         if (auto client = find_client(client_id)) {
-            std::scoped_lock lock(client->m_send_mutex);
+            std::scoped_lock lock(client->m_connection_mutex);
             if (const int fd = client->fd.load(); fd >= 0)
                 ::shutdown(fd, SHUT_RDWR);
         }
@@ -112,7 +112,7 @@ private:
     struct connection_data 
     {
         std::atomic<int> fd{-1};
-        mutable std::mutex m_send_mutex;
+        mutable std::mutex m_connection_mutex;
         std::unique_ptr<connection_handler<server>> m_connection;
     };
     using client_ptr = std::shared_ptr<connection_data>;
@@ -266,7 +266,7 @@ private:
     [[nodiscard]]
     bool send_data(const connection_data& client, std::string_view message) noexcept
     {
-        std::scoped_lock lock(client.m_send_mutex);
+        std::scoped_lock lock(client.m_connection_mutex);
         const int fd = client.fd.load();
         if (fd < 0) return false;
 
@@ -331,7 +331,7 @@ private:
         ::shutdown(fd, SHUT_RDWR);
 
         {
-            std::scoped_lock lock(client.m_send_mutex);
+            std::scoped_lock lock(client.m_connection_mutex);
             ::close(fd);
         }
 
