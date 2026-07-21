@@ -8,12 +8,14 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
+#include <execution>
 
 #include "../utils/utils.h"
 #include "connection_handler.h"
 
 const constinit int EPOLL_MAX_LISTEN_BACKLOG = 16;
 const constinit int EPOLL_MAX_EVENTS = 256;
+const constinit int EPOLL_MAX_SEND_TIMEOUT_MS = 100;
 const constinit std::size_t EPOLL_MAX_BUFFER_SIZE = 4096;
 
 class server {
@@ -91,12 +93,14 @@ private:
             }
         }
 
-        for (const auto& client : clients)
-        {
-            if (!send_data(*client, message)) {
-                disconnect_client(client->fd);
+        std::for_each(std::execution::par, clients.begin(), clients.end(),
+            [&](const client_ptr& client)
+            {
+                if (!send_data(*client, message))
+                    disconnect_client(client->fd.load());
             }
-        }
+        );
+
     }
 
     void user_quit(int client_id) noexcept
@@ -267,32 +271,35 @@ private:
     bool send_data(const connection_data& client, std::string_view message) noexcept
     {
         std::scoped_lock lock(client.m_connection_mutex);
+
         const int fd = client.fd.load();
         if (fd < 0) return false;
 
         while (!message.empty())
         {
             const ssize_t sent = retry([&] {
-                return ::send(fd, message.data(), message.size(), MSG_NOSIGNAL);
+                return ::send(
+                    fd,
+                    message.data(),
+                    message.size(),
+                    MSG_NOSIGNAL
+                );
             });
 
             if (sent > 0) {
                 message.remove_prefix(static_cast<std::size_t>(sent));
-                continue;
             }
-
-            if (sent < 0 && would_block()) {
-                if (!wait_writable(fd)) {
-                    return false;
-                }
-                continue;
+            else if (sent < 0 && would_block()) {
+                if (!wait_writable(fd)) return false;
             }
-            return false;
+            else {
+                return false;
+            }
         }
+
         return true;
     }
 
-    [[nodiscard]]
     static bool wait_writable(int fd) noexcept
     {
         pollfd event{
@@ -302,12 +309,12 @@ private:
         };
 
         const int result = retry([&] {
-            return ::poll(&event, 1, -1);
+            return ::poll(&event, 1, EPOLL_MAX_SEND_TIMEOUT_MS);
         });
 
-        return result > 0 
-            && (event.revents & POLLOUT) != 0 
-            && (event.revents & (POLLERR | POLLHUP | POLLNVAL)) == 0;
+        return result > 0 &&
+            (event.revents & POLLOUT) &&
+            !(event.revents & (POLLERR | POLLHUP | POLLNVAL));
     }
 
     void disconnect_client(int fd)
