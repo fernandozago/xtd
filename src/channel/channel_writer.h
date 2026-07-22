@@ -15,32 +15,7 @@ namespace xtd
     template<typename T>
     class channel_writer
     {   
-        friend class channel<T>;
-        
-        template<typename... Args>
-        static constexpr bool channel_emplaceable =
-            requires(
-                channel<T>& instance,
-                std::stop_token stop_token,
-                block_strategy strategy,
-                Args&&... args)
-            {
-                {
-                    instance.emplace(
-                        stop_token,
-                        strategy,
-                        std::forward<Args>(args)...)
-                } -> std::convertible_to<bool>;
-            };
-
-        static constexpr bool channel_completable =
-            requires(channel<T>& instance)
-            {
-                {
-                    instance.complete_writer()
-                } -> std::same_as<void>;
-            };
-            
+    friend class channel<T>;
     public:
         channel_writer(const channel_writer&) = delete;
         channel_writer& operator=(const channel_writer&) = delete;
