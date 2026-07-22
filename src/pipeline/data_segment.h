@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstring>
 #include <span>
 #include <stdexcept>
 #include "fixed_buffer_pool.h"
@@ -58,7 +59,7 @@ public:
         return m_writable_span;
     }
 
-    void advance(const std::size_t size)
+    void advance_read(const std::size_t size)
     {
         if (size > m_readable_span.size()) {
             throw std::out_of_range("consume size exceeds readable size");
@@ -72,12 +73,12 @@ public:
     {
         return m_writable_span.empty();
     }
-
+    
     [[nodiscard]]
     std::size_t copy_from(const std::byte* const source, const std::size_t size) noexcept
     {
         const std::size_t to_copy_size = std::min(m_writable_span.size(), size);
-        std::copy_n(source, to_copy_size, m_writable_span.begin());
+        std::memcpy(m_writable_span.data(), source, to_copy_size);
         m_readable_span = {m_readable_span.data(), m_readable_span.size() + to_copy_size};
         m_writable_span = m_writable_span.subspan(to_copy_size);
         return to_copy_size;

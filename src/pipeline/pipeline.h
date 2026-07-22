@@ -205,7 +205,7 @@ private:
             const std::size_t readable_size = head.readable_size();
 
             if (remaining_consumed < readable_size) {
-                head.advance(remaining_consumed);
+                head.advance_read(remaining_consumed);
                 m_buffered_size -= remaining_consumed;
                 remaining_consumed = 0;
                 break;
@@ -274,9 +274,6 @@ private:
             return 0;
         }
 
-        runtime_assert(!m_writer_completed, "pipeline writer is completed");
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
-
         std::span<const std::byte> remaining{data, length};
         std::unique_lock lock(m_mutex);
 
@@ -309,15 +306,16 @@ private:
                     break;
                 }
 
-                const std::size_t available_before_pause = m_pause_writer_threshold - m_buffered_size;
+                // Calculate the maximum number of bytes we can write to the pipeline without exceeding the pause threshold.
+                const std::size_t remaining_capacity = m_pause_writer_threshold - m_buffered_size;
+                const std::size_t requested_size = std::min(remaining.size(), remaining_capacity);
 
-                const std::size_t requested_size = std::min(remaining.size(), available_before_pause);
+                /* The data is copied here */
+                const std::size_t copy_size = get_segment().copy_from(remaining.data(), requested_size);
+                /* The data has been copied */
 
-                const std::size_t copied_size = get_segment()
-                    .copy_from(remaining.data(), requested_size);
-
-                remaining = remaining.subspan(copied_size);
-                m_buffered_size += copied_size;
+                remaining = remaining.subspan(copy_size);
+                m_buffered_size += copy_size;
                 notify_data_available = m_reader_waiting;
 
                 if (m_buffered_size == m_pause_writer_threshold) {
@@ -329,6 +327,7 @@ private:
                 lock.unlock();
                 m_data_available.notify_one();
 
+                // Optimization: If remaining data is empty, we can return early without reacquiring the lock.
                 if (remaining.empty()) {
                     return length;
                 }

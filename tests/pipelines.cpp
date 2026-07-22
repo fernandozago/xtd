@@ -66,9 +66,14 @@ std::size_t readCurrentRssKb()
     throw std::runtime_error("VmRSS not found in /proc/self/status");
 }
 
-TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
+TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
 {
-    const std::array<std::string, 3> expected = {"one\n", "two\n", "three\n"};
+    const std::byte delimiter = std::byte{'\0'};
+    const std::array<std::string, 3> expected = {
+        "one", 
+        "two", 
+        "three"
+    };
 
     xtd::pipeline pipeline;
     
@@ -76,7 +81,7 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
     {
         xtd::pipe_writer& writer = pipeline.writer();
         for (const auto& msg : expected) {
-            writer.write(msg);
+            writer.write(reinterpret_cast<const std::byte*>(msg.data()), msg.size() + 1);
         }
         writer.complete();
     });
@@ -87,11 +92,10 @@ TEST_CASE("pipeline: multiple newline-delimited messages parsed correctly")
     {
         xtd::segmented_byte_view seq = result.buffer();
         
-        while (xtd::position pos = seq.position_of('\n'))
+        while (xtd::position pos = seq.position_of(delimiter))
         {
-            pos += 1;
             CHECK(expected[index++] == seq.slice(seq.begin(), pos).to_string());
-            seq = seq.slice(pos, seq.end());
+            seq = seq.slice(pos + 1, seq.end());
         }
 
         reader.advance(seq.begin(), seq.end());
@@ -1683,15 +1687,15 @@ TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consum
     REQUIRE(segment.copy_from(source.data(), source.size()) == source.size());
     REQUIRE(segment.readable_size() == 4);
 
-    segment.advance(2);
+    segment.advance_read(2);
 
     CHECK(segment.readable_size() == 2);
     const std::span<const std::byte> readable = segment.readable_bytes();
     REQUIRE(readable.size() == 2);
     CHECK(readable[0] == std::byte{'z'});
     CHECK(readable[1] == std::byte{'!'});
-    CHECK_THROWS_AS(segment.advance(3), std::out_of_range);
-    segment.advance(2);
+    CHECK_THROWS_AS(segment.advance_read(3), std::out_of_range);
+    segment.advance_read(2);
     CHECK(segment.readable_bytes().empty());
 }
 
