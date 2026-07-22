@@ -6,7 +6,7 @@
 #include <memory>
 #include <stop_token>
 #include "channel/channel.h"
-
+    
 using namespace std::chrono_literals;
 
 TEST_CASE("BoundedChannel semantics - copy, move, emplace")

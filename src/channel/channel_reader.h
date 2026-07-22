@@ -1,17 +1,15 @@
 #ifndef CHANNEL_CHANNEL_READER_H
 #define CHANNEL_CHANNEL_READER_H
 
-#include "block_strategy.h"
-
 #include <cstddef>
 #include <optional>
 #include <stop_token>
 
+#include "channel_impl.h"
+#include "block_strategy.h"
+
 namespace xtd
 {
-	template<typename T>
-	class channel;
-
     template<typename T>
     class channel_reader
     {

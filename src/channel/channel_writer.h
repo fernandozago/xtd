@@ -2,16 +2,13 @@
 #define CHANNEL_CHANNEL_WRITER_H
 
 #include <stop_token>
-#include <concepts>
 #include <utility>
 
+#include "channel_impl.h"
 #include "block_strategy.h"
 
 namespace xtd
 {
-    template<typename T>
-    class channel;
-
     template<typename T>
     class channel_writer
     {   
