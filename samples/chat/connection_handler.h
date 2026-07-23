@@ -102,19 +102,15 @@ private:
             while (const xtd::read_result result = reader.read())
             {
                 xtd::segmented_byte_view data = result.buffer();
-                while (true) {
-
+                while (xtd::position newLine = data.position_of('\n')) {
                     if (xtd::position newlineWindows = data.position_of('\r')) {
                         process_message(data.slice(newlineWindows));
                         data = data.slice(newlineWindows + 2, data.end()); // +2 = \r\n
                         continue;
-                    } else if (xtd::position newlineUnix = data.position_of('\n')) {
-                        process_message(data.slice(newlineUnix));
-                        data = data.slice(newlineUnix + 1, data.end()); // + 1 = \n
-                        continue;
                     } 
 
-                    break; // no more complete messages in the buffer
+                    process_message(data.slice(newLine));
+                    data = data.slice(newLine + 1, data.end()); // + 1 = \n
                 }
 
                 reader.advance(data.begin(), data.end());
