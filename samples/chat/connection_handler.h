@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <print>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -98,7 +99,7 @@ public:
     }
 
 private:
-    void process_incoming_data(std::stop_token stopToken) noexcept
+    void process_incoming_data(std::stop_token stop_token) noexcept
     {
         auto& reader = m_pipeline.reader();
 
@@ -108,14 +109,15 @@ private:
             {
                 xtd::segmented_byte_view data = result.buffer();
                 while (xtd::position newLine = data.position_of('\n')) {
-                    if (stopToken.stop_requested()) break;
+                    if (stop_token.stop_requested()) break;
 
                     // Extract the exact line of data up to (excluding) the newline character
                     auto line_bytes = data.slice(newLine);
                     
                     //check the last byte of the line for carriage return (\r) and remove it if present
-                    if (xtd::position carriege_return_pos = line_bytes.position_of('\r')) {
-                        line_bytes = line_bytes.slice(carriege_return_pos);
+                    if (line_bytes[newLine - 1] == std::byte('\r')) {
+                        line_bytes = line_bytes.slice(0, line_bytes.size() - 1);
+                        std::println("Removed carriage return: {}", line_bytes.to_string());
                     }
 
                     process_message(line_bytes);
@@ -124,7 +126,7 @@ private:
 
                 reader.advance(data.begin(), data.end());
 
-                if (result.completed() || stopToken.stop_requested()) {
+                if (result.completed() || stop_token.stop_requested()) {
                     break;
                 }
             }

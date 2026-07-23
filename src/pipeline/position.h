@@ -32,11 +32,30 @@ public:
         return position{m_offset + offset, m_sequence_id};
     }
 
+    [[nodiscard]]
+    position operator-(const std::size_t offset) const noexcept
+    {
+        if (!m_valid) {
+            return position{};
+        }
+
+        return position{m_offset - offset, m_sequence_id};
+    }
+
     // Advances this position by the given offset.
     position& operator+=(const std::size_t offset) noexcept
     {
         if (m_valid) {
             m_offset += offset;
+        }
+
+        return *this;
+    }
+
+    position& operator-=(const std::size_t offset) noexcept
+    {
+        if (m_valid) {
+            m_offset -= offset;
         }
 
         return *this;
@@ -51,11 +70,26 @@ public:
         return *this;
     }
 
+    position& operator--() noexcept
+    {
+        if (m_valid) { 
+            --m_offset; 
+        }
+        return *this;
+    }
+
     // Advances this position by one byte and returns the previous value.
     position operator++(int) noexcept
     {
         position previous = *this;
         ++(*this);
+        return previous;
+    }
+
+    position operator--(int) noexcept
+    {
+        position previous = *this;
+        --(*this);
         return previous;
     }
 

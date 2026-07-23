@@ -146,6 +146,32 @@ public:
         return position{};
     }
 
+    const std::byte& operator[](const position& pos) const
+    {
+        argument_assert(pos.m_sequence_id == m_sequence_id,
+            "position must belong to this sequence");
+
+        return (*this)[pos.sequence_offset() - m_begin_offset];
+    }
+
+    const std::byte& operator[](const std::size_t index) const
+    {
+        range_assert(index < m_size, "index is out of range");
+
+        std::size_t segment_begin = m_begin_offset;
+
+        for (const std::span<const std::byte>& segment : m_segments) {
+            if (index < segment_begin + segment.size()) {
+                return segment[index - segment_begin];
+            }
+            else {
+                segment_begin += segment.size();
+            }
+        }
+
+        throw std::out_of_range("index is out of range");
+    }
+
     [[nodiscard]]
     position position_of(const char value) const
     {
