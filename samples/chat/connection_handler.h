@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <thread>
 
@@ -103,14 +104,17 @@ private:
             {
                 xtd::segmented_byte_view data = result.buffer();
                 while (xtd::position newLine = data.position_of('\n')) {
-                    if (xtd::position newlineWindows = data.position_of('\r')) {
-                        process_message(data.slice(newlineWindows));
-                        data = data.slice(newlineWindows + 2, data.end()); // +2 = \r\n
-                        continue;
-                    } 
 
-                    process_message(data.slice(newLine));
-                    data = data.slice(newLine + 1, data.end()); // + 1 = \n
+                    // Extract the exact line of data up to (excluding) the newline character
+                    auto line_bytes = data.slice(newLine);
+                    
+                    //check the last byte of the line for carriage return (\r) and remove it if present
+                    if (auto carriege_return_pos = line_bytes.position_of('\r')) {
+                        line_bytes = line_bytes.slice(carriege_return_pos);
+                    }
+
+                    process_message(line_bytes);
+                    data = data.slice(newLine + 1);
                 }
 
                 reader.advance(data.begin(), data.end());

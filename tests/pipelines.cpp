@@ -2186,6 +2186,39 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     reader.complete();
 }
 
+TEST_CASE("deserialize windows strings with \r\n") {
+    xtd::pipeline pipe;
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
+
+    CHECK(writer.write("hello\r\nworld\r\n") == 14);
+    writer.complete();
+
+    std::vector<std::string> lines;
+
+    while (const xtd::read_result rr = reader.read())
+    {
+        xtd::segmented_byte_view seq = rr.buffer();
+
+        while (xtd::position pos = seq.position_of('\n'))
+        {
+            auto line_bytes = seq.slice(pos);
+            if (auto carriege_return_pos = line_bytes.position_of('\r')) {
+                line_bytes = line_bytes.slice(0, carriege_return_pos);
+            }
+            lines.push_back(line_bytes.to_string());
+            seq = seq.slice(pos + 1, seq.end());
+        }
+
+        reader.advance(seq.begin(), seq.end());
+        if (rr.completed()) break;
+    }
+
+    CHECK(lines.size() == 2);
+    CHECK(lines[0] == "hello");
+    CHECK(lines[1] == "world");
+}
+
 TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
 {
     xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
