@@ -124,8 +124,7 @@ private:
 
                 reader.advance(data.begin(), data.end());
 
-                if (result.completed())
-                {
+                if (result.completed() || stopToken.stop_requested()) {
                     break;
                 }
             }
