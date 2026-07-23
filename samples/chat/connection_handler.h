@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <print>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -116,8 +115,7 @@ private:
                     
                     //check the last byte of the line for carriage return (\r) and remove it if present
                     if (line_bytes[newLine - 1] == std::byte('\r')) {
-                        line_bytes = line_bytes.slice(0, line_bytes.size() - 1);
-                        std::println("Removed carriage return: {}", line_bytes.to_string());
+                        line_bytes = line_bytes.slice(newLine - 1);
                     }
 
                     process_message(line_bytes);
