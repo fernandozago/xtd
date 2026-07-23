@@ -15,11 +15,39 @@ struct position
 friend struct segmented_byte_view;
 friend class pipeline;
 
+private:
+    std::size_t m_offset = 0;
+    std::uint64_t m_sequence_id = 0;
+    bool m_valid = false;
+
+    explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept
+        : m_offset(offset)
+        , m_sequence_id(sequence_id)
+        , m_valid(true)
+    {
+    }
+    
 public:
-    explicit position() noexcept = default;
+    explicit position() 
+        : m_offset(0)
+        , m_sequence_id(0)
+        , m_valid(false)
+    {
+
+    }
+
+    position(const position&) noexcept = default;
+    position& operator=(const position&) noexcept = default;
+
     explicit operator bool() const noexcept
     {
         return m_valid;
+    }
+
+    [[nodiscard]]
+    std::size_t sequence_offset() const noexcept
+    {
+        return m_offset;
     }
 
     [[nodiscard]]
@@ -109,24 +137,6 @@ public:
         const position& rhs) const noexcept
     {
         return !(*this == rhs);
-    }
-
-private:
-    std::size_t m_offset = 0;
-    std::uint64_t m_sequence_id = 0;
-    bool m_valid = false;
-
-    explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept
-        : m_offset(offset)
-        , m_sequence_id(sequence_id)
-        , m_valid(true)
-    {
-    }
-
-    [[nodiscard]]
-    std::size_t sequence_offset() const noexcept
-    {
-        return m_offset;
     }
 
     [[nodiscard]]

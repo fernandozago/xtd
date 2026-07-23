@@ -65,21 +65,6 @@ public:
     }
 
     [[nodiscard]]
-    std::byte last_byte() const noexcept
-    {
-        if (m_segments.empty()) {
-            return std::byte{};
-        }
-
-        const std::span<const std::byte>& last_segment = m_segments.back();
-        if (last_segment.empty()) {
-            return std::byte{};
-        }
-
-        return last_segment.back();
-    }
-
-    [[nodiscard]]
     segmented_byte_view slice(const position& end) const
     {
         argument_assert(end.m_sequence_id == m_sequence_id,

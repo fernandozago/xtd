@@ -13,29 +13,8 @@ namespace xtd
 
 struct read_result
 {
-friend class pipeline;
-
-public:
-    read_result() = delete;
-
-    explicit constexpr operator bool() const noexcept
-    {
-        return !m_cancelled;
-    }
-
-    [[nodiscard]]
-    const segmented_byte_view& buffer() const noexcept
-    {
-        return m_buffer;
-    }
-
-    [[nodiscard]]
-    bool completed() const noexcept
-    {
-        return m_completed;
-    }
-
 private:
+    friend class pipeline;
     segmented_byte_view m_buffer;
     bool m_completed;
     bool m_cancelled;
@@ -67,6 +46,26 @@ private:
         , m_completed(false)
         , m_cancelled(cancelled)
     {
+    }
+public:
+    read_result() = delete;
+    read_result& operator=(const read_result&) = delete;
+
+    explicit constexpr operator bool() const noexcept
+    {
+        return !m_cancelled;
+    }
+
+    [[nodiscard]]
+    const segmented_byte_view& buffer() const noexcept
+    {
+        return m_buffer;
+    }
+
+    [[nodiscard]]
+    bool completed() const noexcept
+    {
+        return m_completed;
     }
 };
 
