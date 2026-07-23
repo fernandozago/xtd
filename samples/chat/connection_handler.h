@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <stop_token>
 #include <string>
 #include <thread>
 
@@ -61,7 +62,9 @@ public:
     {
         m_server.reply(unique_id, std::format(MOTD, m_name));
         m_server.broadcast(std::format("[📣: `{}` joined the chat! Say hello!]\n", m_name));
-        m_thread = std::jthread(&connection_handler::process_incoming_data, this);
+        m_thread = std::jthread([this](std::stop_token stopToken) {
+            process_incoming_data(stopToken);
+        });
     }
 
     connection_handler(const connection_handler&) = delete;
@@ -89,12 +92,13 @@ public:
     void close() noexcept
     {
         if (!m_closed.exchange(true)) {
+            m_thread.request_stop();
             m_writer.complete();
         }
     }
 
 private:
-    void process_incoming_data() noexcept
+    void process_incoming_data(std::stop_token stopToken) noexcept
     {
         auto& reader = m_pipeline.reader();
 
@@ -104,17 +108,18 @@ private:
             {
                 xtd::segmented_byte_view data = result.buffer();
                 while (xtd::position newLine = data.position_of('\n')) {
+                    if (stopToken.stop_requested()) break;
 
                     // Extract the exact line of data up to (excluding) the newline character
                     auto line_bytes = data.slice(newLine);
                     
                     //check the last byte of the line for carriage return (\r) and remove it if present
-                    if (auto carriege_return_pos = line_bytes.position_of('\r')) {
+                    if (xtd::position carriege_return_pos = line_bytes.position_of('\r')) {
                         line_bytes = line_bytes.slice(carriege_return_pos);
                     }
 
                     process_message(line_bytes);
-                    data = data.slice(newLine + 1);
+                    data = data.slice(newLine + 1, data.end());
                 }
 
                 reader.advance(data.begin(), data.end());
