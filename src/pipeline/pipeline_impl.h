@@ -30,8 +30,8 @@ struct pipe_options {
 class pipeline
 {
 public:
-    friend class pipe_reader;
-    friend class pipe_writer;
+    friend class pipe_reader_impl<>;
+    friend class pipe_writer_impl<>;
 
     pipeline(const pipeline&) = delete;
     pipeline& operator=(const pipeline&) = delete;
@@ -364,52 +364,6 @@ private:
         m_data_available.notify_all();
     }
 };
-
-inline std::size_t pipe_writer::write(const std::byte* data, std::size_t length, std::stop_token stop_token) {
-    return m_state.write(data, length, stop_token);
-}
-
-template <typename T>
-requires (std::convertible_to<const T&, std::string_view> || std::is_trivially_copyable_v<T>)
-inline std::size_t pipe_writer::write(const T& value, std::stop_token stop_token) {
-    if constexpr (std::convertible_to<const T&, std::string_view>)
-    {
-        std::string_view strView = static_cast<std::string_view>(value);
-        return m_state.write(reinterpret_cast<const std::byte*>(strView.data()), strView.size(), stop_token);
-    }
-    else
-    {
-        return m_state.write(reinterpret_cast<const std::byte*>(&value), sizeof(T), stop_token);
-    }
-}
-
-inline void pipe_writer::complete() {
-    m_state.complete_writer();
-}
-
-inline read_result pipe_reader::read(std::stop_token stop_token) const {
-    return m_state.read_at_least(0, stop_token);
-}
-
-inline read_result pipe_reader::read_at_least(const std::size_t min_size, std::stop_token stop_token) const {
-    return m_state.read_at_least(min_size, stop_token);
-}
-
-inline void pipe_reader::advance(const position& consumed, const position& examined) {
-    m_state.advance(consumed, examined);
-}
-
-inline void pipe_reader::advance(const position& consumed) {
-    advance(consumed, consumed);
-}
-
-inline void pipe_reader::advance(const segmented_byte_view& sequence) {
-    advance(sequence.begin(), sequence.end());
-}
-
-inline void pipe_reader::complete() {
-    m_state.complete_reader();
-}
 
 } // namespace xtd
 

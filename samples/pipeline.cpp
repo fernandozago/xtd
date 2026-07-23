@@ -21,7 +21,7 @@ int main()
 	
 	// Start a producer thread that writes messages to the pipeline
 	std::thread producer([&]() {
-		auto& writer = pipeline.writer();
+		xtd::pipe_writer& writer = pipeline.writer();
 		const int randSize = 1024 * 2;
 		writer.write("First message\n");
 		for (int i = 1; i <= 100'000; ++i)
