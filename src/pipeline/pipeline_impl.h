@@ -372,7 +372,7 @@ private:
         , m_buffer_size(options.buffer_size)
         , m_pause_writer_threshold(options.pause_writer_threshold)
         , m_resume_writer_threshold(options.resume_writer_threshold)
-        , m_writer{*this}
+        , m_writer(*this)
         , m_reader(*this)
     {
     }
