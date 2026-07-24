@@ -2,15 +2,10 @@
 #define ANKERL_NANOBENCH_IMPLEMENT
 #include "third_party/nanobench.h"
 
-#include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <cstddef>
-#include <memory>
-#include <random>
-#include <string>
+#include <format>
+#include <latch>
+#include <thread>
 #include <print>
-
 #include "pipeline/pipeline.h"
 #include "utils/utils.h"
 
@@ -18,27 +13,49 @@ static_assert(sizeof(std::size_t) == 8, "Benchmark requires a 64-bit size_t");
 
 using namespace std::chrono_literals;
 
-constexpr std::size_t bytes_per_kib = 1024;
-constexpr std::size_t bytes_per_mib = 1024 * bytes_per_kib;
-constexpr std::size_t bytes_per_gib = 1024 * bytes_per_mib;
+constexpr std::size_t bytes_per_kb = 1024;
+constexpr std::size_t bytes_per_mb = 1024 * bytes_per_kb;
+constexpr std::size_t bytes_per_gb = 1024 * bytes_per_mb;
 static std::vector<std::string> results;
 
-static double bytes_to_gib(const std::size_t bytes)
+static double bytes_to_gb(const std::size_t bytes)
 {
-    return static_cast<double>(bytes) /
-           static_cast<double>(bytes_per_gib);
+    return static_cast<double>(bytes) / static_cast<double>(bytes_per_gb);
 }
 
-static double bytes_to_mib(const std::size_t bytes)
+static double bytes_to_mb(const std::size_t bytes)
 {
-    return static_cast<double>(bytes) /
-           static_cast<double>(bytes_per_mib);
+    return static_cast<double>(bytes) / static_cast<double>(bytes_per_mb);
 }
 
 struct consumer {
+private:
+    std::size_t total_bytes_read = 0;
+    xtd::pipe_reader& m_reader;
+    std::latch& m_latch;
+    std::jthread reader_task;
+
+    void consume() {
+        m_latch.count_down();
+        while (const xtd::read_result result = m_reader.read())
+        {
+            const xtd::segmented_byte_view buffer = result.buffer();
+
+            total_bytes_read += buffer.size();
+            m_reader.advance(buffer.end());
+
+            if (result.completed()) {
+                break;
+            }
+        }
+
+        m_reader.complete();
+    }
+
 public:
-    consumer(xtd::pipe_reader& reader) 
+    consumer(xtd::pipe_reader& reader, std::latch& latch) 
         : m_reader(reader) 
+        , m_latch(latch)
         , reader_task(&consumer::consume, this)
     {
     }
@@ -55,26 +72,7 @@ public:
         }
         return total_bytes_read;
     }
-private:
-    xtd::pipe_reader& m_reader;
-    std::thread reader_task;
-    std::size_t total_bytes_read = 0;
 
-    void consume() {
-        while (const xtd::read_result result = m_reader.read())
-        {
-            const xtd::segmented_byte_view buffer = result.buffer();
-
-            total_bytes_read += buffer.size();
-            m_reader.advance(buffer.end());
-
-            if (result.completed()) {
-                break;
-            }
-        }
-
-        m_reader.complete();
-    }
 };
 
 void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_size)
@@ -101,13 +99,15 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
     xtd::pipeline pipeline;
 
     // Start consumer thread before starting the benchmark
-    consumer consumer(pipeline.reader());
+    std::latch latch(1);
+    consumer consumer(pipeline.reader(), latch);
+    latch.wait();
 
     xtd::pipe_writer& writer = pipeline.writer();
     std::size_t total_bytes_written = 0;
-    std::string bench_name = std::to_string(write_chunk_size / bytes_per_kib) + " KiB writes";
+    std::string bench_name = std::format("{} KB writes", write_chunk_size / (double)bytes_per_kb);
     bench
-        .batch(bytes_to_mib(write_chunk_size))
+        .batch(bytes_to_mb(write_chunk_size))
         .run(bench_name,
             [&writer, &total_bytes_written, write_chunk_size, &payload]
             {
@@ -117,20 +117,20 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
     writer.complete();
     const std::size_t total_bytes_read = consumer.get_total_bytes_read();
     assert(total_bytes_read == total_bytes_written);
-    results.push_back(std::format("| {:>15.2f} GiB | {}", bytes_to_gib(total_bytes_written), bench_name));
+    results.push_back(std::format("| {:>16.2f} GB | `{}`", bytes_to_gb(total_bytes_written), bench_name));
+    std::fflush(stdout);
 }
 
 int main()
 {
     print_machine_spec();
 
-    constexpr std::size_t chunks[]{
-        1 * bytes_per_kib,
-        2 * bytes_per_kib,
-        4 * bytes_per_kib,
-        8 * bytes_per_kib,
-        16 * bytes_per_kib,
-        32 * bytes_per_kib
+    static constexpr std::size_t chunks[] {
+        1 * bytes_per_kb, // 1 KB
+        2 * bytes_per_kb, // 2 KB
+        4 * bytes_per_kb, // 4 KB
+        8 * bytes_per_kb, // 8 KB
+        16 * bytes_per_kb, // 16 KB
     };
 
     ankerl::nanobench::Bench bench;
@@ -138,15 +138,14 @@ int main()
     bench
         .title("xtd::pipeline throughput")
         .timeUnit(1us, "μs")
-        .epochs(20)
+        .epochs(25)
         .warmup(10)
         .minEpochTime(250ms)
         .maxEpochTime(2s)
         .performanceCounters(true)
-        .unit("MiB");
+        .unit("MB");
 
-    for (const std::size_t write_chunk_size : chunks)
-    {
+    for (const std::size_t write_chunk_size : chunks) {
         benchmark(bench, write_chunk_size);
     }
 
@@ -158,8 +157,7 @@ int main()
     std::println();
     std::println("|   Total Transferred | xtd::pipeline throughput ");
     std::println("|--------------------:|:-------------------------");
-    for (const std::string& result : results)
-    {
+    for (const std::string& result : results) {
         std::println("{}", result);
     }
 

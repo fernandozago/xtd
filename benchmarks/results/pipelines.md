@@ -10,20 +10,18 @@ Warning, results might be unstable:
 Recommendations
 * Use 'pyperf system tune' before benchmarking. See https://github.com/psf/pyperf
 
-|             μs/MiB |               MiB/s |    err% |     total | xtd::pipeline throughput
+|              μs/MB |                MB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              290.70 |            3,439.98 |    1.0% |      5.50 | `1 KiB writes`
-|              171.31 |            5,837.33 |    0.6% |      5.51 | `2 KiB writes`
-|              119.96 |            8,336.43 |    0.8% |      5.51 | `4 KiB writes`
-|               86.52 |           11,557.81 |    1.2% |      5.52 | `8 KiB writes`
-|               80.48 |           12,425.03 |    1.3% |      5.52 | `16 KiB writes`
-|               79.27 |           12,614.38 |    1.2% |      5.46 | `32 KiB writes`
+|              284.52 |            3,514.74 |    0.4% |      6.85 | `1 KB writes`
+|              163.68 |            6,109.51 |    1.2% |      6.83 | `2 KB writes`
+|              118.15 |            8,463.69 |    1.1% |      6.91 | `4 KB writes`
+|               85.51 |           11,694.44 |    1.1% |      6.89 | `8 KB writes`
+|               82.41 |           12,134.86 |    0.9% |      6.90 | `16 KB writes`
 
 |   Total Transferred | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|           18.58 GiB | 1 KiB writes
-|           31.63 GiB | 2 KiB writes
-|           45.45 GiB | 4 KiB writes
-|           62.89 GiB | 8 KiB writes
-|           68.23 GiB | 16 KiB writes
-|           67.41 GiB | 32 KiB writes
+|            23.56 GB | `1 KB writes`
+|            40.20 GB | `2 KB writes`
+|            57.66 GB | `4 KB writes`
+|            79.80 GB | `8 KB writes`
+|            83.53 GB | `16 KB writes`

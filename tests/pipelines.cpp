@@ -1,26 +1,7 @@
-#include "pipeline/pipeline_impl.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
-#include <cstddef>
-#include <chrono>
-#include <cstring>
-#include <cstdint>
-#include <thread>
-#include <array>
-#include <fstream>
-#include <future>
-#include <iostream>
-#include <string>
-#include <vector>
-#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include "pipeline/segmented_byte_view.h"
-#include "pipeline/data_segment.h"
-#include "pipeline/fixed_buffer_pool.h"
-#include "pipeline/position.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
 #include "tests/test_data_trivially_copyable.h"
@@ -2184,7 +2165,7 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
 
     const xtd::position pos = buffer.position_of('o');
     CHECK(buffer[pos] == std::byte{'o'});
-    
+
     CHECK(buffer[0] == std::byte{'h'});
     CHECK(buffer[1] == std::byte{'e'});
     CHECK(buffer[2] == std::byte{'l'});

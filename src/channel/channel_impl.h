@@ -8,7 +8,6 @@
 #include <optional>
 #include <utility>
 #include <stop_token>
-#include <atomic>
 
 #include "block_strategy.h"
 
@@ -40,7 +39,7 @@ namespace xtd
         channel_writer<T> m_writer;
         channel_reader<T> m_reader;
 
-        std::atomic<bool> m_writer_completed = false;
+        bool m_writer_completed = false;
 
         [[nodiscard]]
         bool full() const noexcept
@@ -82,7 +81,10 @@ namespace xtd
 
         void complete_writer()
         {
-            m_writer_completed = true;
+            {
+                std::scoped_lock lock(m_mutex);
+                m_writer_completed = true;
+            }
             m_not_empty.notify_all();
             m_not_full.notify_all();
         }
