@@ -1,3 +1,4 @@
+#include "pipeline/pipeline_impl.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
@@ -2170,7 +2171,7 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
 
 TEST_CASE("pipeline docs example A: minimal text pipeline")
 {
-    xtd::pipeline pipe;
+    xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
     xtd::pipe_writer& writer = pipe.writer();
     xtd::pipe_reader& reader = pipe.reader();
 
@@ -2179,6 +2180,16 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
 
     const xtd::read_result rr = reader.read();
     const xtd::segmented_byte_view buffer = rr.buffer();
+    CHECK(buffer.segment_count() == 2);
+
+    const xtd::position pos = buffer.position_of('o');
+    CHECK(buffer[pos] == std::byte{'o'});
+    
+    CHECK(buffer[0] == std::byte{'h'});
+    CHECK(buffer[1] == std::byte{'e'});
+    CHECK(buffer[2] == std::byte{'l'});
+    CHECK(buffer[3] == std::byte{'l'});
+    CHECK(buffer[4] == std::byte{'o'});
     CHECK(buffer.to_string() == "hello");
     CHECK(rr.completed());
 
