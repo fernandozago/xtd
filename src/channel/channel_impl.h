@@ -42,7 +42,7 @@ namespace xtd
         bool m_writer_completed = false;
 
         [[nodiscard]]
-        bool full() const noexcept
+        inline bool full() const noexcept
         {
             return m_capacity > 0 && m_queue.size() >= m_capacity;
         }
