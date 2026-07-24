@@ -12,10 +12,11 @@ class pipeline;
 
 struct position
 {
-friend struct segmented_byte_view;
-friend class pipeline;
-
+    
 private:
+    friend struct segmented_byte_view;
+    friend class pipeline;
+    
     std::size_t m_offset = 0;
     std::uint64_t m_sequence_id = 0;
     bool m_valid = false;

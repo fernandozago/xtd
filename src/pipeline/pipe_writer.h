@@ -14,7 +14,14 @@ namespace xtd
     requires std::same_as<pipeline_t, pipeline>
     class pipe_writer_impl
     {
-    friend pipeline_t;
+    private:
+        friend pipeline_t;
+
+        pipeline_t& m_state;
+        explicit pipe_writer_impl(pipeline_t& state)  noexcept
+            : m_state(state) 
+        {}
+    
     public:
         pipe_writer_impl(const pipe_writer_impl&) = delete;
         pipe_writer_impl& operator=(const pipe_writer_impl&) = delete;
@@ -49,12 +56,6 @@ namespace xtd
         void complete() {
             m_state.complete_writer();
         }
-
-    private:
-        pipeline_t& m_state;
-        explicit pipe_writer_impl(pipeline_t& state)  noexcept
-            : m_state(state) 
-        {}
     };
 
     using pipe_writer = pipe_writer_impl<pipeline>;

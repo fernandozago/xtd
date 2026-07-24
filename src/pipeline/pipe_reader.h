@@ -16,7 +16,13 @@ template<class pipeline_t = pipeline>
 requires std::same_as<pipeline_t, pipeline>
 class pipe_reader_impl
 {
-friend pipeline_t;
+private:
+    friend pipeline_t;
+    pipeline_t& m_state;
+                
+    explicit pipe_reader_impl(pipeline_t& state) noexcept
+        : m_state(state) 
+    {}
 public:
     pipe_reader_impl(const pipe_reader_impl&) = delete;
     pipe_reader_impl& operator=(const pipe_reader_impl&) = delete;
@@ -56,15 +62,6 @@ public:
     void complete() {
         m_state.complete_reader();
     }
-
-private:
-    pipeline_t& m_state;
-             
-    // Initializes a reader endpoint bound to a shared pipeline state.
-    // state: Shared pipeline state.
-    explicit pipe_reader_impl(pipeline_t& state) noexcept
-        : m_state(state) 
-    {}
 };
 
 using pipe_reader = pipe_reader_impl<pipeline>;

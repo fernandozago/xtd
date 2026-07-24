@@ -15,6 +15,7 @@ struct read_result
 {
 private:
     friend class pipeline;
+    
     segmented_byte_view m_buffer;
     bool m_completed;
     bool m_cancelled;

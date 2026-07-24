@@ -23,38 +23,25 @@ namespace xtd
     template<typename T>
     class channel
     {
-    friend class channel_writer<T>;
-    friend class channel_reader<T>;
-    public:
-        explicit channel(const std::size_t capacity = 0)
-            : m_capacity(capacity)
-            , m_writer(*this)
-            , m_reader(*this)
-        {
-        }
-
-        ~channel()
-        {
-            complete_writer();
-        }
-
-        channel(const channel&) = delete;
-        channel& operator=(const channel&) = delete;
-        channel(channel&&) = delete;
-        channel& operator=(channel&&) = delete;
-
-        [[nodiscard]]
-        channel_writer<T>& writer() noexcept
-        {
-            return m_writer;
-        }
-
-        [[nodiscard]]
-        channel_reader<T>& reader() noexcept
-        {
-            return m_reader;
-        }
     private:
+        friend class channel_writer<T>;
+        friend class channel_reader<T>;
+
+        std::queue<T> m_queue{};
+
+        std::condition_variable_any m_not_full{};
+        std::condition_variable_any m_not_empty{};
+        mutable std::mutex m_mutex{};
+
+        std::size_t m_read_waiters = 0;
+        std::size_t m_write_waiters = 0;
+
+        const std::size_t m_capacity;
+        channel_writer<T> m_writer;
+        channel_reader<T> m_reader;
+
+        std::atomic<bool> m_writer_completed = false;
+
         [[nodiscard]]
         bool full() const noexcept
         {
@@ -62,8 +49,8 @@ namespace xtd
         }
 
         template<typename... Args>
+        bool emplace(const std::stop_token stop_token, const block_strategy strategy, Args&&... args)
         requires std::constructible_from<T, Args...>
-        bool emplace(std::stop_token stop_token, block_strategy strategy, Args&&... args)
         {
             bool w_result = true;
             std::unique_lock lock(m_mutex);
@@ -101,7 +88,7 @@ namespace xtd
         }
 
         [[nodiscard]]
-        std::optional<T> read(block_strategy strategy, std::stop_token stop_token = {})
+        std::optional<T> read(const std::stop_token stop_token, const block_strategy strategy)
         {
             bool w_result = true;
             std::unique_lock lock(m_mutex);
@@ -138,21 +125,35 @@ namespace xtd
             std::lock_guard lock(m_mutex);
             return m_queue.size();
         }
+    public:
+        explicit channel(const std::size_t capacity = 0)
+            : m_capacity(capacity)
+            , m_writer(*this)
+            , m_reader(*this)
+        {
+        }
 
-        const std::size_t m_capacity;
+        ~channel()
+        {
+            complete_writer();
+        }
 
-        mutable std::mutex m_mutex;
-        std::condition_variable_any m_not_full;
-        std::condition_variable_any m_not_empty;
+        channel(const channel&) = delete;
+        channel& operator=(const channel&) = delete;
+        channel(channel&&) = delete;
+        channel& operator=(channel&&) = delete;
 
-        std::size_t m_read_waiters = 0;
-        std::size_t m_write_waiters = 0;
+        [[nodiscard]]
+        channel_writer<T>& writer() noexcept
+        {
+            return m_writer;
+        }
 
-        std::queue<T> m_queue;
-        std::atomic<bool> m_writer_completed = false;
-
-        channel_writer<T> m_writer;
-        channel_reader<T> m_reader;
+        [[nodiscard]]
+        channel_reader<T>& reader() noexcept
+        {
+            return m_reader;
+        }
     };
 }
 

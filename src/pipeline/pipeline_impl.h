@@ -29,86 +29,35 @@ struct pipe_options {
 
 class pipeline
 {
-public:
+private:
     friend class pipe_reader_impl<>;
     friend class pipe_writer_impl<>;
 
-    pipeline(const pipeline&) = delete;
-    pipeline& operator=(const pipeline&) = delete;
-    pipeline(pipeline&&) = delete;
-    pipeline& operator=(pipeline&&) = delete;
+     // Larger/aligned objects first.
+    xtd::fixed_buffer_pool m_data_segment_pool;
+    std::deque<data_segment> m_segments{};
 
-    ~pipeline() {
-        complete_writer();
-        complete_reader();
-    }
+    mutable std::mutex m_mutex{};
+    mutable std::condition_variable_any m_data_available{};
+    mutable std::condition_variable_any m_space_available{};
 
-    // Initializes a pipeline with the provided options.
-    // options: pipeline buffering and backpressure options.
-    pipeline(pipe_options options = {})
-        : m_buffer_size(validate_buffer_size(options.buffer_size))
-        , m_pause_writer_threshold(validate_pause_threshold(options.pause_writer_threshold))
-        , m_resume_writer_threshold(validate_resume_threshold(options.resume_writer_threshold, m_pause_writer_threshold))
-        , m_data_segment_pool(
-            m_buffer_size,
-            calculate_max_pooled_segments(m_buffer_size, m_pause_writer_threshold)
-        )
-        , m_writer(*this)
-        , m_reader(*this)
-    {
-    }
-
-    // Gets the pipeline reader endpoint.
-    // Returns a reference to the reader.
-    [[nodiscard]]
-    pipe_reader& reader() noexcept {
-        return m_reader;
-    }
-
-    // Gets the pipeline writer endpoint.
-    // Returns a reference to the writer.
-    [[nodiscard]]
-    pipe_writer& writer() noexcept {
-        return m_writer;
-    }
-
-private:
     const std::size_t m_buffer_size;
     const std::size_t m_pause_writer_threshold;
     const std::size_t m_resume_writer_threshold;
 
-    xtd::fixed_buffer_pool m_data_segment_pool;
-    std::deque<data_segment> m_segments;
-
-    mutable std::mutex m_mutex;
-    mutable std::condition_variable_any m_data_available;
-    mutable std::condition_variable_any m_space_available;
-
     std::uint64_t m_pending_read_sequence_id = 0;
-
     std::size_t m_buffered_size = 0;
     std::size_t m_examined_size = 0;
     std::size_t m_pending_read_size = 0;
-    
+
+    pipe_writer m_writer;
+    pipe_reader m_reader;
+
     bool m_reader_waiting = false;
     bool m_has_pending_read = false;
     bool m_writer_completed = false;
     bool m_reader_completed = false;
     bool m_writer_paused = false;
-
-    pipe_writer m_writer;
-    pipe_reader m_reader;
-
-    [[nodiscard]]
-    static std::size_t calculate_max_pooled_segments(const std::size_t buffer_size, const std::size_t pause_writer_threshold) noexcept
-    {
-        assert(buffer_size > 0);
-        const std::size_t segments_for_threshold =
-            pause_writer_threshold / buffer_size +
-            (pause_writer_threshold % buffer_size != 0);
-
-        return segments_for_threshold + 1;
-    }
 
     inline static void runtime_assert(bool condition, const char* message) {
         if (!condition) {
@@ -120,21 +69,6 @@ private:
         if (!condition) {
             throw std::invalid_argument(message);
         }
-    }
-    
-    inline std::size_t validate_buffer_size(const std::size_t size) const {
-        argument_assert(size > 0, "buffer_size must be > 0");
-        return size;
-    }
-
-    inline std::size_t validate_pause_threshold(const std::size_t pauseThreshold) const {
-        argument_assert(pauseThreshold > 0, "pause_writer_threshold must be > 0");
-        return pauseThreshold;
-    }
-
-    inline std::size_t validate_resume_threshold(const std::size_t resumeThreshold, const std::size_t pauseThreshold) const {
-        argument_assert(resumeThreshold <= pauseThreshold, "resume_writer_threshold must be <= pause_writer_threshold");
-        return resumeThreshold;
     }
 
     static std::uint64_t next_read_sequence_id() {
@@ -362,6 +296,116 @@ private:
 
         m_space_available.notify_all();
         m_data_available.notify_all();
+    }
+
+    // ----- ctor validation helpers -----
+
+    struct validated_options
+    {
+        std::size_t buffer_size;
+        std::size_t pause_writer_threshold;
+        std::size_t resume_writer_threshold;
+        std::size_t max_pooled_segments;
+    };
+
+    [[nodiscard]]
+    static std::size_t validate_buffer_size(const std::size_t size)
+    {
+        argument_assert(size > 0, "buffer_size must be > 0");
+        return size;
+    }
+
+    [[nodiscard]]
+    static std::size_t validate_pause_threshold(
+        const std::size_t pause_threshold)
+    {
+        argument_assert(
+            pause_threshold > 0,
+            "pause_writer_threshold must be > 0"
+        );
+
+        return pause_threshold;
+    }
+
+    [[nodiscard]]
+    static std::size_t validate_resume_threshold(
+        const std::size_t resume_threshold,
+        const std::size_t pause_threshold)
+    {
+        argument_assert(
+            resume_threshold <= pause_threshold,
+            "resume_writer_threshold must be <= pause_writer_threshold"
+        );
+
+        return resume_threshold;
+    }
+
+    [[nodiscard]]
+    static validated_options validate_options(const pipe_options& options)
+    {
+        argument_assert(options.buffer_size > 0,
+            "buffer_size must be > 0");
+
+        argument_assert(options.pause_writer_threshold > 0,
+            "pause_writer_threshold must be > 0");
+
+        argument_assert(options.resume_writer_threshold <= options.pause_writer_threshold,
+            "resume_writer_threshold must be <= pause_writer_threshold");
+
+
+        // When pause_writer_threshold is not divisible by buffer_size, we need an extra segment to accommodate the remainder.
+        const std::size_t max_pooled_segments = options.pause_writer_threshold / options.buffer_size +
+            (options.pause_writer_threshold % options.buffer_size != 0); 
+
+        return {
+            .buffer_size = options.buffer_size,
+            .pause_writer_threshold = options.pause_writer_threshold,
+            .resume_writer_threshold = options.resume_writer_threshold,
+            .max_pooled_segments = max_pooled_segments,
+        };
+    }
+
+    // Initializes a pipeline with the provided options.
+    // options: pipeline buffering and backpressure options.
+    explicit pipeline(const validated_options& options)
+        : m_data_segment_pool(options.buffer_size, options.max_pooled_segments)
+        , m_buffer_size(options.buffer_size)
+        , m_pause_writer_threshold(options.pause_writer_threshold)
+        , m_resume_writer_threshold(options.resume_writer_threshold)
+        , m_writer{*this}
+        , m_reader(*this)
+    {
+    }
+    // ----- ctor validation helpers -----
+
+public:
+    pipeline(const pipeline&) = delete;
+    pipeline& operator=(const pipeline&) = delete;
+    pipeline(pipeline&&) = delete;
+    pipeline& operator=(pipeline&&) = delete;
+
+    ~pipeline() {
+        complete_writer();
+        complete_reader();
+    }
+
+    explicit pipeline(pipe_options options = {})
+        : pipeline(validate_options(options))
+    {
+    }
+
+    // Gets the pipeline reader endpoint.
+    // Returns a reference to the reader.
+    [[nodiscard]]
+    pipe_reader& reader() noexcept {
+        return m_reader;
+    }
+
+    // Gets the pipeline writer endpoint.
+    // Returns a reference to the writer.
+    [[nodiscard]]
+    pipe_writer& writer() noexcept {
+        return m_writer;
     }
 };
 

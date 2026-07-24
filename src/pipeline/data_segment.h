@@ -14,12 +14,18 @@ namespace xtd
 
 struct data_segment
 {
+private:
+    fixed_buffer_pool::fixed_buffer_ptr m_buffer;
+    std::span<std::byte> m_writable_span;
+    std::span<const std::byte> m_readable_span;
+    const std::size_t m_capacity;
+
 public:
     explicit data_segment(fixed_buffer_pool& resource)
         : m_buffer(resource.get_buffer())
-        , m_capacity(resource.buffer_size())
-        , m_writable_span(m_buffer.get(), m_capacity)
+        , m_writable_span(m_buffer.get(), resource.buffer_size())
         , m_readable_span(m_buffer.get(), std::size_t{0})
+        , m_capacity(resource.buffer_size())
     {
     }
 
@@ -83,13 +89,6 @@ public:
         m_writable_span = m_writable_span.subspan(to_copy_size);
         return to_copy_size;
     }
-
-private:
-    fixed_buffer_pool::fixed_buffer_ptr m_buffer;
-    const std::size_t m_capacity;
-
-    std::span<std::byte> m_writable_span;
-    std::span<const std::byte> m_readable_span;
 };
 
 } // namespace xtd
