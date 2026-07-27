@@ -1,3 +1,4 @@
+#include "pipeline/segmented_byte_view.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
@@ -2198,6 +2199,13 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     CHECK(buffer[2] == std::byte{'l'});
     CHECK(buffer[3] == std::byte{'l'});
     CHECK(buffer[4] == std::byte{'o'});
+
+    CHECK(buffer[xtd::from_end{1}] == std::byte{'o'});
+    CHECK(buffer[xtd::from_end{2}] == std::byte{'l'});
+    CHECK(buffer[xtd::from_end{3}] == std::byte{'l'});
+    CHECK(buffer[xtd::from_end{4}] == std::byte{'e'});
+    CHECK(buffer[xtd::from_end{5}] == std::byte{'h'});
+
     CHECK(buffer.to_string() == "hello");
 
     buffer.slice_in_place(2, 3);
@@ -2207,6 +2215,10 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     CHECK(buffer[0] == std::byte{'l'});
     CHECK(buffer[1] == std::byte{'l'});
     CHECK(buffer[2] == std::byte{'o'});
+
+    CHECK(buffer[xtd::from_end{1}] == std::byte{'o'});
+    CHECK(buffer[xtd::from_end{2}] == std::byte{'l'});
+    CHECK(buffer[xtd::from_end{3}] == std::byte{'l'});
 
     CHECK(rr.completed());
 

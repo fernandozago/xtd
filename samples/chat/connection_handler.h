@@ -7,6 +7,7 @@
 
 #include "pipeline/pipeline.h"
 #include "../utils/utils.h"
+#include "pipeline/segmented_byte_view.h"
 
 /*
 Accepts any server type implementing:
@@ -114,7 +115,7 @@ private:
                     auto line_bytes = data.slice(newLine);
                     
                     //check the last byte of the line for carriage return (\r) and remove it if present
-                    if (line_bytes[newLine - 1] == std::byte('\r')) {
+                    if (!line_bytes.empty() && line_bytes[xtd::from_end(1)] == std::byte('\r')) {
                         line_bytes = line_bytes.slice(newLine - 1);
                     }
 

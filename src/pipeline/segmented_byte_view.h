@@ -2,7 +2,6 @@
 #define PIPELINE_SEGMENTED_BYTE_VIEW_H
 
 #include <algorithm>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -22,11 +21,23 @@ namespace xtd
 struct read_result;
 class test_helper_segmented_byte_view;
 
+struct from_end {
+    std::size_t offset;
+    explicit from_end(std::size_t offset) : offset(offset) {}
+};
+
 struct segmented_byte_view
 {
 private:
     friend struct read_result;
     friend class test_helper_segmented_byte_view;
+
+    struct slice_range
+    {
+        std::size_t begin;
+        std::size_t end;
+    };
+
     std::vector<std::span<const std::byte>> m_segments;
     std::uint64_t m_sequence_id;
     std::size_t m_begin_offset;
@@ -52,6 +63,13 @@ private:
         return m_begin_offset + m_size;
     }
 
+    [[nodiscard]]
+    std::size_t sequence_offset(const position& value, const char* message) const
+    {
+        argument_assert(value.m_sequence_id == m_sequence_id, message);
+        return value.sequence_offset();
+    }
+
     void validate_slice_range(const std::size_t slice_begin, const std::size_t slice_end) const
     {
         range_assert(slice_begin <= slice_end,
@@ -71,6 +89,51 @@ private:
 
         range_assert(size <= m_size - begin_offset,
             "slice size is out of range");
+    }
+
+    [[nodiscard]]
+    slice_range resolve_slice_range(const position& end) const
+    {
+        return {
+            m_begin_offset,
+            sequence_offset(end, "end must belong to this sequence")
+        };
+    }
+
+    [[nodiscard]]
+    slice_range resolve_slice_range(const position& begin, const position& end) const
+    {
+        return {
+            sequence_offset(begin, "begin must belong to this sequence"),
+            sequence_offset(end, "end must belong to this sequence")
+        };
+    }
+
+    [[nodiscard]]
+    slice_range resolve_slice_range(const std::size_t begin_offset, const position& end) const
+    {
+        const std::size_t absolute_end = sequence_offset(end,
+            "end must belong to this sequence");
+
+        range_assert(begin_offset <= m_size,
+            "slice begin offset is out of range");
+
+        return {
+            m_begin_offset + begin_offset, 
+            absolute_end
+        };
+    }
+
+    [[nodiscard]]
+    slice_range resolve_slice_range(const std::size_t begin_offset, const std::size_t size) const
+    {
+        validate_relative_slice(begin_offset, size);
+
+        const std::size_t absolute_begin = m_begin_offset + begin_offset;
+        return {
+            absolute_begin, 
+            absolute_begin + size
+        };
     }
 
     [[nodiscard]]
@@ -116,11 +179,17 @@ private:
         return result;
     }
 
-    void slice_in_place_absolute(const std::size_t slice_begin, const std::size_t slice_end)
+    [[nodiscard]]
+    segmented_byte_view make_slice(const slice_range& range) const
     {
-        m_segments = make_slice_segments(slice_begin, slice_end);
-        m_begin_offset = slice_begin;
-        m_size = slice_end - slice_begin;
+        return segmented_byte_view{*this, range.begin, range.end};
+    }
+
+    void slice_in_place_absolute(const slice_range& range)
+    {
+        m_segments = make_slice_segments(range.begin, range.end);
+        m_begin_offset = range.begin;
+        m_size = range.end - range.begin;
     }
 
     explicit segmented_byte_view(const segmented_byte_view& source, const std::size_t slice_begin, const std::size_t slice_end)
@@ -131,7 +200,7 @@ private:
     {
     }
 
-    std::size_t calculate_size(const std::vector<std::span<const std::byte>>& segments) const noexcept
+    inline static std::size_t calculate_size(const std::vector<std::span<const std::byte>>& segments) noexcept
     {
         return std::ranges::fold_left(segments, std::size_t{0},
             [](const std::size_t size, const std::span<const std::byte> segment) {
@@ -195,84 +264,45 @@ public:
     [[nodiscard]]
     segmented_byte_view slice(const position& end) const
     {
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        return segmented_byte_view{*this, m_begin_offset, end.sequence_offset()};
+        return make_slice(resolve_slice_range(end));
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const position& begin, const position& end) const
     {
-        argument_assert(begin.m_sequence_id == m_sequence_id,
-            "begin must belong to this sequence");
-
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        return segmented_byte_view{*this, begin.sequence_offset(), end.sequence_offset()};
+        return make_slice(resolve_slice_range(begin, end));
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const position& end) const
     {
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        range_assert(begin_offset <= m_size,
-            "slice begin offset is out of range");
-
-        const std::size_t absolute_begin = m_begin_offset + begin_offset;
-        return segmented_byte_view{*this, absolute_begin, end.sequence_offset()};
+        return make_slice(resolve_slice_range(begin_offset, end));
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const std::size_t size) const
     {
-        validate_relative_slice(begin_offset, size);
-        const std::size_t absolute_begin = m_begin_offset + begin_offset;
-        return segmented_byte_view{*this, absolute_begin, absolute_begin + size};
+        return make_slice(resolve_slice_range(begin_offset, size));
     }
 
     void slice_in_place(const position& end)
     {
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        slice_in_place_absolute(m_begin_offset, end.sequence_offset());
+        slice_in_place_absolute(resolve_slice_range(end));
     }
 
     void slice_in_place(const position& begin, const position& end)
     {
-        argument_assert(begin.m_sequence_id == m_sequence_id,
-            "begin must belong to this sequence");
-
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        slice_in_place_absolute(begin.sequence_offset(), end.sequence_offset());
+        slice_in_place_absolute(resolve_slice_range(begin, end));
     }
 
     void slice_in_place(const std::size_t begin_offset, const position& end)
     {
-        argument_assert(end.m_sequence_id == m_sequence_id,
-            "end must belong to this sequence");
-
-        range_assert(begin_offset <= m_size,
-            "slice begin offset is out of range");
-
-        slice_in_place_absolute(
-            m_begin_offset + begin_offset,
-            end.sequence_offset()
-        );
+        slice_in_place_absolute(resolve_slice_range(begin_offset, end));
     }
 
     void slice_in_place(const std::size_t begin_offset, const std::size_t size)
     {
-        validate_relative_slice(begin_offset, size);
-
-        const std::size_t absolute_begin = m_begin_offset + begin_offset;
-        slice_in_place_absolute(absolute_begin, absolute_begin + size);
+        slice_in_place_absolute(resolve_slice_range(begin_offset, size));
     }
 
     [[nodiscard]]
@@ -292,23 +322,41 @@ public:
                     m_sequence_id
                 );
             }
-            else {
-                segment_begin += segment.size();
-            }
+
+            segment_begin += segment.size();
         }
 
         return position{};
     }
 
+    const std::byte& operator[](const xtd::from_end& from_end) const
+    {
+        range_assert(from_end.offset > 0 && from_end.offset <= m_size,
+            "from_end offset is out of range");
+
+        std::size_t remaining = from_end.offset - 1;
+        for (auto iterator = m_segments.rbegin(); iterator != m_segments.rend(); ++iterator) {
+            const std::span<const std::byte> segment = *iterator;
+
+            if (remaining < segment.size()) {
+                return segment[segment.size() - 1 - remaining];
+            }
+
+            remaining -= segment.size();
+        }
+
+        std::unreachable();
+    }
+
     const std::byte& operator[](const position& pos) const
     {
-        argument_assert(pos.m_sequence_id == m_sequence_id,
+        const std::size_t absolute_offset = sequence_offset(pos,
             "position must belong to this sequence");
 
-        range_assert(pos.sequence_offset() >= m_begin_offset && pos.sequence_offset() < end_offset(),
+        range_assert(absolute_offset >= m_begin_offset && absolute_offset < end_offset(),
             "position is out of range");
 
-        return (*this)[pos.sequence_offset() - m_begin_offset];
+        return (*this)[absolute_offset - m_begin_offset];
     }
 
     const std::byte& operator[](const std::size_t index) const
