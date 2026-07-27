@@ -13,7 +13,7 @@ TEST_NAMES=(
     "pipelines"
 )
 
-COVERAGE_DIR="$BIN_DIR/coverage"
+COVERAGE_DIR="$SCRIPT_DIR/coverage"
 RAW_COVERAGE="$COVERAGE_DIR/coverage.raw.info"
 FILTERED_COVERAGE="$COVERAGE_DIR/coverage.info"
 HTML_COVERAGE="$COVERAGE_DIR/html"
