@@ -17,29 +17,35 @@ struct read_result
 private:
     friend class pipeline;
 
-    segmented_byte_view m_buffer;
-    bool m_completed;
-    bool m_cancelled;
+    const segmented_byte_view m_buffer;
+    const bool m_completed;
+    const bool m_cancelled;
 
-    static std::vector<std::span<const std::byte>> make_readable_segments(const std::deque<data_segment>& segments)
+    static segmented_byte_view make_readable_view(const std::deque<data_segment>& segments, std::uint64_t sequence_id)
     {
-        std::vector<std::span<const std::byte>> result;
-        result.reserve(segments.size());
+        std::vector<std::span<const std::byte>> readable_segments;
+        readable_segments.reserve(segments.size());
+
+        std::size_t total_size = 0;
 
         for (const data_segment& segment : segments) {
-            if (segment.readable_size() != 0) {
-                result.emplace_back(segment.readable_bytes());
+            const std::size_t readable_size = segment.readable_size();
+
+            if (readable_size != 0) {
+                readable_segments.emplace_back(segment.readable_bytes());
+                total_size += readable_size;
             }
         }
 
-        return result;
+        return segmented_byte_view{
+            std::move(readable_segments),
+            sequence_id,
+            total_size
+        };
     }
 
-    explicit read_result(
-        const std::deque<data_segment>& segments,
-        std::uint64_t sequence_id,
-        bool completed)
-        : m_buffer(make_readable_segments(segments), sequence_id)
+    explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed)
+        : m_buffer(make_readable_view(segments, sequence_id))
         , m_completed(completed)
         , m_cancelled(false)
     {
@@ -57,9 +63,7 @@ public:
 
     read_result(const read_result&) = delete;
     read_result& operator=(const read_result&) = delete;
-
     read_result(read_result&&) noexcept = default;
-    read_result& operator=(read_result&&) noexcept = default;
 
     explicit constexpr operator bool() const noexcept
     {

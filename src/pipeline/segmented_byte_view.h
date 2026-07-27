@@ -2,14 +2,8 @@
 #define PIPELINE_SEGMENTED_BYTE_VIEW_H
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
 #include <span>
 #include <stdexcept>
-#include <string>
-#include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -22,8 +16,8 @@ struct read_result;
 class test_helper_segmented_byte_view;
 
 struct from_end {
-    std::size_t offset;
-    explicit from_end(std::size_t offset) : offset(offset) {}
+    std::size_t m_offset;
+    explicit from_end(std::size_t offset) : m_offset(offset) {}
 };
 
 struct segmented_byte_view
@@ -194,19 +188,11 @@ private:
     {
     }
 
-    inline static std::size_t calculate_size(const std::vector<std::span<const std::byte>>& segments) noexcept
-    {
-        return std::ranges::fold_left(segments, std::size_t{0},
-            [](const std::size_t size, const std::span<const std::byte> segment) {
-                return size + segment.size();
-            });
-    }
-
-    explicit segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequence_id)
+    explicit segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequence_id, std::size_t size)
         : m_segments(std::move(segments))
         , m_sequence_id(sequence_id)
         , m_begin_offset(0)
-        , m_size(calculate_size(m_segments))
+        , m_size(size)
     {
     }
 
@@ -301,10 +287,10 @@ public:
 
     const std::byte& operator[](const xtd::from_end& from_end) const
     {
-        range_assert(from_end.offset > 0 && from_end.offset <= m_size,
+        range_assert(from_end.m_offset > 0 && from_end.m_offset <= m_size,
             "from_end offset is out of range");
 
-        std::size_t remaining = from_end.offset - 1;
+        std::size_t remaining = from_end.m_offset - 1;
         for (auto iterator = m_segments.rbegin(); iterator != m_segments.rend(); ++iterator) {
             const std::span<const std::byte> segment = *iterator;
 
@@ -353,17 +339,16 @@ public:
     {
         std::size_t segment_begin = m_begin_offset;
 
-        for (const std::span<const std::byte>& segment : m_segments) {
+        for (const std::span<const std::byte> segment : m_segments) {
             const auto found = std::ranges::find(segment, value);
 
             if (found != segment.end()) {
-                return position(
-                    segment_begin
-                        + std::ranges::distance(
-                            segment.begin(),
-                            found),
+                const auto distance = std::ranges::distance(segment.begin(), found);
+
+                return position{
+                    segment_begin + static_cast<std::size_t>(distance),
                     m_sequence_id
-                );
+                };
             }
 
             segment_begin += segment.size();

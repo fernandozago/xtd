@@ -8,6 +8,9 @@ BIN_DIR="$SCRIPT_DIR/bin"
 TEST_SOURCE="$SCRIPT_DIR/pipelines.cpp"
 TEST_BINARY="$BIN_DIR/tests"
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
+TEST_WARNING_FLAGS=(
+    
+)
 
 cd "$ROOT_DIR"
 
@@ -15,7 +18,7 @@ mkdir -p "$BIN_DIR"
 
 rm -f "$TEST_BINARY"
 echo "Building tests..."
-g++-15 "$TEST_SOURCE" -o "$TEST_BINARY" -O3 -pthread @"$COMPILE_FLAGS_FILE" 
+g++-15 "$TEST_SOURCE" -o "$TEST_BINARY" "${TEST_WARNING_FLAGS[@]}" -O3 -pthread @"$COMPILE_FLAGS_FILE" 
 echo "Running tests..."
 "$TEST_BINARY" #--duration=true #--success=true "$@"
 

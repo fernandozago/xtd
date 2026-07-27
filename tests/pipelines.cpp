@@ -1,18 +1,36 @@
-#include "pipeline/segmented_byte_view.h"
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "third_party/doctest.h"
 
 #include <netinet/in.h>
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
+#include "pipeline/segmented_byte_view.h"
 #include "tests/test_data_trivially_copyable.h"
 
 
 namespace xtd {
 class test_helper_segmented_byte_view {
 public:
-    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequenceId) {
-        return segmented_byte_view(std::move(segments), sequenceId);
+    static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequence_id) {
+        std::vector<std::span<const std::byte>> readable_segments;
+        readable_segments.reserve(segments.size());
+
+        std::size_t total_size = 0;
+
+        for (const std::span<const std::byte>& segment : segments) {
+            const std::size_t readable_size = segment.size();
+
+            if (readable_size != 0) {
+                readable_segments.emplace_back(segment);
+                total_size += readable_size;
+            }
+        }
+
+        return segmented_byte_view{
+            std::move(readable_segments),
+            sequence_id,
+            total_size
+        };
     }
 
     static std::size_t get_first_segment_begin(const segmented_byte_view& seq) {
