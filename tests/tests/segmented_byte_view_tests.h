@@ -198,6 +198,21 @@ TEST_CASE("segmented_byte_view: slice(size_t, size_t) supports overlapping slice
     CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(second) == 99);
 }
 
+TEST_CASE("segmented_byte_view: slice(size_t, size_t) that reaches end keeps trailing segments") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cd", "efg"},
+        18
+    );
+
+    const auto sliced = sequence.slice(1, 6);
+
+    CHECK(sliced.to_string() == "bcdefg");
+    CHECK(sliced.size() == 6);
+    CHECK(sliced.segment_count() == 3);
+    CHECK(sliced.begin() == sequence.begin() + 1);
+    CHECK(sliced.end() == sequence.end());
+}
+
 TEST_CASE("segmented_byte_view: slice(size_t, size_t) rejects invalid ranges") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"});
 

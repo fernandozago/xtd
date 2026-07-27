@@ -114,7 +114,8 @@ lcov \
     --base-directory "$ROOT_DIR" \
     --no-external \
     --gcov-tool gcov-15 \
-    --rc geninfo_unexecuted_blocks=1 \
+    --rc geninfo_gcov_all_blocks=0 \
+    --rc geninfo_unexecuted_blocks=0 \
     --ignore-errors inconsistent \
     --output-file "$RAW_COVERAGE"
 
@@ -133,6 +134,8 @@ echo "Generating combined HTML report..."
 genhtml \
     "$FILTERED_COVERAGE" \
     --demangle-cpp \
+    --filter brace \
+    --dark-mode \
     --output-directory "$HTML_COVERAGE"
 
 echo
@@ -144,7 +147,7 @@ echo "Coverage report generated at:"
 echo "$HTML_COVERAGE/index.html"
 
 echo
-echo "Coverage for segmented_byte_view.h:"
-lcov --list "$FILTERED_COVERAGE" \
-    | grep 'segmented_byte_view.h' \
-    || echo "segmented_byte_view.h was not found in the coverage report."
+echo "Coverage report available at:"
+echo "http://localhost:8000"
+
+python3 -m http.server 8000 --directory "$HTML_COVERAGE"

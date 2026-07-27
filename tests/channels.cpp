@@ -505,6 +505,49 @@ TEST_CASE("channel_writer - test stop token when block writing")
     CHECK_FALSE(writer.emplace(stopSource.get_token(), 2));
 }
 
+TEST_CASE("BoundedChannel blocked push is canceled by stop token")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    std::stop_source stop_source;
+    auto blocked_push = std::async(std::launch::async, [&writer, token = stop_source.get_token()]() {
+        return writer.push(token, 2);
+    });
+
+    CHECK(blocked_push.wait_for(20ms) == std::future_status::timeout);
+
+    stop_source.request_stop();
+
+    REQUIRE(blocked_push.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blocked_push.get());
+
+    auto value = reader.read();
+    REQUIRE(value.has_value());
+    CHECK(*value == 1);
+}
+
+TEST_CASE("Channel blocked read is canceled by stop token")
+{
+    xtd::channel<int> channel;
+    auto& reader = channel.reader();
+
+    std::stop_source stop_source;
+    auto blocked_read = std::async(std::launch::async, [&reader, token = stop_source.get_token()]() {
+        return reader.read(token);
+    });
+
+    CHECK(blocked_read.wait_for(20ms) == std::future_status::timeout);
+
+    stop_source.request_stop();
+
+    REQUIRE(blocked_read.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blocked_read.get().has_value());
+}
+
 TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
 {
     xtd::channel<int> channel(3);
