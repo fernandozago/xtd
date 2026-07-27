@@ -146,10 +146,6 @@ echo
 echo "Coverage report generated at:"
 echo "$HTML_COVERAGE/index.html"
 
-echo
-echo "Coverage report available at:"
-echo "http://localhost:8000"
-
 if [[ "${CI:-false}" != "true" ]]; then
     echo
     echo "Coverage report available at:"
