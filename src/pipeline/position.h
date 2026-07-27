@@ -134,8 +134,7 @@ public:
     }
 
     [[nodiscard]]
-    bool operator!=(
-        const position& rhs) const noexcept
+    bool operator!=(const position& rhs) const noexcept
     {
         return !(*this == rhs);
     }

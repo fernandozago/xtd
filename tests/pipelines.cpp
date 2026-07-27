@@ -2191,6 +2191,7 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
 
     const xtd::position pos = buffer.position_of('o');
     CHECK(buffer[pos] == std::byte{'o'});
+    CHECK(pos + 1 == buffer.end());
 
     CHECK(buffer[0] == std::byte{'h'});
     CHECK(buffer[1] == std::byte{'e'});
