@@ -86,7 +86,7 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
         writer.complete();
     });
     
-    int index = 0;
+    std::size_t index = 0;
     xtd::pipe_reader& reader = pipeline.reader();
     while (const xtd::read_result result = reader.read())
     {
@@ -1366,11 +1366,11 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
         std::size_t sent = 0;
         while (sent < length)
         {
-            const auto n = ::send(fd, data + sent, length - sent, 0);
+            const ssize_t n = ::send(fd, data + sent, length - sent, 0);
             if (n <= 0)
                 return false;
 
-            sent += n;
+            sent += static_cast<std::size_t>(n);
         }
 
         return true;

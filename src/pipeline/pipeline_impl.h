@@ -35,11 +35,11 @@ private:
 
     struct notifier
     {
-        std::condition_variable_any& cv;
+        std::condition_variable_any& m_cv;
         bool should_notify = false;
 
         explicit notifier(std::condition_variable_any& cv) noexcept
-            : cv(cv)
+            : m_cv(cv)
         {
         }
 
@@ -54,7 +54,7 @@ private:
         ~notifier()
         {
             if (should_notify) {
-                cv.notify_one();
+                m_cv.notify_one();
             }
         }
     };

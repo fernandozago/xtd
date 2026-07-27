@@ -363,23 +363,29 @@ public:
         return position_of(static_cast<std::byte>(value));
     }
 
-    // Copies bytes into the destination span.
     [[nodiscard]]
-    std::size_t copy_to(const std::span<std::byte>& destination) const noexcept
+    std::size_t copy_to(std::span<std::byte> destination) const noexcept
     {
         const std::size_t target_size = std::min(destination.size(), m_size);
+
         if (target_size == 0) {
             return 0;
         }
 
         std::size_t copied = 0;
-        for (const std::span<const std::byte>& segment : m_segments) {
+
+        for (const std::span<const std::byte> segment : m_segments) {
             if (copied == target_size) {
                 break;
             }
 
             const std::size_t chunk_size = std::min(segment.size(), target_size - copied);
-            std::ranges::copy_n(segment.begin(), chunk_size, destination.begin() + copied);
+
+            std::ranges::copy(
+                segment.first(chunk_size),
+                destination.subspan(copied, chunk_size).begin()
+            );
+
             copied += chunk_size;
         }
 

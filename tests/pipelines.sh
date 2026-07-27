@@ -9,7 +9,26 @@ TEST_SOURCE="$SCRIPT_DIR/pipelines.cpp"
 TEST_BINARY="$BIN_DIR/tests"
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
 TEST_WARNING_FLAGS=(
-    
+    -Wpedantic
+    -pedantic-errors
+    -Werror
+    -Wconversion
+    -Wsign-conversion
+    -Wshadow
+    -Wformat=2
+    -Wundef
+    -Wcast-align
+    -Wcast-qual
+    -Wold-style-cast
+    -Woverloaded-virtual
+    -Wnon-virtual-dtor
+    -Wnull-dereference
+    -Wdouble-promotion
+    -Wswitch-enum
+    -Wduplicated-cond
+    -Wduplicated-branches
+    -Wlogical-op
+    -Wuseless-cast
 )
 
 cd "$ROOT_DIR"
