@@ -33,7 +33,33 @@ private:
     friend class pipe_reader_impl<>;
     friend class pipe_writer_impl<>;
 
-     // Larger/aligned objects first.
+    struct notifier
+    {
+        std::condition_variable_any& cv;
+        bool should_notify = false;
+
+        explicit notifier(std::condition_variable_any& cv) noexcept
+            : cv(cv)
+        {
+        }
+
+        notifier(const notifier&) = delete;
+        notifier& operator=(const notifier&) = delete;
+
+        void arm() noexcept
+        {
+            should_notify = true;
+        }
+
+        ~notifier()
+        {
+            if (should_notify) {
+                cv.notify_one();
+            }
+        }
+    };
+
+    // Larger/aligned objects first.
     xtd::fixed_buffer_pool m_data_segment_pool;
     std::deque<data_segment> m_segments{};
 
@@ -168,24 +194,20 @@ private:
         const std::size_t examined_offset = examined.sequence_offset();
         argument_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
 
-        bool notify_writer = false;
-        {
-            std::scoped_lock lock{m_mutex};
-            runtime_assert(!m_reader_completed, "pipeline reader is completed");
-            runtime_assert(m_has_pending_read, "advance called without a pending read");
-            argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
-            argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
-            argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
+        notifier notify_writer(m_space_available);
+        std::scoped_lock lock{m_mutex};
+        runtime_assert(!m_reader_completed, "pipeline reader is completed");
+        runtime_assert(m_has_pending_read, "advance called without a pending read");
+        argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
+        argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
+        argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
 
-            const bool was_paused = m_writer_paused;
-            advance_core(consumed_offset, examined_offset);
-            notify_writer = was_paused && !m_writer_paused;
-        }
+        const bool was_paused = m_writer_paused;
+        advance_core(consumed_offset, examined_offset);
 
-        if (notify_writer) {
-            m_space_available.notify_one();
+        if (was_paused && !m_writer_paused) {
+            notify_writer.arm();
         }
-        m_data_available.notify_all();
     }
 
     inline data_segment& get_segment() {
@@ -209,30 +231,36 @@ private:
         }
 
         std::span<const std::byte> remaining{data, length};
-        std::unique_lock lock(m_mutex);
-
-        runtime_assert(!m_writer_completed, "pipeline writer is completed");
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
 
         while (!remaining.empty()) {
-            const bool w_result = m_space_available.wait(lock, stop_token, [this] {
-                return m_writer_completed ||
-                    m_reader_completed ||
-                    has_available_space();
+            notifier notify_data_available{m_data_available};
+            std::unique_lock lock{m_mutex};
+
+            runtime_assert(!m_writer_completed,
+                "pipeline writer is completed");
+
+            runtime_assert(!m_reader_completed,
+                "pipeline reader is completed");
+
+            const bool wait_succeeded = m_space_available.wait(lock, stop_token, [this] {
+                return m_writer_completed 
+                    || m_reader_completed 
+                    || has_available_space();
             });
 
-            if (!w_result || stop_token.stop_requested())  {
+            if (!wait_succeeded || stop_token.stop_requested()) {
                 return length - remaining.size();
             }
 
-            runtime_assert(!m_writer_completed, "pipeline writer is completed");
-            runtime_assert(!m_reader_completed, "pipeline reader is completed");
+            runtime_assert(!m_writer_completed,
+                "pipeline writer is completed");
+
+            runtime_assert(!m_reader_completed,
+                "pipeline reader is completed");
 
             if (m_writer_paused && should_resume_writer()) {
                 m_writer_paused = false;
             }
-
-            bool notify_data_available = false;
 
             while (!remaining.empty() && !m_writer_paused) {
                 if (m_buffered_size >= m_pause_writer_threshold) {
@@ -240,33 +268,22 @@ private:
                     break;
                 }
 
-                // Calculate the maximum number of bytes we can write to the pipeline without exceeding the pause threshold.
-                const std::size_t remaining_capacity = m_pause_writer_threshold - m_buffered_size;
-                const std::size_t requested_size = std::min(remaining.size(), remaining_capacity);
-
-                /* The data is copied here */
+                const std::size_t available_capacity = m_pause_writer_threshold - m_buffered_size;
+                const std::size_t requested_size = std::min(remaining.size(), available_capacity);
                 const std::size_t copy_size = get_segment().copy_from(remaining.data(), requested_size);
-                /* The data has been copied */
+
+                runtime_assert(copy_size > 0 && copy_size <= requested_size,
+                    "pipeline segment returned an invalid copy size");
 
                 remaining = remaining.subspan(copy_size);
                 m_buffered_size += copy_size;
-                notify_data_available = m_reader_waiting;
+                if (m_reader_waiting) {
+                    notify_data_available.arm();
+                }
 
                 if (m_buffered_size == m_pause_writer_threshold) {
                     m_writer_paused = true;
                 }
-            }
-
-            if (notify_data_available) {
-                lock.unlock();
-                m_data_available.notify_one();
-
-                // Optimization: If remaining data is empty, we can return early without reacquiring the lock.
-                if (remaining.empty()) {
-                    return length;
-                }
-
-                lock.lock();
             }
         }
 
