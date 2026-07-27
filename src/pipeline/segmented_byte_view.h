@@ -179,12 +179,6 @@ private:
         return result;
     }
 
-    [[nodiscard]]
-    segmented_byte_view make_slice(const slice_range& range) const
-    {
-        return segmented_byte_view{*this, range.begin, range.end};
-    }
-
     void slice_in_place_absolute(const slice_range& range)
     {
         m_segments = make_slice_segments(range.begin, range.end);
@@ -192,11 +186,11 @@ private:
         m_size = range.end - range.begin;
     }
 
-    explicit segmented_byte_view(const segmented_byte_view& source, const std::size_t slice_begin, const std::size_t slice_end)
-        : m_segments(source.make_slice_segments(slice_begin, slice_end))
+    explicit segmented_byte_view(const segmented_byte_view& source, const slice_range& range)
+        : m_segments(source.make_slice_segments(range.begin, range.end))
         , m_sequence_id(source.m_sequence_id)
-        , m_begin_offset(slice_begin)
-        , m_size(slice_end - slice_begin)
+        , m_begin_offset(range.begin)
+        , m_size(range.end - range.begin)
     {
     }
 
@@ -264,25 +258,25 @@ public:
     [[nodiscard]]
     segmented_byte_view slice(const position& end) const
     {
-        return make_slice(resolve_slice_range(end));
+        return segmented_byte_view{*this, resolve_slice_range(end)};
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const position& begin, const position& end) const
     {
-        return make_slice(resolve_slice_range(begin, end));
+        return segmented_byte_view{*this, resolve_slice_range(begin, end)};
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const position& end) const
     {
-        return make_slice(resolve_slice_range(begin_offset, end));
+        return segmented_byte_view{*this, resolve_slice_range(begin_offset, end)};
     }
 
     [[nodiscard]]
     segmented_byte_view slice(const std::size_t begin_offset, const std::size_t size) const
     {
-        return make_slice(resolve_slice_range(begin_offset, size));
+        return segmented_byte_view{*this, resolve_slice_range(begin_offset, size)};
     }
 
     void slice_in_place(const position& end)
@@ -303,30 +297,6 @@ public:
     void slice_in_place(const std::size_t begin_offset, const std::size_t size)
     {
         slice_in_place_absolute(resolve_slice_range(begin_offset, size));
-    }
-
-    [[nodiscard]]
-    position position_of(const std::byte value) const
-    {
-        std::size_t segment_begin = m_begin_offset;
-
-        for (const std::span<const std::byte>& segment : m_segments) {
-            const auto found = std::ranges::find(segment, value);
-
-            if (found != segment.end()) {
-                return position(
-                    segment_begin
-                        + std::ranges::distance(
-                            segment.begin(),
-                            found),
-                    m_sequence_id
-                );
-            }
-
-            segment_begin += segment.size();
-        }
-
-        return position{};
     }
 
     const std::byte& operator[](const xtd::from_end& from_end) const
@@ -376,6 +346,30 @@ public:
         }
 
         std::unreachable();
+    }
+
+    [[nodiscard]]
+    position position_of(const std::byte value) const
+    {
+        std::size_t segment_begin = m_begin_offset;
+
+        for (const std::span<const std::byte>& segment : m_segments) {
+            const auto found = std::ranges::find(segment, value);
+
+            if (found != segment.end()) {
+                return position(
+                    segment_begin
+                        + std::ranges::distance(
+                            segment.begin(),
+                            found),
+                    m_sequence_id
+                );
+            }
+
+            segment_begin += segment.size();
+        }
+
+        return position{};
     }
 
     [[nodiscard]]

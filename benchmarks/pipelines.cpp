@@ -39,10 +39,9 @@ private:
         m_latch.count_down();
         while (const xtd::read_result result = m_reader.read())
         {
-            xtd::segmented_byte_view buffer = result.buffer();
+            const xtd::segmented_byte_view buffer = result.buffer();
             total_bytes_read += buffer.size();
-            buffer.slice_in_place(buffer.end(), buffer.end());
-            m_reader.advance(buffer);
+            m_reader.advance(buffer.end());
 
             if (result.completed()) {
                 break;
@@ -60,19 +59,12 @@ public:
     {
     }
 
-    ~consumer() {
-        if (reader_task.joinable()) {
-            reader_task.join();
-        }
-    }
-
     std::size_t get_total_bytes_read() {
         if (reader_task.joinable()) {
             reader_task.join();
         }
         return total_bytes_read;
     }
-
 };
 
 void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_size)
