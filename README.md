@@ -38,6 +38,8 @@ See the complete [Channel API reference](src/channel/channel.md).
 * Explicit consumed and examined positions through `advance()`.
 * Non-owning segmented byte views without flattening the complete buffer.
 * Slicing, searching, copying, and string conversion across segment boundaries.
+* In-place slicing overloads for incremental parser-style mutation.
+* End-relative byte indexing via `xtd::from_end`.
 * Internal fixed-buffer pooling for steady-state reuse.
 * Completion semantics for both reader and writer endpoints.
 * File and socket ingestion helpers through `xtd::pipe_utils`.

@@ -54,7 +54,7 @@ int main()
 			// Uncomment line below to print each line read from the pipeline
 			// std::println("{}", lineBytes.to_string()); 
 
-			readOnlySequence = readOnlySequence.slice(newLinePos, readOnlySequence.end()); // Slice the read-only sequence to remove the processed line and continue searching for the next newline character
+			readOnlySequence.slice_in_place(newLinePos, readOnlySequence.end()); // Slice the read-only sequence in-place to remove the processed line and continue searching for the next newline character
 		}
 	
 		std::println("segmented_byte_view (size: {}) (segments: {})", size, segments_size);

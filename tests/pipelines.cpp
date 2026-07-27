@@ -2244,6 +2244,29 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     reader.complete();
 }
 
+TEST_CASE("segmented_byte_view: slice_in_place(position) and from_end validation")
+{
+    xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
+
+    CHECK(writer.write("hello") == 5);
+    writer.complete();
+
+    const xtd::read_result rr = reader.read();
+    xtd::segmented_byte_view buffer = rr.buffer();
+
+    const xtd::position endPos = buffer.position_of('o') + 1;
+    buffer.slice_in_place(endPos);
+    CHECK(buffer.to_string() == "hello");
+
+    CHECK_THROWS_AS(buffer[xtd::from_end{0}], std::out_of_range);
+    CHECK_THROWS_AS(buffer[xtd::from_end{6}], std::out_of_range);
+
+    reader.advance(buffer.end(), buffer.end());
+    reader.complete();
+}
+
 TEST_CASE("deserialize windows strings with \r\n") {
     xtd::pipeline pipe;
     xtd::pipe_writer& writer = pipe.writer();

@@ -66,6 +66,7 @@ xtd::pipe_writer
 xtd::pipe_reader
 xtd::read_result
 xtd::segmented_byte_view
+xtd::from_end
 xtd::position
 xtd::pipe_utils
 ```
@@ -635,6 +636,24 @@ segmented_byte_view slice(
     std::size_t begin_offset,
     std::size_t size) const;
 
+void slice_in_place(const position& end);
+
+void slice_in_place(
+    const position& begin,
+    const position& end);
+
+void slice_in_place(
+    std::size_t begin_offset,
+    const position& end);
+
+void slice_in_place(
+    std::size_t begin_offset,
+    std::size_t size);
+
+const std::byte& operator[](std::size_t index) const;
+const std::byte& operator[](const position& pos) const;
+const std::byte& operator[](const xtd::from_end& from_end) const;
+
 position position_of(std::byte value) const;
 position position_of(char value) const;
 
@@ -657,6 +676,12 @@ bool copy_to(T& destination) const;
 std::string to_string() const;
 ```
 
+```cpp
+struct from_end {
+    explicit from_end(std::size_t offset);
+};
+```
+
 ### Segment access
 
 `segments()` exposes the currently sliced spans. It does not copy payload bytes.
@@ -672,6 +697,29 @@ Offset-based slices are relative to the current view's beginning.
 
 Invalid ranges throw `std::out_of_range`. Foreign positions throw
 `std::invalid_argument`.
+
+`slice_in_place(...)` uses the same overload families as `slice(...)`, but
+mutates the current view instead of returning a new one.
+
+Example:
+
+```cpp
+xtd::segmented_byte_view working = sequence;
+working.slice_in_place(working.begin(), newline);
+```
+
+### Indexing
+
+`operator[](std::size_t)` indexes from the current view begin (`0`-based).
+
+`operator[](position)` validates sequence identity and range.
+
+`operator[](xtd::from_end{n})` indexes from the view end (`1`-based), where:
+
+- `xtd::from_end{1}` is the last byte;
+- `xtd::from_end{size()}` is the first byte.
+
+Out-of-range indexing throws `std::out_of_range`.
 
 ### Searching
 
