@@ -96,7 +96,7 @@ jobs:
       cancel-in-progress: true
 
     environment:
-      name: github-pages
+      name: Code Coverage
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
