@@ -544,25 +544,25 @@ TEST_CASE("emplace constructs the value in place")
     struct probe
     {
         probe(int, int& moves, int& constructions)
-            : moves(&moves)
-            , constructions(&constructions)
+            : m_moves(&moves)
+            , m_constructions(&constructions)
         {
-            ++constructions;
+            ++*m_constructions;
         }
 
         probe(probe&& other) noexcept
-            : moves(other.moves)
-            , constructions(other.constructions)
+            : m_moves(other.m_moves)
+            , m_constructions(other.m_constructions)
         {
-            ++*moves;
+            ++*m_moves;
         }
 
         probe(const probe&) = delete;
         probe& operator=(const probe&) = delete;
         probe& operator=(probe&&) = delete;
 
-        int* moves;
-        int* constructions;
+        int* m_moves;
+        int* m_constructions;
     };
 
     int moves = 0;
