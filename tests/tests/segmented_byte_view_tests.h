@@ -583,4 +583,306 @@ TEST_CASE("segmented_byte_view: slice_in_place(position)") {
     }
 }
 
+TEST_CASE("segmented_byte_view: begin and end reflect slice boundaries") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"},
+        73
+    );
+
+    const auto sliced = sequence.slice(2, 5);
+
+    CHECK(sliced.begin() == sequence.begin() + 2);
+    CHECK(sliced.end() == sequence.begin() + 7);
+    CHECK(sliced.size() == 5);
+    CHECK(sliced.to_string() == "cdefg");
+
+    const auto empty = sequence.slice(4, 0);
+
+    CHECK(empty.begin() == sequence.begin() + 4);
+    CHECK(empty.end() == sequence.begin() + 4);
+    CHECK(empty.size() == 0);
+    CHECK(empty.segment_count() == 0);
+    CHECK(empty.empty());
+}
+
+TEST_CASE("segmented_byte_view: slices reject reversed ranges") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def"}
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sequence.slice(
+            sequence.begin() + 4,
+            sequence.begin() + 2
+        )),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sequence.slice(
+            4,
+            sequence.begin() + 2
+        )),
+        std::out_of_range
+    );
+}
+
+TEST_CASE("segmented_byte_view: nested slices reject positions outside their boundaries") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"}
+    );
+
+    const auto sliced = sequence.slice(2, 5);
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sliced.slice(sequence.begin() + 1)),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sliced.slice(
+            sequence.begin() + 1,
+            sliced.end()
+        )),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sliced.slice(
+            sliced.begin(),
+            sliced.end() + 1
+        )),
+        std::out_of_range
+    );
+}
+
+TEST_CASE("segmented_byte_view: operator[](size_t)") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cde", "f"}
+    );
+
+    constexpr std::string_view expected = "abcdef";
+
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        CAPTURE(index);
+        CHECK(sequence[index] == static_cast<std::byte>(expected[index]));
+    }
+
+    CHECK_THROWS_AS(sequence[expected.size()], std::out_of_range);
+
+    const auto empty =
+        xtd::test_helper_segmented_byte_view::create_from_segments({});
+
+    CHECK_THROWS_AS(empty[0], std::out_of_range);
+}
+
+TEST_CASE("segmented_byte_view: operator[](size_t) works on sliced views") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"}
+    );
+
+    const auto sliced = sequence.slice(2, 5);
+    constexpr std::string_view expected = "cdefg";
+
+    for (std::size_t index = 0; index < expected.size(); ++index) {
+        CAPTURE(index);
+        CHECK(sliced[index] == static_cast<std::byte>(expected[index]));
+    }
+
+    CHECK_THROWS_AS(sliced[expected.size()], std::out_of_range);
+}
+
+TEST_CASE("segmented_byte_view: operator[](position)") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cde", "f"},
+        41
+    );
+
+    CHECK(sequence[sequence.begin()] == std::byte{'a'});
+    CHECK(sequence[sequence.begin() + 2] == std::byte{'c'});
+    CHECK(sequence[sequence.end() - 1] == std::byte{'f'});
+
+    CHECK_THROWS_AS(sequence[sequence.end()], std::out_of_range);
+
+    const auto foreign =
+        xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 42);
+
+    CHECK_THROWS_AS(sequence[foreign.begin()], std::invalid_argument);
+}
+
+TEST_CASE("segmented_byte_view: operator[](position) respects sliced boundaries") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"}
+    );
+
+    const auto sliced = sequence.slice(2, 5);
+
+    CHECK(sliced[sliced.begin()] == std::byte{'c'});
+    CHECK(sliced[sliced.end() - 1] == std::byte{'g'});
+
+    CHECK_THROWS_AS(
+        sliced[sequence.begin() + 1],
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        sliced[sliced.end()],
+        std::out_of_range
+    );
+}
+
+TEST_CASE("segmented_byte_view: operator[](from_end) works on sliced views") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"}
+    );
+
+    const auto sliced = sequence.slice(2, 5);
+
+    CHECK(sliced[xtd::from_end{1}] == std::byte{'g'});
+    CHECK(sliced[xtd::from_end{3}] == std::byte{'e'});
+    CHECK(sliced[xtd::from_end{5}] == std::byte{'c'});
+
+    CHECK_THROWS_AS(sliced[xtd::from_end{6}], std::out_of_range);
+}
+
+TEST_CASE("segmented_byte_view: position_of only searches inside a sliced view") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"x", "abc", "xdefx"},
+        51
+    );
+
+    const auto sliced = sequence.slice(1, 7);
+    CHECK(sliced.to_string() == "abcxdef");
+
+    const auto found = sliced.position_of('x');
+
+    REQUIRE(found);
+    CHECK(found == sequence.begin() + 4);
+    CHECK_FALSE(sliced.position_of('z'));
+
+    const auto without_x = sequence.slice(1, 3);
+    CHECK(without_x.to_string() == "abc");
+    CHECK_FALSE(without_x.position_of('x'));
+}
+
+TEST_CASE("segmented_byte_view: copy_to(byte*, size_t) rejects a null destination") {
+    const auto sequence =
+        xtd::test_helper_segmented_byte_view::create_from_segments({"abc"});
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sequence.copy_to(nullptr, 1)),
+        std::invalid_argument
+    );
+}
+
+TEST_CASE("segmented_byte_view: copy_to(T&) rejects an undersized view") {
+    const auto sequence =
+        xtd::test_helper_segmented_byte_view::create_from_segments({"abc"});
+
+    std::uint32_t destination = 0xAABBCCDD;
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sequence.copy_to(destination)),
+        std::invalid_argument
+    );
+
+    CHECK(destination == 0xAABBCCDD);
+}
+
+TEST_CASE("segmented_byte_view: copy_to copies a sliced view") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"01", "234", "56789"}
+    );
+
+    const auto sliced = sequence.slice(1, 7);
+    std::vector<std::byte> destination(sliced.size());
+
+    REQUIRE(sliced.copy_to(destination) == sliced.size());
+
+    constexpr std::string_view expected = "1234567";
+
+    CHECK(std::equal(
+        destination.begin(),
+        destination.end(),
+        expected.begin(),
+        [](const std::byte left, const char right) {
+            return left == static_cast<std::byte>(right);
+        }
+    ));
+}
+
+TEST_CASE("segmented_byte_view: repeated slice_in_place uses relative offsets") {
+    auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def", "ghi"},
+        73
+    );
+
+    sequence.slice_in_place(2, 5);
+
+    CHECK(sequence.to_string() == "cdefg");
+    CHECK(sequence.begin() == xtd::position{2, 73});
+
+    sequence.slice_in_place(1, 3);
+
+    CHECK(sequence.to_string() == "def");
+    CHECK(sequence.size() == 3);
+    CHECK(sequence.begin() == xtd::position{3, 73});
+    CHECK(sequence.end() == xtd::position{6, 73});
+}
+
+TEST_CASE("segmented_byte_view: slice_in_place failures leave the view unchanged") {
+    auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def"},
+        61
+    );
+
+    const auto foreign =
+        xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 62);
+
+    const auto original_begin = sequence.begin();
+    const auto original_end = sequence.end();
+    const auto original_size = sequence.size();
+    const auto original_segment_count = sequence.segment_count();
+    const auto original_text = sequence.to_string();
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(7, 0),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(4, sequence.begin() + 2),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(
+            sequence.begin() + 4,
+            sequence.begin() + 2
+        ),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(sequence.end() + 1),
+        std::out_of_range
+    );
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(foreign.end()),
+        std::invalid_argument
+    );
+
+    CHECK_THROWS_AS(
+        sequence.slice_in_place(0, foreign.end()),
+        std::invalid_argument
+    );
+
+    CHECK(sequence.begin() == original_begin);
+    CHECK(sequence.end() == original_end);
+    CHECK(sequence.size() == original_size);
+    CHECK(sequence.segment_count() == original_segment_count);
+    CHECK(sequence.to_string() == original_text);
+}
+
 #endif

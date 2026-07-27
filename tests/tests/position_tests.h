@@ -4,8 +4,6 @@
 #include "../third_party/doctest.h"
 #include "../../src/pipeline/position.h"
 
-namespace xtd_position_tests {
-
 TEST_CASE("position: default constructed value is invalid")
 {
     const xtd::position pos{};
@@ -97,6 +95,5 @@ TEST_CASE("position: greater-than compares only compatible valid positions")
     CHECK_FALSE(high > invalid);
     CHECK_FALSE(invalid > low);
 }
-} // namespace xtd_position_tests
 
 #endif
