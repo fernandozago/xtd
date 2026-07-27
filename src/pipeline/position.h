@@ -143,10 +143,9 @@ public:
     [[nodiscard]]
     bool operator>(const position& rhs) const noexcept
     {
-        return m_valid &&
-               rhs.m_valid &&
-               m_sequence_id == rhs.m_sequence_id &&
-               m_offset > rhs.m_offset;
+        return m_valid && rhs.m_valid 
+               && m_sequence_id == rhs.m_sequence_id 
+               && m_offset > rhs.m_offset;
     }
 };
 

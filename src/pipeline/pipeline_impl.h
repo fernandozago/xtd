@@ -316,24 +316,18 @@ private:
     }
 
     [[nodiscard]]
-    static std::size_t validate_pause_threshold(
-        const std::size_t pause_threshold)
+    static std::size_t validate_pause_threshold(const std::size_t pause_threshold)
     {
-        argument_assert(
-            pause_threshold > 0,
-            "pause_writer_threshold must be > 0"
-        );
+        argument_assert(pause_threshold > 0,
+            "pause_writer_threshold must be > 0");
 
         return pause_threshold;
     }
 
     [[nodiscard]]
-    static std::size_t validate_resume_threshold(
-        const std::size_t resume_threshold,
-        const std::size_t pause_threshold)
+    static std::size_t validate_resume_threshold(const std::size_t resume_threshold, const std::size_t pause_threshold)
     {
-        argument_assert(
-            resume_threshold <= pause_threshold,
+        argument_assert(resume_threshold <= pause_threshold,
             "resume_writer_threshold must be <= pause_writer_threshold"
         );
 

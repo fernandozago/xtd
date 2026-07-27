@@ -39,10 +39,10 @@ private:
         m_latch.count_down();
         while (const xtd::read_result result = m_reader.read())
         {
-            const xtd::segmented_byte_view buffer = result.buffer();
-
+            xtd::segmented_byte_view buffer = result.buffer();
             total_bytes_read += buffer.size();
-            m_reader.advance(buffer.end());
+            buffer.slice_in_place(buffer.end(), buffer.end());
+            m_reader.advance(buffer);
 
             if (result.completed()) {
                 break;

@@ -119,7 +119,7 @@ private:
                     }
 
                     process_message(line_bytes);
-                    data = data.slice(newLine + 1, data.end());
+                    data.slice_in_place(newLine + 1, data.end());
                 }
 
                 reader.advance(data.begin(), data.end());

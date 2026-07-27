@@ -24,11 +24,6 @@ private:
         : m_state(state) 
     {}
 public:
-    pipe_reader_impl(const pipe_reader_impl&) = delete;
-    pipe_reader_impl& operator=(const pipe_reader_impl&) = delete;
-    pipe_reader_impl(pipe_reader_impl&&) = delete;
-    pipe_reader_impl& operator=(pipe_reader_impl&&) = delete;
-
     // Reads currently available data from the pipeline.
     // Returns a read result containing the buffer and completion status.
     read_result read(std::stop_token stop_token = {}) const {

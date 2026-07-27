@@ -76,7 +76,7 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
         while (xtd::position pos = seq.position_of(delimiter))
         {
             CHECK(expected[index++] == seq.slice(seq.begin(), pos).to_string());
-            seq = seq.slice(pos + 1, seq.end());
+            seq.slice_in_place(pos + 1, seq.end());
         }
 
         reader.advance(seq.begin(), seq.end());
@@ -123,8 +123,8 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
         
         while (xtd::position pos = ros.position_of('\n'))
         {
-            received.push_back(ros.slice(pos).to_string());
-            ros = ros.slice(pos + 1, ros.end());
+            received.push_back(ros.slice(ros.begin(), pos).to_string());
+            ros.slice_in_place(pos + 1, ros.end());
         }
 
         reader.advance(ros.begin(), ros.end());
@@ -725,7 +725,7 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
             };
 
             // Advance the buffer to remove the consumed message
-            buffer = buffer.slice(totalSize, buffer.end());
+            buffer.slice_in_place(totalSize, buffer.end());
             return true;
         }
 
@@ -1405,7 +1405,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
             while (xtd::position pos = seq.position_of(delimiter))
             {
                 received.push_back(seq.slice(pos).to_string());
-                seq = seq.slice(pos + 1, seq.end());
+                seq.slice_in_place(pos + 1, seq.end());
             }
 
             reader.advance(seq.begin(), seq.end());
@@ -2150,6 +2150,32 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice2) == 10);
 }
 
+TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
+{
+    std::vector<std::byte> data(30, std::byte{0xDD});
+
+    xtd::segmented_byte_view seq = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {std::span<const std::byte>(data.data(), data.size())},
+        18
+    );
+
+    // slice(offset, size) - offset 5, size 15
+    xtd::segmented_byte_view slice1 = seq.slice(5, 15);
+    // slice(offset, size) - offset 10, size 15
+    xtd::segmented_byte_view slice2 = seq.slice(10, 15);
+
+    slice1.slice_in_place(0, 15); // Further slice slice1 to first 10 bytes
+    slice2.slice_in_place(0, 15); // Further slice slice2 to bytes
+
+    CHECK(slice1.size() == 15);
+    CHECK(slice2.size() == 15);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice1) == 5);
+    CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(slice2) == 10);
+
+    slice1.slice_in_place(slice1.end(), slice1.end());
+    CHECK(slice1.size() == 0);
+}
+
 TEST_CASE("pipeline docs example A: minimal text pipeline")
 {
     xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
@@ -2160,7 +2186,7 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     writer.complete();
 
     const xtd::read_result rr = reader.read();
-    const xtd::segmented_byte_view buffer = rr.buffer();
+    xtd::segmented_byte_view buffer = rr.buffer();
     CHECK(buffer.segment_count() == 2);
 
     const xtd::position pos = buffer.position_of('o');
@@ -2172,6 +2198,15 @@ TEST_CASE("pipeline docs example A: minimal text pipeline")
     CHECK(buffer[3] == std::byte{'l'});
     CHECK(buffer[4] == std::byte{'o'});
     CHECK(buffer.to_string() == "hello");
+
+    buffer.slice_in_place(2, 3);
+    CHECK(buffer.segment_count() == 2);
+    CHECK(buffer.segments()[0].size() == 1);
+    CHECK(buffer.segments()[1].size() == 2);
+    CHECK(buffer[0] == std::byte{'l'});
+    CHECK(buffer[1] == std::byte{'l'});
+    CHECK(buffer[2] == std::byte{'o'});
+
     CHECK(rr.completed());
 
     reader.advance(buffer.end(), buffer.end());
@@ -2199,7 +2234,7 @@ TEST_CASE("deserialize windows strings with \r\n") {
                 line_bytes = line_bytes.slice(0, carriege_return_pos);
             }
             lines.push_back(line_bytes.to_string());
-            seq = seq.slice(pos + 1, seq.end());
+            seq.slice_in_place(pos + 1, seq.end());
         }
 
         reader.advance(seq.begin(), seq.end());
