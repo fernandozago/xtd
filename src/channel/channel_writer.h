@@ -22,11 +22,6 @@ namespace xtd
         }
 
     public:
-        channel_writer() = delete;
-        channel_writer(const channel_writer&) = delete;
-        channel_writer& operator=(const channel_writer&) = delete;
-        channel_writer(channel_writer&&) = delete;
-        channel_writer& operator=(channel_writer&&) = delete;
 
         [[nodiscard]]
         bool push(const T& value)

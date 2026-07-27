@@ -24,11 +24,6 @@ namespace xtd
         }
 
     public:
-        channel_reader() = delete;
-        channel_reader(const channel_reader&) = delete;
-        channel_reader& operator=(const channel_reader&) = delete;
-        channel_reader(channel_reader&&) = delete;
-        channel_reader& operator=(channel_reader&&) = delete;
 
         [[nodiscard]]
         std::optional<T> try_read()
