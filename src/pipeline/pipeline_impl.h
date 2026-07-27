@@ -312,6 +312,9 @@ private:
     }
 
     // ----- ctor validation helpers -----
+    struct validated_options_tag
+    {
+    };
 
     struct validated_options
     {
@@ -360,10 +363,9 @@ private:
         argument_assert(options.resume_writer_threshold <= options.pause_writer_threshold,
             "resume_writer_threshold must be <= pause_writer_threshold");
 
-
-        // When pause_writer_threshold is not divisible by buffer_size, we need an extra segment to accommodate the remainder.
-        const std::size_t max_pooled_segments = options.pause_writer_threshold / options.buffer_size +
-            (options.pause_writer_threshold % options.buffer_size != 0); 
+        const std::size_t max_pooled_segments =
+            options.pause_writer_threshold / options.buffer_size
+            + static_cast<std::size_t>(options.pause_writer_threshold % options.buffer_size != 0);
 
         return {
             .buffer_size = options.buffer_size,
@@ -373,10 +375,10 @@ private:
         };
     }
 
-    // Initializes a pipeline with the provided options.
-    // options: pipeline buffering and backpressure options.
-    explicit pipeline(const validated_options& options)
-        : m_data_segment_pool(options.buffer_size, options.max_pooled_segments)
+    explicit pipeline(const validated_options& options, validated_options_tag)
+        : m_data_segment_pool(
+            options.buffer_size,
+            options.max_pooled_segments)
         , m_buffer_size(options.buffer_size)
         , m_pause_writer_threshold(options.pause_writer_threshold)
         , m_resume_writer_threshold(options.resume_writer_threshold)
@@ -384,7 +386,7 @@ private:
         , m_reader(*this)
     {
     }
-    // ----- ctor validation helpers -----
+
 
 public:
     pipeline(const pipeline&) = delete;
@@ -398,7 +400,7 @@ public:
     }
 
     explicit pipeline(pipe_options options = {})
-        : pipeline(validate_options(options))
+        : pipeline(validate_options(options), validated_options_tag{})
     {
     }
 
