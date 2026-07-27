@@ -26,6 +26,32 @@ namespace xtd
         friend class channel_writer<T>;
         friend class channel_reader<T>;
 
+        struct notifier
+        {
+            std::condition_variable_any& cv;
+            bool should_notify = false;
+
+            explicit notifier(std::condition_variable_any& cv) noexcept
+                : cv(cv)
+            {
+            }
+
+            notifier(const notifier&) = delete;
+            notifier& operator=(const notifier&) = delete;
+
+            void set_waiters(std::size_t waiters_count) noexcept
+            {
+                should_notify = waiters_count != 0;
+            }
+
+            ~notifier()
+            {
+                if (should_notify) {
+                    cv.notify_one();
+                }
+            }
+        };
+
         std::queue<T> m_queue{};
 
         std::condition_variable_any m_not_full{};
@@ -51,31 +77,34 @@ namespace xtd
         bool emplace(const std::stop_token stop_token, const block_strategy strategy, Args&&... args)
         requires std::constructible_from<T, Args...>
         {
-            bool w_result = true;
+            notifier notify_reader(m_not_empty);
             std::unique_lock lock(m_mutex);
+
+            if (stop_token.stop_requested()) {
+                return false;
+            }
+
             if (strategy == block_strategy::WAIT && !m_writer_completed && full())
             {
                 ++m_write_waiters;
-                w_result = m_not_full.wait(lock, stop_token, [this] {
+
+                const bool ready = m_not_full.wait(lock, stop_token, [this] {
                     return m_writer_completed || !full();
                 });
+
                 --m_write_waiters;
+
+                if (!ready) {
+                    return false;
+                }
             }
 
-            if (!w_result || stop_token.stop_requested() || m_writer_completed || full()) {
+            if (m_writer_completed || full()) {
                 return false;
             }
 
             m_queue.emplace(std::forward<Args>(args)...);
-
-            const bool notify_reader = m_read_waiters != 0;
-
-            lock.unlock();
-
-            if (notify_reader) {
-                m_not_empty.notify_one();
-            }
-
+            notify_reader.set_waiters(m_read_waiters);
             return true;
         }
 
@@ -92,32 +121,35 @@ namespace xtd
         [[nodiscard]]
         std::optional<T> read(const std::stop_token stop_token, const block_strategy strategy)
         {
-            bool w_result = true;
+            notifier notify_writer(m_not_full);
             std::unique_lock lock(m_mutex);
+
+            if (stop_token.stop_requested()) {
+                return std::nullopt;
+            }
+
             if (strategy == block_strategy::WAIT && !m_writer_completed && m_queue.empty())
             {
                 ++m_read_waiters;
-                w_result = m_not_empty.wait(lock, stop_token, [this] {
+
+                const bool ready = m_not_empty.wait(lock, stop_token, [this] {
                     return m_writer_completed || !m_queue.empty();
                 });
+
                 --m_read_waiters;
+
+                if (!ready) {
+                    return std::nullopt;
+                }
             }
 
-            if (!w_result || stop_token.stop_requested() || m_queue.empty()) {
+            if (m_queue.empty()) {
                 return std::nullopt;
             }
 
             std::optional<T> result(std::in_place, std::move(m_queue.front()));
             m_queue.pop();
-
-            const bool notify_writer = m_write_waiters != 0;
-
-            lock.unlock();
-
-            if (notify_writer) {
-                m_not_full.notify_one();
-            }
-
+            notify_writer.set_waiters(m_write_waiters);
             return result;
         }
 
