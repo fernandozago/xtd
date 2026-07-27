@@ -44,13 +44,13 @@ public:
     // Advances the reader by a single position for both consumed and examined.
     // consumed: The position treated as both consumed and examined.
     void advance(const position& consumed) {
-        advance(consumed, consumed);
+        m_state.advance(consumed, consumed);
     }
 
     // Advances the reader using the sequence boundaries as consumed and examined positions.
     // sequence: The sequence whose begin/end define consumed/examined.
     void advance(const segmented_byte_view& sequence) {
-        advance(sequence.begin(), sequence.end());
+        m_state.advance(sequence.begin(), sequence.end());
     }
 
     // Completes the reader, clears buffered state, and wakes waiting writers/readers.

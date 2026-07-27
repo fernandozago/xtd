@@ -53,7 +53,6 @@ public:
         : m_buffer_size(buffer_size)
         , m_max_pool_size(max_pool_size)
     {
-        // Ensures release() never reallocates and can remain noexcept.
         m_available_buffers.reserve(max_pool_size);
     }
 
