@@ -113,29 +113,30 @@ private:
     // The configured pause and resume thresholds must therefore be large enough to
     // accommodate the largest expected message.
     [[nodiscard]]
-    bool should_resume_writer() const noexcept
+    inline bool should_resume_writer() const noexcept
     {
         return m_buffered_size <= m_resume_writer_threshold;
     }
 
     [[nodiscard]]
-    bool has_available_data(const std::size_t min_size) const noexcept
+    inline bool is_any_completed() const noexcept
     {
-        return m_reader_completed
-            || m_writer_completed
-            || (
-                m_buffered_size > m_examined_size &&
-                (min_size == 0 || m_buffered_size >= min_size)
-            );
+        return m_writer_completed || m_reader_completed;
     }
-    
+
     read_result read_at_least(const std::size_t min_size, std::stop_token stop_token)
     {
         runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
 
         std::unique_lock lock{m_mutex};
         m_reader_waiting = true;
-        const bool w_result = m_data_available.wait(lock, stop_token, [this, min_size] { return has_available_data(min_size); });
+        const bool w_result = m_data_available.wait(lock, stop_token, [this, min_size] { 
+            return is_any_completed()
+            || (
+                m_buffered_size > m_examined_size 
+                && (min_size == 0 || m_buffered_size >= min_size)
+            ); 
+        });
         m_reader_waiting = false;
 
         if (!w_result || stop_token.stop_requested()) {
@@ -217,13 +218,6 @@ private:
         return m_segments.back();
     }
 
-    inline bool has_available_space() const noexcept {
-        return m_reader_completed
-            || m_writer_completed
-            || !m_writer_paused
-            || should_resume_writer();
-    }
-
     std::size_t write(const std::byte* data, const std::size_t length, std::stop_token stop_token)
     {
         if (length == 0 || data == nullptr) {
@@ -236,27 +230,19 @@ private:
             notifier notify_data_available{m_data_available};
             std::unique_lock lock{m_mutex};
 
-            runtime_assert(!m_writer_completed,
-                "pipeline writer is completed");
-
-            runtime_assert(!m_reader_completed,
-                "pipeline reader is completed");
+            runtime_assert(!is_any_completed(), "pipeline is completed");
 
             const bool wait_succeeded = m_space_available.wait(lock, stop_token, [this] {
-                return m_writer_completed 
-                    || m_reader_completed 
-                    || has_available_space();
+                return is_any_completed()
+                    || !m_writer_paused
+                    || should_resume_writer();
             });
+
+            runtime_assert(!is_any_completed(), "pipeline is completed");
 
             if (!wait_succeeded || stop_token.stop_requested()) {
                 return length - remaining.size();
             }
-
-            runtime_assert(!m_writer_completed,
-                "pipeline writer is completed");
-
-            runtime_assert(!m_reader_completed,
-                "pipeline reader is completed");
 
             if (m_writer_paused && should_resume_writer()) {
                 m_writer_paused = false;
