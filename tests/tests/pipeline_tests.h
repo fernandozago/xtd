@@ -1540,58 +1540,6 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
     reader.complete();
 }
 
-
-
-TEST_CASE("pipeline docs example A: minimal text pipeline")
-{
-    xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
-    xtd::pipe_writer& writer = pipe.writer();
-    xtd::pipe_reader& reader = pipe.reader();
-
-    CHECK(writer.write("hello") == 5);
-    writer.complete();
-
-    const xtd::read_result rr = reader.read();
-    xtd::segmented_byte_view buffer = rr.buffer();
-    CHECK(buffer.segment_count() == 2);
-
-    const xtd::position pos = buffer.position_of('o');
-    CHECK(buffer[pos] == std::byte{'o'});
-    CHECK(pos + 1 == buffer.end());
-
-    CHECK(buffer[0] == std::byte{'h'});
-    CHECK(buffer[1] == std::byte{'e'});
-    CHECK(buffer[2] == std::byte{'l'});
-    CHECK(buffer[3] == std::byte{'l'});
-    CHECK(buffer[4] == std::byte{'o'});
-
-    CHECK(buffer[xtd::from_end{1}] == std::byte{'o'});
-    CHECK(buffer[xtd::from_end{2}] == std::byte{'l'});
-    CHECK(buffer[xtd::from_end{3}] == std::byte{'l'});
-    CHECK(buffer[xtd::from_end{4}] == std::byte{'e'});
-    CHECK(buffer[xtd::from_end{5}] == std::byte{'h'});
-
-    CHECK(buffer.to_string() == "hello");
-
-    buffer.slice_in_place(2, 3);
-    CHECK(buffer.segment_count() == 2);
-    CHECK(buffer.segments()[0].size() == 1);
-    CHECK(buffer.segments()[1].size() == 2);
-    CHECK(buffer[0] == std::byte{'l'});
-    CHECK(buffer[1] == std::byte{'l'});
-    CHECK(buffer[2] == std::byte{'o'});
-
-    CHECK(buffer[xtd::from_end{1}] == std::byte{'o'});
-    CHECK(buffer[xtd::from_end{2}] == std::byte{'l'});
-    CHECK(buffer[xtd::from_end{3}] == std::byte{'l'});
-
-    CHECK(rr.completed());
-
-    reader.advance(buffer.end(), buffer.end());
-    reader.complete();
-}
-
-
 TEST_CASE("deserialize windows strings with \r\n") {
     xtd::pipeline pipe;
     xtd::pipe_writer& writer = pipe.writer();

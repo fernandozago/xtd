@@ -1,76 +1,79 @@
 #ifndef XTD_TESTS_SEGMENTED_BYTE_VIEW_TESTS_H
 #define XTD_TESTS_SEGMENTED_BYTE_VIEW_TESTS_H
 
+#include <array>
+
 #include "../third_party/doctest.h"
-#include "../../src/pipeline/pipeline.h"
 #include "pipeline_test_common.h"
 
 namespace xtd_segmented_byte_view_tests {
 
 TEST_CASE("segmented_byte_view: position arithmetic beyond end is rejected by slice")
 {
-    xtd::pipeline pipeline;
-    xtd::pipe_writer& writer = pipeline.writer();
-    xtd::pipe_reader& reader = pipeline.reader();
+    const std::array<std::byte, 3> data = {
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'}
+    };
 
-    CHECK(writer.write("abc") == 3);
-    writer.complete();
-
-    const xtd::read_result result = reader.read();
-    const xtd::segmented_byte_view buffer = result.buffer();
+    const xtd::segmented_byte_view buffer = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {std::span<const std::byte>(data.data(), data.size())},
+        1
+    );
 
     CHECK_THROWS_AS(
         static_cast<void>(buffer.slice(buffer.end() + 1, buffer.end() + 1)),
         std::out_of_range
     );
-
-    reader.advance(buffer.end(), buffer.end());
-    reader.complete();
 }
 
 
 TEST_CASE("segmented_byte_view: slice can span multiple segments")
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
-        .buffer_size = 3,
-    });
+    const std::array<std::byte, 3> seg1 = {
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'}
+    };
+    const std::array<std::byte, 3> seg2 = {
+        std::byte{'d'}, std::byte{'e'}, std::byte{'f'}
+    };
+    const std::array<std::byte, 3> seg3 = {
+        std::byte{'g'}, std::byte{'h'}, std::byte{'i'}
+    };
 
-    {
-        xtd::pipe_writer& writer = pipeline.writer();
-        CHECK(writer.write("abcdefghi") == 9);
-        writer.complete();
-    }
-    
-    xtd::pipe_reader& reader = pipeline.reader();
-    const xtd::read_result result = reader.read();
-    const xtd::segmented_byte_view buffer = result.buffer();
+    const xtd::segmented_byte_view buffer = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {
+            std::span<const std::byte>(seg1.data(), seg1.size()),
+            std::span<const std::byte>(seg2.data(), seg2.size()),
+            std::span<const std::byte>(seg3.data(), seg3.size())
+        },
+        2
+    );
 
     CHECK(buffer.segment_count() == 3);
     const xtd::segmented_byte_view middle = buffer.slice(2, 5);
     CHECK(middle.begin() == buffer.slice(0, 2).end());
     CHECK(middle.to_string() == "cdefg");
-
-    reader.advance(buffer.end());
-    reader.complete();
 }
 
 
 TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buffer")
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
-        .buffer_size = 2,
-    });
+    const std::array<std::byte, 2> seg1 = {
+        std::byte{'a'}, std::byte{'b'}
+    };
+    const std::array<std::byte, 1> seg2 = {
+        std::byte{'\n'}
+    };
+    const std::array<std::byte, 2> seg3 = {
+        std::byte{'c'}, std::byte{'d'}
+    };
 
-    {
-        xtd::pipe_writer& writer = pipeline.writer();
-        CHECK(writer.write("ab\ncd") == 5);
-        writer.complete();
-    }
-    
-    xtd::pipe_reader& reader = pipeline.reader();
-    const xtd::read_result result = reader.read();
-
-    const xtd::segmented_byte_view buffer = result.buffer();
+    const xtd::segmented_byte_view buffer = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {
+            std::span<const std::byte>(seg1.data(), seg1.size()),
+            std::span<const std::byte>(seg2.data(), seg2.size()),
+            std::span<const std::byte>(seg3.data(), seg3.size())
+        },
+        3
+    );
 
     xtd::position pos{};
     CHECK((pos = buffer.position_of('\n')));
@@ -79,8 +82,37 @@ TEST_CASE("segmented_byte_view: position_of finds delimiter across segmented buf
     CHECK(buffer.slice(pos).to_string() == "ab");
     CHECK(buffer.slice(0, pos).to_string() == "ab");
     CHECK(buffer.slice(buffer.begin(), pos).to_string() == "ab");
+}
 
-    reader.advance(buffer.end());
+
+TEST_CASE("segmented_byte_view: slicing rejects positions from another sequence")
+{
+    const std::array<std::byte, 3> abc = {
+        std::byte{'a'}, std::byte{'b'}, std::byte{'c'}
+    };
+    const std::array<std::byte, 3> xyz = {
+        std::byte{'x'}, std::byte{'y'}, std::byte{'z'}
+    };
+
+    const xtd::segmented_byte_view first = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {std::span<const std::byte>(abc.data(), abc.size())},
+        11
+    );
+
+    const xtd::segmented_byte_view second = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {std::span<const std::byte>(xyz.data(), xyz.size())},
+        22
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(second.slice(first.begin(), second.end())),
+        std::invalid_argument
+    );
+
+    CHECK_THROWS_AS(
+        static_cast<void>(second.slice(first.end())),
+        std::invalid_argument
+    );
 }
 
 
@@ -547,15 +579,20 @@ TEST_CASE("segmented_byte_view: Multiple overlapping slices remain independent")
 
 TEST_CASE("segmented_byte_view: slice_in_place(position) and from_end validation")
 {
-    xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
-    xtd::pipe_writer& writer = pipe.writer();
-    xtd::pipe_reader& reader = pipe.reader();
+    const std::array<std::byte, 3> seg1 = {
+        std::byte{'h'}, std::byte{'e'}, std::byte{'l'}
+    };
+    const std::array<std::byte, 2> seg2 = {
+        std::byte{'l'}, std::byte{'o'}
+    };
 
-    CHECK(writer.write("hello") == 5);
-    writer.complete();
-
-    const xtd::read_result rr = reader.read();
-    xtd::segmented_byte_view buffer = rr.buffer();
+    xtd::segmented_byte_view buffer = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {
+            std::span<const std::byte>(seg1.data(), seg1.size()),
+            std::span<const std::byte>(seg2.data(), seg2.size())
+        },
+        4
+    );
 
     const xtd::position endPos = buffer.position_of('o') + 1;
     buffer.slice_in_place(endPos);
@@ -563,9 +600,6 @@ TEST_CASE("segmented_byte_view: slice_in_place(position) and from_end validation
 
     CHECK_THROWS_AS(buffer[xtd::from_end{0}], std::out_of_range);
     CHECK_THROWS_AS(buffer[xtd::from_end{6}], std::out_of_range);
-
-    reader.advance(buffer.end(), buffer.end());
-    reader.complete();
 }
 
 

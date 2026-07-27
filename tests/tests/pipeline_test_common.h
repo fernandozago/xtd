@@ -15,7 +15,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "../../src/pipeline/pipeline.h"
+#include "../../src/pipeline/segmented_byte_view.h"
 
 namespace xtd {
 class test_helper_segmented_byte_view {
