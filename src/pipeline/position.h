@@ -21,14 +21,15 @@ private:
     std::uint64_t m_sequence_id = 0;
     bool m_valid = false;
 
+public:
+
     explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept
         : m_offset(offset)
         , m_sequence_id(sequence_id)
         , m_valid(true)
     {
     }
-    
-public:
+
     explicit position() 
         : m_offset(0)
         , m_sequence_id(0)
