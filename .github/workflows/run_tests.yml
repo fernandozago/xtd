@@ -11,13 +11,13 @@ on:
 
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   tests:
     name: GCC 15 tests
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     container:
       image: gcc:15
@@ -30,32 +30,79 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      # The GCC container normally exposes "g++".
-      # This creates "g++-15" if your all.sh script uses that name.
-      - name: Configure compiler
+      - name: Install dependencies
+        run: |
+          apt-get update
+
+          apt-get install -y --no-install-recommends \
+            lcov \
+            locales
+
+          rm -rf /var/lib/apt/lists/*
+
+          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+          locale-gen en_US.UTF-8
+
+      - name: Configure GCC 15 commands
         run: |
           if ! command -v g++-15 >/dev/null 2>&1; then
             ln -s "$(command -v g++)" /usr/local/bin/g++-15
           fi
 
+          if ! command -v gcov-15 >/dev/null 2>&1; then
+            ln -s "$(command -v gcov)" /usr/local/bin/gcov-15
+          fi
+
           g++-15 --version
+          gcov-15 --version
+          lcov --version
+          genhtml --version
 
-      - name: Make test script executable
-        run: chmod +x ./tests/all.sh
-
-      - name: Run tests
-        run: ./tests/all.sh
-
-      - name: Configure locale
+      - name: Run tests and generate coverage
         run: |
-          apt-get update
-          apt-get install -y --no-install-recommends locales
-          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-          locale-gen en_US.UTF-8
-
-      - name: Make benchmarks script executable
-        run: chmod +x ./benchmarks/all.sh
+          chmod +x ./tests/coverage.sh
+          ./tests/coverage.sh
 
       - name: Run benchmarks
-        run: ./benchmarks/all.sh
-        
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: |
+          chmod +x ./benchmarks/all.sh
+          ./benchmarks/all.sh
+
+      - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: tests/coverage/html
+
+  deploy:
+    name: Deploy coverage report
+    needs:
+      - tests
+
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    concurrency:
+      group: github-pages
+      cancel-in-progress: true
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Deploy coverage report
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-27 20:38:14</td>
+            <td class="headerValue">2026-07-27 20:45:36</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -85,17 +85,17 @@
 <span id="L23"><span class="lineNum">      23</span>              : </span>
 <span id="L24"><span class="lineNum">      24</span>              : public:</span>
 <span id="L25"><span class="lineNum">      25</span>              : </span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">      528381 :     explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept</span></span>
-<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">      528381 :         : m_offset(offset)</span></span>
-<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">      528381 :         , m_sequence_id(sequence_id)</span></span>
-<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">      528381 :         , m_valid(true)</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">      528426 :     explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">      528426 :         : m_offset(offset)</span></span>
+<span id="L28"><span class="lineNum">      28</span> <span class="tlaGNC">      528426 :         , m_sequence_id(sequence_id)</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">      528426 :         , m_valid(true)</span></span>
 <span id="L30"><span class="lineNum">      30</span>              :     {</span>
 <span id="L31"><span class="lineNum">      31</span>              :     }</span>
 <span id="L32"><span class="lineNum">      32</span>              : </span>
-<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">          37 :     explicit position() </span></span>
-<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">          37 :         : m_offset(0)</span></span>
-<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">          37 :         , m_sequence_id(0)</span></span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">          37 :         , m_valid(false)</span></span>
+<span id="L33"><span class="lineNum">      33</span> <span class="tlaGNC">          38 :     explicit position() </span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">          38 :         : m_offset(0)</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">          38 :         , m_sequence_id(0)</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">          38 :         , m_valid(false)</span></span>
 <span id="L37"><span class="lineNum">      37</span>              :     {</span>
 <span id="L38"><span class="lineNum">      38</span>              : </span>
 <span id="L39"><span class="lineNum">      39</span>              :     }</span>
@@ -103,15 +103,15 @@
 <span id="L41"><span class="lineNum">      41</span>              :     position(const position&amp;) noexcept = default;</span>
 <span id="L42"><span class="lineNum">      42</span>              :     position&amp; operator=(const position&amp;) noexcept = default;</span>
 <span id="L43"><span class="lineNum">      43</span>              : </span>
-<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">          66 :     explicit operator bool() const noexcept</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">          67 :     explicit operator bool() const noexcept</span></span>
 <span id="L45"><span class="lineNum">      45</span>              :     {</span>
-<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">          66 :         return m_valid;</span></span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaGNC">          67 :         return m_valid;</span></span>
 <span id="L47"><span class="lineNum">      47</span>              :     }</span>
 <span id="L48"><span class="lineNum">      48</span>              : </span>
 <span id="L49"><span class="lineNum">      49</span>              :     [[nodiscard]]</span>
-<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">     1053451 :     std::size_t sequence_offset() const noexcept</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">     1053539 :     std::size_t sequence_offset() const noexcept</span></span>
 <span id="L51"><span class="lineNum">      51</span>              :     {</span>
-<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">     1053451 :         return m_offset;</span></span>
+<span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">     1053539 :         return m_offset;</span></span>
 <span id="L53"><span class="lineNum">      53</span>              :     }</span>
 <span id="L54"><span class="lineNum">      54</span>              : </span>
 <span id="L55"><span class="lineNum">      55</span>              :     [[nodiscard]]</span>

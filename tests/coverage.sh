@@ -150,4 +150,10 @@ echo
 echo "Coverage report available at:"
 echo "http://localhost:8000"
 
-python3 -m http.server 8000 --directory "$HTML_COVERAGE"
+if [[ "${CI:-false}" != "true" ]]; then
+    echo
+    echo "Coverage report available at:"
+    echo "http://localhost:8000"
+
+    python3 -m http.server 8000 --directory "$HTML_COVERAGE"
+fi

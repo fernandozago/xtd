@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-27 20:38:14</td>
+            <td class="headerValue">2026-07-27 20:45:36</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -114,9 +114,9 @@
 <span id="L52"><span class="lineNum">      52</span> <span class="tlaGNC">        8653 :     }</span></span>
 <span id="L53"><span class="lineNum">      53</span>              : </span>
 <span id="L54"><span class="lineNum">      54</span>              :     [[nodiscard]]</span>
-<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">      532038 :     std::size_t end_offset() const noexcept</span></span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">      532082 :     std::size_t end_offset() const noexcept</span></span>
 <span id="L56"><span class="lineNum">      56</span>              :     {</span>
-<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">      532038 :         return m_begin_offset + m_size;</span></span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">      532082 :         return m_begin_offset + m_size;</span></span>
 <span id="L58"><span class="lineNum">      58</span>              :     }</span>
 <span id="L59"><span class="lineNum">      59</span>              : </span>
 <span id="L60"><span class="lineNum">      60</span>              :     [[nodiscard]]</span>
@@ -200,39 +200,39 @@
 <span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">        2151 :         std::vector&lt;std::span&lt;const std::byte&gt;&gt; result;</span></span>
 <span id="L139"><span class="lineNum">     139</span>              : </span>
 <span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">        2151 :         if (slice_begin == slice_end) {</span></span>
-<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">         104 :             return result;</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">         102 :             return result;</span></span>
 <span id="L142"><span class="lineNum">     142</span>              :         }</span>
 <span id="L143"><span class="lineNum">     143</span>              : </span>
-<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">        2047 :         result.reserve(m_segments.size());</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">        2049 :         result.reserve(m_segments.size());</span></span>
 <span id="L145"><span class="lineNum">     145</span>              : </span>
-<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">        2047 :         std::size_t segment_begin = m_begin_offset;</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">        2049 :         std::size_t segment_begin = m_begin_offset;</span></span>
 <span id="L147"><span class="lineNum">     147</span>              : </span>
-<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">       16073 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
-<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">       12007 :             const std::size_t segment_end = segment_begin + segment.size();</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">       16219 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">       12149 :             const std::size_t segment_end = segment_begin + segment.size();</span></span>
 <span id="L150"><span class="lineNum">     150</span>              : </span>
-<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">       12007 :             if (segment_end &lt;= slice_begin) {</span></span>
-<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         384 :                 segment_begin = segment_end;</span></span>
-<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         384 :                 continue;</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">       12149 :             if (segment_end &lt;= slice_begin) {</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         385 :                 segment_begin = segment_end;</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         385 :                 continue;</span></span>
 <span id="L154"><span class="lineNum">     154</span>              :             }</span>
 <span id="L155"><span class="lineNum">     155</span>              : </span>
-<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">       11623 :             if (segment_begin &gt;= slice_end) {</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">       11764 :             if (segment_begin &gt;= slice_end) {</span></span>
 <span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          28 :                 break;</span></span>
 <span id="L158"><span class="lineNum">     158</span>              :             }</span>
 <span id="L159"><span class="lineNum">     159</span>              : </span>
-<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">       11595 :             const std::size_t overlap_begin = std::max(segment_begin, slice_begin);</span></span>
-<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       11595 :             const std::size_t overlap_end = std::min(segment_end, slice_end);</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">       11736 :             const std::size_t overlap_begin = std::max(segment_begin, slice_begin);</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       11736 :             const std::size_t overlap_end = std::min(segment_end, slice_end);</span></span>
 <span id="L162"><span class="lineNum">     162</span>              : </span>
-<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">       11595 :             result.emplace_back(</span></span>
-<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">       11595 :                 segment.subspan(</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">       11736 :             result.emplace_back(</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">       11736 :                 segment.subspan(</span></span>
 <span id="L165"><span class="lineNum">     165</span>              :                     overlap_begin - segment_begin,</span>
 <span id="L166"><span class="lineNum">     166</span>              :                     overlap_end - overlap_begin</span>
 <span id="L167"><span class="lineNum">     167</span>              :                 )</span>
 <span id="L168"><span class="lineNum">     168</span>              :             );</span>
 <span id="L169"><span class="lineNum">     169</span>              : </span>
-<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">       11595 :             segment_begin = segment_end;</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">       11736 :             segment_begin = segment_end;</span></span>
 <span id="L171"><span class="lineNum">     171</span>              :         }</span>
 <span id="L172"><span class="lineNum">     172</span>              : </span>
-<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        2047 :         return result;</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        2049 :         return result;</span></span>
 <span id="L174"><span class="lineNum">     174</span>              :     }</span>
 <span id="L175"><span class="lineNum">     175</span>              : </span>
 <span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">          58 :     void slice_in_place_absolute(const slice_range&amp; range)</span></span>
@@ -250,11 +250,11 @@
 <span id="L188"><span class="lineNum">     188</span>              :     {</span>
 <span id="L189"><span class="lineNum">     189</span>              :     }</span>
 <span id="L190"><span class="lineNum">     190</span>              : </span>
-<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">      525716 :     explicit segmented_byte_view(std::vector&lt;std::span&lt;const std::byte&gt;&gt;&amp;&amp; segments, std::uint64_t sequence_id, std::size_t size)</span></span>
-<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">     1051432 :         : m_segments(std::move(segments))</span></span>
-<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">      525716 :         , m_sequence_id(sequence_id)</span></span>
-<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">      525716 :         , m_begin_offset(0)</span></span>
-<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      525716 :         , m_size(size)</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">      525760 :     explicit segmented_byte_view(std::vector&lt;std::span&lt;const std::byte&gt;&gt;&amp;&amp; segments, std::uint64_t sequence_id, std::size_t size)</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">     1051520 :         : m_segments(std::move(segments))</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">      525760 :         , m_sequence_id(sequence_id)</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">      525760 :         , m_begin_offset(0)</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">      525760 :         , m_size(size)</span></span>
 <span id="L196"><span class="lineNum">     196</span>              :     {</span>
 <span id="L197"><span class="lineNum">     197</span>              :     }</span>
 <span id="L198"><span class="lineNum">     198</span>              : </span>
@@ -268,21 +268,21 @@
 <span id="L206"><span class="lineNum">     206</span>              : </span>
 <span id="L207"><span class="lineNum">     207</span>              : public:</span>
 <span id="L208"><span class="lineNum">     208</span>              :     [[nodiscard]]</span>
-<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">         484 :     position begin() const noexcept</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">         485 :     position begin() const noexcept</span></span>
 <span id="L210"><span class="lineNum">     210</span>              :     {</span>
-<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">         484 :         return position{m_begin_offset, m_sequence_id};</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">         485 :         return position{m_begin_offset, m_sequence_id};</span></span>
 <span id="L212"><span class="lineNum">     212</span>              :     }</span>
 <span id="L213"><span class="lineNum">     213</span>              : </span>
 <span id="L214"><span class="lineNum">     214</span>              :     [[nodiscard]]</span>
-<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">      527720 :     position end() const noexcept</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">      527764 :     position end() const noexcept</span></span>
 <span id="L216"><span class="lineNum">     216</span>              :     {</span>
-<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">      527720 :         return position{end_offset(), m_sequence_id};</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">      527764 :         return position{end_offset(), m_sequence_id};</span></span>
 <span id="L218"><span class="lineNum">     218</span>              :     }</span>
 <span id="L219"><span class="lineNum">     219</span>              : </span>
 <span id="L220"><span class="lineNum">     220</span>              :     [[nodiscard]]</span>
-<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">     1053318 :     std::size_t size() const noexcept</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">     1053405 :     std::size_t size() const noexcept</span></span>
 <span id="L222"><span class="lineNum">     222</span>              :     {</span>
-<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">     1053318 :         return m_size;</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">     1053405 :         return m_size;</span></span>
 <span id="L224"><span class="lineNum">     224</span>              :     }</span>
 <span id="L225"><span class="lineNum">     225</span>              : </span>
 <span id="L226"><span class="lineNum">     226</span>              :     [[nodiscard]]</span>
@@ -397,14 +397,14 @@
 <span id="L335"><span class="lineNum">     335</span>              :     }</span>
 <span id="L336"><span class="lineNum">     336</span>              : </span>
 <span id="L337"><span class="lineNum">     337</span>              :     [[nodiscard]]</span>
-<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">          52 :     position position_of(const std::byte value) const</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">          53 :     position position_of(const std::byte value) const</span></span>
 <span id="L339"><span class="lineNum">     339</span>              :     {</span>
-<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">          52 :         std::size_t segment_begin = m_begin_offset;</span></span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">          53 :         std::size_t segment_begin = m_begin_offset;</span></span>
 <span id="L341"><span class="lineNum">     341</span>              : </span>
-<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">         127 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
-<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">          55 :             const auto found = std::ranges::find(segment, value);</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">         131 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">          57 :             const auto found = std::ranges::find(segment, value);</span></span>
 <span id="L344"><span class="lineNum">     344</span>              : </span>
-<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">         110 :             if (found != segment.end()) {</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">         114 :             if (found != segment.end()) {</span></span>
 <span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">          32 :                 const auto distance = std::ranges::distance(segment.begin(), found);</span></span>
 <span id="L347"><span class="lineNum">     347</span>              : </span>
 <span id="L348"><span class="lineNum">     348</span>              :                 return position{</span>
@@ -413,10 +413,10 @@
 <span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">          32 :                 };</span></span>
 <span id="L352"><span class="lineNum">     352</span>              :             }</span>
 <span id="L353"><span class="lineNum">     353</span>              : </span>
-<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">          23 :             segment_begin += segment.size();</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">          25 :             segment_begin += segment.size();</span></span>
 <span id="L355"><span class="lineNum">     355</span>              :         }</span>
 <span id="L356"><span class="lineNum">     356</span>              : </span>
-<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">          20 :         return position{};</span></span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">          21 :         return position{};</span></span>
 <span id="L358"><span class="lineNum">     358</span>              :     }</span>
 <span id="L359"><span class="lineNum">     359</span>              : </span>
 <span id="L360"><span class="lineNum">     360</span>              :     [[nodiscard]]</span>
@@ -436,19 +436,19 @@
 <span id="L374"><span class="lineNum">     374</span>              : </span>
 <span id="L375"><span class="lineNum">     375</span> <span class="tlaGNC">        2031 :         std::size_t copied = 0;</span></span>
 <span id="L376"><span class="lineNum">     376</span>              : </span>
-<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">        6359 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
-<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        4007 :             if (copied == target_size) {</span></span>
-<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">        1710 :                 break;</span></span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">        6360 :         for (const std::span&lt;const std::byte&gt; segment : m_segments) {</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        3992 :             if (copied == target_size) {</span></span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">        1694 :                 break;</span></span>
 <span id="L380"><span class="lineNum">     380</span>              :             }</span>
 <span id="L381"><span class="lineNum">     381</span>              : </span>
-<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        2297 :             const std::size_t chunk_size = std::min(segment.size(), target_size - copied);</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        2298 :             const std::size_t chunk_size = std::min(segment.size(), target_size - copied);</span></span>
 <span id="L383"><span class="lineNum">     383</span>              : </span>
-<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        4594 :             std::ranges::copy(</span></span>
-<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">        2297 :                 segment.first(chunk_size),</span></span>
-<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        2297 :                 destination.subspan(copied, chunk_size).begin()</span></span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">        4596 :             std::ranges::copy(</span></span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">        2298 :                 segment.first(chunk_size),</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        2298 :                 destination.subspan(copied, chunk_size).begin()</span></span>
 <span id="L387"><span class="lineNum">     387</span>              :             );</span>
 <span id="L388"><span class="lineNum">     388</span>              : </span>
-<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">        2297 :             copied += chunk_size;</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">        2298 :             copied += chunk_size;</span></span>
 <span id="L390"><span class="lineNum">     390</span>              :         }</span>
 <span id="L391"><span class="lineNum">     391</span>              : </span>
 <span id="L392"><span class="lineNum">     392</span> <span class="tlaGNC">        2031 :         return copied;</span></span>

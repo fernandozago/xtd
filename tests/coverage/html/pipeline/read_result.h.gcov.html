@@ -37,7 +37,7 @@
           </tr>
           <tr>
             <td class="headerItem">Test Date:</td>
-            <td class="headerValue">2026-07-27 20:38:14</td>
+            <td class="headerValue">2026-07-27 20:45:36</td>
             <td></td>
             <td class="headerItem">Functions:</td>
             <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
@@ -83,33 +83,33 @@
 <span id="L21"><span class="lineNum">      21</span>              :     const bool m_completed;</span>
 <span id="L22"><span class="lineNum">      22</span>              :     const bool m_cancelled;</span>
 <span id="L23"><span class="lineNum">      23</span>              : </span>
-<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">      525641 :     static segmented_byte_view make_readable_view(const std::deque&lt;data_segment&gt;&amp; segments, std::uint64_t sequence_id)</span></span>
+<span id="L24"><span class="lineNum">      24</span> <span class="tlaGNC">      525685 :     static segmented_byte_view make_readable_view(const std::deque&lt;data_segment&gt;&amp; segments, std::uint64_t sequence_id)</span></span>
 <span id="L25"><span class="lineNum">      25</span>              :     {</span>
-<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">      525641 :         std::vector&lt;std::span&lt;const std::byte&gt;&gt; readable_segments;</span></span>
-<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">      525641 :         readable_segments.reserve(segments.size());</span></span>
+<span id="L26"><span class="lineNum">      26</span> <span class="tlaGNC">      525685 :         std::vector&lt;std::span&lt;const std::byte&gt;&gt; readable_segments;</span></span>
+<span id="L27"><span class="lineNum">      27</span> <span class="tlaGNC">      525685 :         readable_segments.reserve(segments.size());</span></span>
 <span id="L28"><span class="lineNum">      28</span>              : </span>
-<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">      525641 :         std::size_t total_size = 0;</span></span>
+<span id="L29"><span class="lineNum">      29</span> <span class="tlaGNC">      525685 :         std::size_t total_size = 0;</span></span>
 <span id="L30"><span class="lineNum">      30</span>              : </span>
-<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">     2632626 :         for (const data_segment&amp; segment : segments) {</span></span>
-<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">     2106985 :             const std::size_t readable_size = segment.readable_size();</span></span>
+<span id="L31"><span class="lineNum">      31</span> <span class="tlaGNC">     2632675 :         for (const data_segment&amp; segment : segments) {</span></span>
+<span id="L32"><span class="lineNum">      32</span> <span class="tlaGNC">     2106990 :             const std::size_t readable_size = segment.readable_size();</span></span>
 <span id="L33"><span class="lineNum">      33</span>              : </span>
-<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">     2106985 :             if (readable_size != 0) {</span></span>
-<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">     2106985 :                 readable_segments.emplace_back(segment.readable_bytes());</span></span>
-<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">     2106985 :                 total_size += readable_size;</span></span>
+<span id="L34"><span class="lineNum">      34</span> <span class="tlaGNC">     2106990 :             if (readable_size != 0) {</span></span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaGNC">     2106990 :                 readable_segments.emplace_back(segment.readable_bytes());</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaGNC">     2106990 :                 total_size += readable_size;</span></span>
 <span id="L37"><span class="lineNum">      37</span>              :             }</span>
 <span id="L38"><span class="lineNum">      38</span>              :         }</span>
 <span id="L39"><span class="lineNum">      39</span>              : </span>
 <span id="L40"><span class="lineNum">      40</span>              :         return segmented_byte_view{</span>
-<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">      525641 :             std::move(readable_segments),</span></span>
+<span id="L41"><span class="lineNum">      41</span> <span class="tlaGNC">      525685 :             std::move(readable_segments),</span></span>
 <span id="L42"><span class="lineNum">      42</span>              :             sequence_id,</span>
 <span id="L43"><span class="lineNum">      43</span>              :             total_size</span>
-<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">     1051282 :         };</span></span>
-<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">      525641 :     }</span></span>
+<span id="L44"><span class="lineNum">      44</span> <span class="tlaGNC">     1051370 :         };</span></span>
+<span id="L45"><span class="lineNum">      45</span> <span class="tlaGNC">      525685 :     }</span></span>
 <span id="L46"><span class="lineNum">      46</span>              : </span>
-<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">      525641 :     explicit read_result(const std::deque&lt;data_segment&gt;&amp; segments, std::uint64_t sequence_id, bool completed)</span></span>
-<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">      525641 :         : m_buffer(make_readable_view(segments, sequence_id))</span></span>
-<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">      525641 :         , m_completed(completed)</span></span>
-<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">      525641 :         , m_cancelled(false)</span></span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">      525685 :     explicit read_result(const std::deque&lt;data_segment&gt;&amp; segments, std::uint64_t sequence_id, bool completed)</span></span>
+<span id="L48"><span class="lineNum">      48</span> <span class="tlaGNC">      525685 :         : m_buffer(make_readable_view(segments, sequence_id))</span></span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">      525685 :         , m_completed(completed)</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">      525685 :         , m_cancelled(false)</span></span>
 <span id="L51"><span class="lineNum">      51</span>              :     {</span>
 <span id="L52"><span class="lineNum">      52</span>              :     }</span>
 <span id="L53"><span class="lineNum">      53</span>              : </span>
@@ -125,23 +125,23 @@
 <span id="L63"><span class="lineNum">      63</span>              : </span>
 <span id="L64"><span class="lineNum">      64</span>              :     read_result(const read_result&amp;) = delete;</span>
 <span id="L65"><span class="lineNum">      65</span>              :     read_result&amp; operator=(const read_result&amp;) = delete;</span>
-<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">      525647 :     read_result(read_result&amp;&amp;) noexcept = default;</span></span>
+<span id="L66"><span class="lineNum">      66</span> <span class="tlaGNC">      525691 :     read_result(read_result&amp;&amp;) noexcept = default;</span></span>
 <span id="L67"><span class="lineNum">      67</span>              : </span>
-<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">      525594 :     explicit constexpr operator bool() const noexcept</span></span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">      525638 :     explicit constexpr operator bool() const noexcept</span></span>
 <span id="L69"><span class="lineNum">      69</span>              :     {</span>
-<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">      525594 :         return !m_cancelled;</span></span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">      525638 :         return !m_cancelled;</span></span>
 <span id="L71"><span class="lineNum">      71</span>              :     }</span>
 <span id="L72"><span class="lineNum">      72</span>              : </span>
 <span id="L73"><span class="lineNum">      73</span>              :     [[nodiscard]]</span>
-<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">     1051293 :     const segmented_byte_view&amp; buffer() const noexcept</span></span>
+<span id="L74"><span class="lineNum">      74</span> <span class="tlaGNC">     1051381 :     const segmented_byte_view&amp; buffer() const noexcept</span></span>
 <span id="L75"><span class="lineNum">      75</span>              :     {</span>
-<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">     1051293 :         return m_buffer;</span></span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">     1051381 :         return m_buffer;</span></span>
 <span id="L77"><span class="lineNum">      77</span>              :     }</span>
 <span id="L78"><span class="lineNum">      78</span>              : </span>
 <span id="L79"><span class="lineNum">      79</span>              :     [[nodiscard]]</span>
-<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">      525613 :     bool completed() const noexcept</span></span>
+<span id="L80"><span class="lineNum">      80</span> <span class="tlaGNC">      525656 :     bool completed() const noexcept</span></span>
 <span id="L81"><span class="lineNum">      81</span>              :     {</span>
-<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">      525613 :         return m_completed;</span></span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">      525656 :         return m_completed;</span></span>
 <span id="L83"><span class="lineNum">      83</span>              :     }</span>
 <span id="L84"><span class="lineNum">      84</span>              : };</span>
 <span id="L85"><span class="lineNum">      85</span>              : </span>
