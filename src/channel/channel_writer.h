@@ -1,11 +1,7 @@
 #ifndef CHANNEL_CHANNEL_WRITER_H
 #define CHANNEL_CHANNEL_WRITER_H
 
-#include <stop_token>
-#include <utility>
-
 #include "channel_impl.h"
-#include "block_strategy.h"
 
 namespace xtd
 {

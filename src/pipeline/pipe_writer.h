@@ -1,9 +1,6 @@
 #ifndef PIPELINE_PIPE_WRITER_H
 #define PIPELINE_PIPE_WRITER_H
 
-#include <cstddef>
-#include <concepts>
-#include <string_view>
 #include <stop_token>
 
 namespace xtd 

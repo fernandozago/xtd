@@ -376,9 +376,7 @@ private:
     }
 
     explicit pipeline(const validated_options& options, validated_options_tag)
-        : m_data_segment_pool(
-            options.buffer_size,
-            options.max_pooled_segments)
+        : m_data_segment_pool(options.buffer_size, options.max_pooled_segments)
         , m_buffer_size(options.buffer_size)
         , m_pause_writer_threshold(options.pause_writer_threshold)
         , m_resume_writer_threshold(options.resume_writer_threshold)
