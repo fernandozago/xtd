@@ -157,8 +157,33 @@ private:
         return result;
     }
 
-    bool advance_core(const std::size_t consumed_offset, const std::size_t examined_offset)
+    void advance(const position& consumed, const position& examined)
     {
+        const std::size_t consumed_offset = consumed.sequence_offset();
+        const std::size_t examined_offset = examined.sequence_offset();
+
+        argument_assert(consumed_offset <= examined_offset, 
+            "consumed must be <= examined");
+
+        notifier notify_writer(m_space_available);
+        std::scoped_lock lock{m_mutex};
+
+        runtime_assert(!m_reader_completed, 
+            "pipeline reader is completed");
+
+        runtime_assert(m_has_pending_read, 
+            "advance called without a pending read");
+
+        argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id,
+            "consumed position must belong to the most recent read buffer");
+
+        argument_assert( examined.m_sequence_id == m_pending_read_sequence_id,
+            "examined position must belong to the most recent read buffer");
+
+        argument_assert( examined_offset <= m_pending_read_size,
+            "examined exceeds the most recent read buffer length");
+
+        const bool was_paused = m_writer_paused;
         std::size_t remaining_consumed = consumed_offset;
 
         while (remaining_consumed > 0) {
@@ -168,11 +193,9 @@ private:
             if (remaining_consumed < readable_size) {
                 head.advance_read(remaining_consumed);
                 m_buffered_size -= remaining_consumed;
-                remaining_consumed = 0;
                 break;
             }
 
-            // The entire head segment has been consumed, so remove it from the pipeline.
             m_segments.pop_front();
 
             remaining_consumed -= readable_size;
@@ -180,31 +203,13 @@ private:
         }
 
         m_examined_size = examined_offset - consumed_offset;
+
         if (m_writer_paused && should_resume_writer()) {
             m_writer_paused = false;
         }
 
         m_pending_read_size = 0;
         m_has_pending_read = false;
-        return m_writer_completed;
-    }
-
-    void advance(const position& consumed, const position& examined)
-    {
-        const std::size_t consumed_offset = consumed.sequence_offset();
-        const std::size_t examined_offset = examined.sequence_offset();
-        argument_assert(consumed_offset <= examined_offset, "consumed must be <= examined");
-
-        notifier notify_writer(m_space_available);
-        std::scoped_lock lock{m_mutex};
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
-        runtime_assert(m_has_pending_read, "advance called without a pending read");
-        argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id, "consumed position must belong to the most recent read buffer");
-        argument_assert(examined.m_sequence_id == m_pending_read_sequence_id, "examined position must belong to the most recent read buffer");
-        argument_assert(examined_offset <= m_pending_read_size, "examined exceeds the most recent read buffer length");
-
-        const bool was_paused = m_writer_paused;
-        advance_core(consumed_offset, examined_offset);
 
         if (was_paused && !m_writer_paused) {
             notify_writer.arm();
