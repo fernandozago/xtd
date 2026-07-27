@@ -1737,6 +1737,43 @@ TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached
     reader.complete();
 }
 
+TEST_CASE("pipeline: equal pause and resume thresholds exercise writer repause path")
+{
+    using namespace std::chrono_literals;
+
+    xtd::pipeline pipe(xtd::pipe_options{
+        .buffer_size = 64,
+        .resume_writer_threshold = 128,
+        .pause_writer_threshold = 128,
+    });
+
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
+
+    // One byte more than the threshold leaves data remaining after the
+    // pipeline becomes full.
+    const std::string payload(129, 'x');
+
+    auto write_future = std::async(std::launch::async, [&]() {
+        return writer.write(payload);
+    });
+
+    const xtd::read_result result = reader.read();
+    const xtd::segmented_byte_view buffer = result.buffer();
+
+    REQUIRE(buffer.size() == 128);
+    CHECK_FALSE(result.completed());
+
+    // The writer cannot finish because no capacity was released.
+    CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
+
+    // Stop the spinning writer without consuming the pending read.
+    reader.complete();
+
+    REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
+    CHECK_THROWS_AS(write_future.get(), std::runtime_error);
+}
+
 struct test_data_trivially_copyable
 {
     enum class status : std::uint8_t

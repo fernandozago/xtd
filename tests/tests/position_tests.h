@@ -96,4 +96,100 @@ TEST_CASE("position: greater-than compares only compatible valid positions")
     CHECK_FALSE(invalid > low);
 }
 
+TEST_CASE("position: copy construction and assignment preserve value")
+{
+    const xtd::position original{42, 77};
+
+    const xtd::position copied{original};
+    CHECK(copied == original);
+    CHECK(copied.sequence_offset() == 42);
+
+    xtd::position assigned{};
+    assigned = original;
+
+    CHECK(assigned == original);
+    CHECK(assigned.sequence_offset() == 42);
+}
+
+TEST_CASE("position: compound arithmetic updates valid position")
+{
+    xtd::position pos{10, 99};
+    const xtd::position sameSequence{12, 99};
+
+    pos += 5;
+    CHECK(pos.sequence_offset() == 15);
+
+    pos -= 3;
+    CHECK(pos.sequence_offset() == 12);
+
+    // Also verifies that the sequence ID is preserved.
+    CHECK(pos == sameSequence);
+}
+
+TEST_CASE("position: subtraction on invalid position remains invalid")
+{
+    const xtd::position invalid{};
+
+    const xtd::position result = invalid - 5;
+
+    CHECK_FALSE(static_cast<bool>(result));
+    CHECK(result.sequence_offset() == 0);
+}
+
+TEST_CASE("position: compound subtraction on invalid position has no effect")
+{
+    xtd::position invalid{};
+
+    invalid -= 5;
+
+    CHECK_FALSE(static_cast<bool>(invalid));
+    CHECK(invalid.sequence_offset() == 0);
+}
+
+TEST_CASE("position: prefix increment and decrement ignore invalid position")
+{
+    xtd::position invalid{};
+
+    const xtd::position& incrementResult = ++invalid;
+
+    CHECK(&incrementResult == &invalid);
+    CHECK_FALSE(static_cast<bool>(invalid));
+    CHECK(invalid.sequence_offset() == 0);
+
+    const xtd::position& decrementResult = --invalid;
+
+    CHECK(&decrementResult == &invalid);
+    CHECK_FALSE(static_cast<bool>(invalid));
+    CHECK(invalid.sequence_offset() == 0);
+}
+
+TEST_CASE("position: postfix increment and decrement preserve invalidity")
+{
+    xtd::position invalid{};
+
+    const xtd::position beforeIncrement = invalid++;
+
+    CHECK_FALSE(static_cast<bool>(beforeIncrement));
+    CHECK_FALSE(static_cast<bool>(invalid));
+    CHECK(invalid.sequence_offset() == 0);
+
+    const xtd::position beforeDecrement = invalid--;
+
+    CHECK_FALSE(static_cast<bool>(beforeDecrement));
+    CHECK_FALSE(static_cast<bool>(invalid));
+    CHECK(invalid.sequence_offset() == 0);
+}
+
+TEST_CASE("position: equality handles one valid and one invalid position")
+{
+    const xtd::position valid{10, 20};
+    const xtd::position invalid{};
+
+    CHECK_FALSE(valid == invalid);
+    CHECK_FALSE(invalid == valid);
+
+    CHECK(valid != invalid);
+    CHECK(invalid != valid);
+}
+
 #endif
