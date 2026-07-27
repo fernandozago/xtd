@@ -126,7 +126,8 @@ private:
 
     read_result read_at_least(const std::size_t min_size, std::stop_token stop_token)
     {
-        runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
+        runtime_assert(!m_has_pending_read, 
+            "advance(consumed, examined) must be called before the next read");
 
         std::unique_lock lock{m_mutex};
         m_reader_waiting = true;
@@ -143,8 +144,10 @@ private:
             return read_result(true);
         }
 
-        runtime_assert(!m_reader_completed, "pipeline reader is completed");
-        runtime_assert(!m_has_pending_read, "advance(consumed, examined) must be called before the next read");
+        runtime_assert(!m_reader_completed, 
+            "pipeline reader is completed");
+        runtime_assert(!m_has_pending_read, 
+            "advance(consumed, examined) must be called before the next read");
 
         xtd::read_result result(
             m_segments,
@@ -235,7 +238,8 @@ private:
             notifier notify_data_available{m_data_available};
             std::unique_lock lock{m_mutex};
 
-            runtime_assert(!is_any_completed(), "pipeline is completed");
+            runtime_assert(!is_any_completed(), 
+                "pipeline is completed");
 
             const bool wait_succeeded = m_space_available.wait(lock, stop_token, [this] {
                 return is_any_completed()
@@ -243,7 +247,8 @@ private:
                     || should_resume_writer();
             });
 
-            runtime_assert(!is_any_completed(), "pipeline is completed");
+            runtime_assert(!is_any_completed(), 
+                "pipeline is completed");
 
             if (!wait_succeeded || stop_token.stop_requested()) {
                 return length - remaining.size();
@@ -319,7 +324,8 @@ private:
     [[nodiscard]]
     static std::size_t validate_buffer_size(const std::size_t size)
     {
-        argument_assert(size > 0, "buffer_size must be > 0");
+        argument_assert(size > 0, 
+            "buffer_size must be > 0");
         return size;
     }
 
