@@ -1538,7 +1538,7 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
     reader.complete();
 }
 
-TEST_CASE("deserialize windows strings with \r\n") {
+TEST_CASE("deserialize windows strings with CRLF line endings") {
     xtd::pipeline pipe;
     xtd::pipe_writer& writer = pipe.writer();
     xtd::pipe_reader& reader = pipe.reader();

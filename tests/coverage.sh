@@ -43,6 +43,7 @@ TEST_WARNING_FLAGS=(
 )
 
 TEST_BINARIES=()
+TEST_STATUS=0
 
 cleanup() {
     if ((${#TEST_BINARIES[@]} > 0)); then
@@ -61,9 +62,14 @@ if [[ ! -f "$COMPILE_FLAGS_FILE" ]]; then
     exit 1
 fi
 
-# Remove previous generated reports.
+# Remove previously generated reports.
 rm -rf "$COVERAGE_DIR"
 rm -rf "$TEST_RESULTS_DIR"
+
+# JUnit reports are generated only in CI.
+if [[ "${CI:-false}" == "true" ]]; then
+    mkdir -p "$TEST_RESULTS_DIR"
+fi
 
 # Remove stale GCC coverage data.
 find "$BIN_DIR" -type f \
@@ -100,10 +106,6 @@ done
 echo
 echo "Running tests..."
 
-if [[ "${CI:-false}" == "true" ]]; then
-    mkdir -p "$TEST_RESULTS_DIR"
-fi
-
 for index in "${!TEST_BINARIES[@]}"; do
     test_name="${TEST_NAMES[$index]}"
     test_binary="${TEST_BINARIES[$index]}"
@@ -111,12 +113,32 @@ for index in "${!TEST_BINARIES[@]}"; do
     echo "  Running $(basename "$test_binary")..."
 
     if [[ "${CI:-false}" == "true" ]]; then
-        "$test_binary" \
+        test_result="$TEST_RESULTS_DIR/${test_name}.xml"
+
+        if "$test_binary" \
+            "$@" \
             --reporters=junit \
-            --out="$TEST_RESULTS_DIR/${test_name}.xml" \
-            "$@"
+            --out="$test_result"
+        then
+            echo "  Passed: $test_name"
+        else
+            echo "  Failed: $test_name" >&2
+            TEST_STATUS=1
+        fi
+
+        if [[ ! -s "$test_result" ]]; then
+            echo "JUnit report was not generated: $test_result" >&2
+            TEST_STATUS=1
+        else
+            echo "  JUnit report: $test_result"
+        fi
     else
-        "$test_binary" "$@"
+        if "$test_binary" "$@"; then
+            echo "  Passed: $test_name"
+        else
+            echo "  Failed: $test_name" >&2
+            TEST_STATUS=1
+        fi
     fi
 done
 
@@ -162,6 +184,18 @@ lcov --summary "$FILTERED_COVERAGE"
 echo
 echo "Coverage report generated at:"
 echo "$HTML_COVERAGE/index.html"
+
+if [[ "${CI:-false}" == "true" ]]; then
+    echo
+    echo "JUnit reports generated at:"
+    echo "$TEST_RESULTS_DIR"
+fi
+
+if ((TEST_STATUS != 0)); then
+    echo
+    echo "One or more test suites failed." >&2
+    exit "$TEST_STATUS"
+fi
 
 if [[ "${CI:-false}" != "true" ]]; then
     echo
