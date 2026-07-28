@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
 BIN_DIR="$SCRIPT_DIR/bin"
+TEST_RESULTS_DIR="$SCRIPT_DIR/test-results"
 COMPILE_FLAGS_FILE="$ROOT_DIR/compile_flags.txt"
 
 TEST_NAMES=(
@@ -60,8 +61,9 @@ if [[ ! -f "$COMPILE_FLAGS_FILE" ]]; then
     exit 1
 fi
 
-# Remove the previous coverage report.
+# Remove previous generated reports.
 rm -rf "$COVERAGE_DIR"
+rm -rf "$TEST_RESULTS_DIR"
 
 # Remove stale GCC coverage data.
 find "$BIN_DIR" -type f \
@@ -98,9 +100,24 @@ done
 echo
 echo "Running tests..."
 
-for test_binary in "${TEST_BINARIES[@]}"; do
+if [[ "${CI:-false}" == "true" ]]; then
+    mkdir -p "$TEST_RESULTS_DIR"
+fi
+
+for index in "${!TEST_BINARIES[@]}"; do
+    test_name="${TEST_NAMES[$index]}"
+    test_binary="${TEST_BINARIES[$index]}"
+
     echo "  Running $(basename "$test_binary")..."
-    "$test_binary" "$@"
+
+    if [[ "${CI:-false}" == "true" ]]; then
+        "$test_binary" \
+            --reporters=junit \
+            --out="$TEST_RESULTS_DIR/${test_name}.xml" \
+            "$@"
+    else
+        "$test_binary" "$@"
+    fi
 done
 
 mkdir -p "$COVERAGE_DIR"

@@ -18,6 +18,8 @@ jobs:
 
     permissions:
       contents: read
+      actions: read
+      checks: write
 
     container:
       image: gcc:15
@@ -59,9 +61,30 @@ jobs:
           genhtml --version
 
       - name: Run tests and generate coverage
+        env:
+          CI: "true"
         run: |
           chmod +x ./tests/coverage.sh
           ./tests/coverage.sh
+
+      - name: Publish test results
+        if: >-
+          ${{
+            !cancelled() &&
+            (
+              github.event_name != 'pull_request' ||
+              github.event.pull_request.head.repo.full_name == github.repository
+            )
+          }}
+        uses: dorny/test-reporter@v3
+        with:
+          name: C++ Tests
+          path: tests/test-results/*.xml
+          reporter: java-junit
+          report-title: C++ test results
+          use-actions-summary: true
+          fail-on-empty: true
+          fail-on-error: true
 
       - name: Run benchmarks
         env:
