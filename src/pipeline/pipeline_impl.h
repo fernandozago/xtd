@@ -115,7 +115,8 @@ private:
     [[nodiscard]]
     inline bool should_resume_writer() const noexcept
     {
-        return m_buffered_size <= m_resume_writer_threshold;
+        return m_buffered_size <= m_resume_writer_threshold
+            && m_buffered_size < m_pause_writer_threshold;
     }
 
     [[nodiscard]]

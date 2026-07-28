@@ -1691,6 +1691,132 @@ TEST_CASE("pipeline docs reader complete invalidates pending read")
     CHECK_THROWS_AS(writer.write("z"), std::runtime_error);
 }
 
+TEST_CASE("pipeline: equal pause and resume thresholds resume after capacity is released")
+{
+    using namespace std::chrono_literals;
+
+    xtd::pipeline pipe(xtd::pipe_options{
+        .buffer_size = 64,
+        .resume_writer_threshold = 128,
+        .pause_writer_threshold = 128,
+    });
+
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
+
+    const std::string payload(129, 'x');
+
+    auto write_future = std::async(std::launch::async, [&]() {
+        const std::size_t written = writer.write(payload);
+        writer.complete();
+        return written;
+    });
+
+    const xtd::read_result first = reader.read();
+    const xtd::segmented_byte_view first_buffer = first.buffer();
+
+    REQUIRE(first_buffer.size() == 128);
+    CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
+
+    // Release one byte of capacity.
+    reader.advance(first_buffer.begin() + 1, first_buffer.end());
+
+    REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
+    CHECK(write_future.get() == payload.size());
+
+    const xtd::read_result second = reader.read();
+    const xtd::segmented_byte_view second_buffer = second.buffer();
+
+    CHECK(second_buffer.size() == 128);
+    CHECK(second.completed());
+
+    reader.advance(second_buffer.end(), second_buffer.end());
+    reader.complete();
+}
+
+TEST_CASE("pipeline: full writer does not busy-spin with equal thresholds")
+{
+    using namespace std::chrono_literals;
+
+    xtd::pipeline pipe(xtd::pipe_options{
+        .buffer_size = 64,
+        .resume_writer_threshold = 128,
+        .pause_writer_threshold = 128,
+    });
+
+    xtd::pipe_writer& writer = pipe.writer();
+    xtd::pipe_reader& reader = pipe.reader();
+
+    const std::string payload(129, 'x');
+
+    std::jthread writer_thread(
+        [&](const std::stop_token stop_token)
+        {
+            try {
+                static_cast<void>(writer.write(payload, stop_token));
+            }
+            catch (const std::runtime_error&) {
+                // reader.complete() is used to release the writer below.
+            }
+        }
+    );
+
+    clockid_t writer_clock{};
+    const int clock_id_result =
+        pthread_getcpuclockid(writer_thread.native_handle(), &writer_clock);
+
+    if (clock_id_result != 0) {
+        writer_thread.request_stop();
+        reader.complete();
+        writer_thread.join();
+    }
+
+    REQUIRE(clock_id_result == 0);
+
+    const xtd::read_result result = reader.read();
+    const xtd::segmented_byte_view buffer = result.buffer();
+
+    CHECK(buffer.size() == 128);
+    CHECK_FALSE(result.completed());
+
+    timespec cpu_before{};
+    timespec cpu_after{};
+
+    const int before_result = clock_gettime(writer_clock, &cpu_before);
+
+    if (before_result == 0) {
+        std::this_thread::sleep_for(500ms);
+    }
+
+    const int after_result =
+        before_result == 0
+            ? clock_gettime(writer_clock, &cpu_after)
+            : -1;
+
+    writer_thread.request_stop();
+    reader.complete();
+    writer_thread.join();
+
+    REQUIRE(before_result == 0);
+    REQUIRE(after_result == 0);
+
+    const auto to_nanoseconds = [](const timespec& value)
+    {
+        return std::chrono::seconds(value.tv_sec)
+            + std::chrono::nanoseconds(value.tv_nsec);
+    };
+
+    const auto writer_cpu_time =
+        to_nanoseconds(cpu_after) - to_nanoseconds(cpu_before);
+
+    INFO("Writer CPU time: "
+         << std::chrono::duration_cast<std::chrono::milliseconds>(
+                writer_cpu_time
+            ).count()
+         << " ms");
+
+    CHECK(writer_cpu_time < 100ms);
+}
 
 TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached")
 {
