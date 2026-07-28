@@ -18,8 +18,6 @@ jobs:
 
     permissions:
       contents: read
-      actions: read
-      checks: write
 
     container:
       image: gcc:15
@@ -34,7 +32,7 @@ jobs:
 
       - name: Configure Git safe directory
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        
+
       - name: Install dependencies
         run: |
           apt-get update
@@ -70,24 +68,24 @@ jobs:
           chmod +x ./tests/coverage.sh
           ./tests/coverage.sh
 
-      - name: Publish test results
-        if: >-
-          ${{
-            !cancelled() &&
-            (
-              github.event_name != 'pull_request' ||
-              github.event.pull_request.head.repo.full_name == github.repository
-            )
-          }}
-        uses: dorny/test-reporter@v3
+      - name: Verify test results
+        if: always()
+        run: |
+          test -s tests/test-results/channels.xml
+          test -s tests/test-results/pipelines.xml
+
+          echo "Generated JUnit reports:"
+          ls -lh tests/test-results
+          find tests/test-results -maxdepth 1 -type f -name '*.xml' -print
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: C++ Tests
+          name: test-results
           path: tests/test-results/*.xml
-          reporter: java-junit
-          report-title: C++ test results
-          use-actions-summary: true
-          fail-on-empty: true
-          fail-on-error: true
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Run benchmarks
         env:
@@ -102,6 +100,43 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: tests/coverage/html
+
+  test-report:
+    name: Publish test results
+    needs:
+      - tests
+
+    if: >-
+      ${{
+        always() &&
+        needs.tests.result != 'cancelled' &&
+        (
+          github.event_name != 'pull_request' ||
+          github.event.pull_request.head.repo.full_name == github.repository
+        )
+      }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+
+    steps:
+      - name: Publish JUnit test results
+        uses: dorny/test-reporter@v3
+        with:
+          artifact: test-results
+          name: C++ Tests
+          path: '*.xml'
+          reporter: java-junit
+          report-title: C++ test results
+          use-actions-summary: true
+          list-suites: all
+          list-tests: all
+          fail-on-empty: true
+          fail-on-error: true
 
   deploy:
     name: Deploy coverage report
