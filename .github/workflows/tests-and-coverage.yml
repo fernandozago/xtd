@@ -1,4 +1,4 @@
-name: Run tests
+name: C++ Quality Pipeline
 
 on:
   push:
@@ -12,8 +12,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  tests:
-    name: Tests, Coverage and Benchmarks
+  test-suite:
+    name: 1 · Test Suite
     runs-on: ubuntu-latest
 
     permissions:
@@ -30,18 +30,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install dependencies
+      - name: Install coverage dependencies
         run: |
           apt-get update
 
           apt-get install -y --no-install-recommends \
-            lcov \
-            locales
+            lcov
 
           rm -rf /var/lib/apt/lists/*
-
-          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
-          locale-gen en_US.UTF-8
 
       - name: Configure GCC 15 commands
         run: |
@@ -58,24 +54,35 @@ jobs:
           lcov --version
           genhtml --version
 
-      - name: Run tests and generate coverage
+      - name: Run test suite
         env:
           CI: "true"
         run: |
           chmod +x ./tests/coverage.sh
           ./tests/coverage.sh
 
-      - name: Verify test results
+      - name: Verify generated test results
         if: always()
         run: |
           test -s tests/test-results/channels.xml
           test -s tests/test-results/pipelines.xml
 
           echo "Generated JUnit reports:"
-          ls -lh tests/test-results
-          find tests/test-results -maxdepth 1 -type f -name '*.xml' -print
+          find tests/test-results \
+            -maxdepth 1 \
+            -type f \
+            -name '*.xml' \
+            -print
 
-      - name: Upload test results
+      - name: Verify generated coverage report
+        if: always()
+        run: |
+          test -s tests/coverage/html/index.html
+
+          echo "Generated coverage report:"
+          ls -lh tests/coverage/html/index.html
+
+      - name: Upload test results artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -84,7 +91,89 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Run benchmarks
+      - name: Upload coverage report artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-html
+          path: tests/coverage/html
+          if-no-files-found: error
+          retention-days: 14
+
+  coverage-report:
+    name: 2 · Coverage Report
+    needs:
+      - test-suite
+
+    if: ${{ always() && needs.test-suite.result != 'cancelled' }}
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download coverage report
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-html
+          path: tests/coverage/html
+
+      - name: Verify coverage site
+        run: |
+          test -s tests/coverage/html/index.html
+
+          echo "Coverage site:"
+          find tests/coverage/html \
+            -maxdepth 1 \
+            -type f \
+            -print
+
+      - name: Package GitHub Pages artifact
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: tests/coverage/html
+
+  benchmarks:
+    name: 3 · Benchmark Suite
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: gcc:15
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install locale dependencies
+        run: |
+          apt-get update
+
+          apt-get install -y --no-install-recommends \
+            locales
+
+          rm -rf /var/lib/apt/lists/*
+
+          echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+          locale-gen en_US.UTF-8
+
+      - name: Configure GCC 15 command
+        run: |
+          if ! command -v g++-15 >/dev/null 2>&1; then
+            ln -s "$(command -v g++)" /usr/local/bin/g++-15
+          fi
+
+          g++-15 --version
+
+      - name: Run benchmark suite
         env:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
@@ -92,21 +181,15 @@ jobs:
           chmod +x ./benchmarks/all.sh
           ./benchmarks/all.sh
 
-      - name: Upload GitHub Pages artifact
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: tests/coverage/html
-
-  test-report:
-    name: Publish test results
+  publish-tests:
+    name: 4 · Publish Test Results
     needs:
-      - tests
+      - test-suite
 
     if: >-
       ${{
         always() &&
-        needs.tests.result != 'cancelled' &&
+        needs.test-suite.result != 'cancelled' &&
         (
           github.event_name != 'pull_request' ||
           github.event.pull_request.head.repo.full_name == github.repository
@@ -135,12 +218,19 @@ jobs:
           fail-on-empty: true
           fail-on-error: true
 
-  deploy:
-    name: Deploy coverage report
+  publish-coverage:
+    name: 5 · Publish Coverage
     needs:
-      - tests
+      - test-suite
+      - coverage-report
 
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: >-
+      ${{
+        github.event_name != 'pull_request' &&
+        github.ref == 'refs/heads/main' &&
+        needs.test-suite.result == 'success' &&
+        needs.coverage-report.result == 'success'
+      }}
 
     runs-on: ubuntu-latest
 
