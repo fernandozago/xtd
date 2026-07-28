@@ -50,8 +50,8 @@ jobs:
         env:
           CI: "true"
         run: |
-          chmod +x ./tests/coverage.sh
-          ./tests/coverage.sh
+          chmod +x ./build.sh
+          ./build.sh tests +coverage
 
       - name: Verify test results
         if: always()
@@ -129,8 +129,8 @@ jobs:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
         run: |
-          chmod +x ./benchmarks/all.sh
-          ./benchmarks/all.sh
+          chmod +x ./build.sh
+          ./build.sh benchmarks
 
   publish-tests:
     name: Publish Test Results

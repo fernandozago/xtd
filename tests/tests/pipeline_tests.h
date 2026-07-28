@@ -865,72 +865,56 @@ TEST_CASE("Reader: advance after complete throws")
 
 TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and completes")
 {
-    const std::string path = "./tests/bin/pipe_file_to_writer_test.bin";
-    
+    const std::string path = "/tmp/xtd_test_file.bin";
+ 
     constexpr std::size_t fileSize = 10 * 1024 * 1024;
     { /* Create a test file */
         constexpr std::size_t chunkSize = 64 * 1024;
         std::ofstream out(path, std::ios::binary);
         REQUIRE(static_cast<bool>(out));
-
         std::array<char, chunkSize> chunk;
-
         std::uint32_t seed = 0xC0FFEEu;
         auto next = [&seed]()
         {
             seed = seed * 1664525u + 1013904223u;
             return seed;
         };
-
         std::size_t written = 0;
-
         while (written < fileSize)
         {
             const std::size_t bytesToWrite = std::min(chunk.size(), fileSize - written);
-
             for (std::size_t i = 0; i < bytesToWrite; ++i)
             {
                 chunk[i] = static_cast<char>(next() & 0xFF);
             }
-
             out.write(chunk.data(), static_cast<std::streamsize>(bytesToWrite));
             written += bytesToWrite;
         }
-
         REQUIRE(static_cast<bool>(out));
         CHECK(written == fileSize);
     }
-
     xtd::pipeline pipeline;
     std::thread producer = xtd::pipe_utils::threaded_copy_file_from_path(path, pipeline.writer()); // start background file copying...
-
     const auto startedAt = std::chrono::steady_clock::now();
     std::size_t actualByteCount = 0;
     xtd::pipe_reader& reader = pipeline.reader();
-    
+ 
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view buffer = result.buffer();
-
         actualByteCount += buffer.size();
         reader.advance(buffer.end());
-
         if (result.completed()) break;
     }
-
     reader.complete();
     producer.join();
-
     const auto finishedAt = std::chrono::steady_clock::now();
-
     INFO("xtd::pipeline reader processed "
         << actualByteCount
         << " bytes in "
         << std::chrono::duration_cast<std::chrono::milliseconds>(finishedAt - startedAt).count()
         << " ms");
-
     CHECK(actualByteCount == fileSize);
-
     std::remove(path.c_str());
 }
 
