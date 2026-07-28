@@ -1,1 +1,0 @@
-genhtml /home/fernando/dev/xtd/tests/coverage/coverage.info --demangle-cpp --filter brace --dark-mode --output-directory /home/fernando/dev/xtd/tests/coverage/html

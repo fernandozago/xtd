@@ -1,14 +1,4 @@
 bin/
 
-# Track the generated HTML coverage report.
-!tests/bin/
-tests/bin/*
-
-!tests/bin/coverage/
-tests/bin/coverage/*
-
-!tests/bin/coverage/html/
-!tests/bin/coverage/html/**
-
-# This file is used for local testing and should not be committed.
+# This file if used for local testing and should not be committed to the repository.
 samples/test.cpp
