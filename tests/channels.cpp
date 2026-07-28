@@ -626,3 +626,170 @@ TEST_CASE("emplace constructs the value in place")
         CHECK(constructions == 1);
     }
 }
+
+namespace
+{
+    struct ChannelConstructionProbe
+    {
+        int m_value;
+        std::atomic<int>* m_constructions;
+
+        ChannelConstructionProbe(int value, std::atomic<int>& constructions)
+            : m_value(value)
+            , m_constructions(&constructions)
+        {
+            ++*m_constructions;
+        }
+
+        ChannelConstructionProbe(ChannelConstructionProbe&&) noexcept = default;
+        ChannelConstructionProbe(const ChannelConstructionProbe&) = delete;
+        ChannelConstructionProbe& operator=(const ChannelConstructionProbe&) = delete;
+        ChannelConstructionProbe& operator=(ChannelConstructionProbe&&) = delete;
+    };
+}
+
+TEST_CASE("BoundedChannel lvalue push blocks when full and resumes after read")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    int second = 2;
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_push = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return writer.push(second);
+    });
+
+    started_future.wait();
+    CHECK(blocked_push.wait_for(50ms) == std::future_status::timeout);
+
+    auto first = reader.read();
+    REQUIRE(first.has_value());
+    CHECK(*first == 1);
+
+    REQUIRE(blocked_push.wait_for(1s) == std::future_status::ready);
+    CHECK(blocked_push.get());
+
+    auto value = reader.read();
+    REQUIRE(value.has_value());
+    CHECK(*value == 2);
+}
+
+TEST_CASE("BoundedChannel emplace waits for capacity before constructing")
+{
+    std::atomic<int> constructions = 0;
+    xtd::channel<ChannelConstructionProbe> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.emplace(1, constructions));
+    CHECK(constructions.load() == 1);
+
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_emplace = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return writer.emplace(2, constructions);
+    });
+
+    started_future.wait();
+    CHECK(blocked_emplace.wait_for(50ms) == std::future_status::timeout);
+    CHECK(constructions.load() == 1);
+
+    auto first = reader.read();
+    REQUIRE(first.has_value());
+    CHECK(first->m_value == 1);
+
+    REQUIRE(blocked_emplace.wait_for(1s) == std::future_status::ready);
+    CHECK(blocked_emplace.get());
+    CHECK(constructions.load() == 2);
+
+    auto second = reader.read();
+    REQUIRE(second.has_value());
+    CHECK(second->m_value == 2);
+}
+
+TEST_CASE("Channel read of move-only value blocks and resumes after emplace")
+{
+    std::atomic<int> constructions = 0;
+    xtd::channel<ChannelConstructionProbe> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_read = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return reader.read();
+    });
+
+    started_future.wait();
+    CHECK(blocked_read.wait_for(50ms) == std::future_status::timeout);
+
+    REQUIRE(writer.emplace(42, constructions));
+
+    REQUIRE(blocked_read.wait_for(1s) == std::future_status::ready);
+    auto value = blocked_read.get();
+    REQUIRE(value.has_value());
+    CHECK(value->m_value == 42);
+    CHECK(constructions.load() == 1);
+}
+
+TEST_CASE("Channel completion wakes all blocked readers")
+{
+    xtd::channel<int> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto first_read = std::async(std::launch::async, [&]() {
+        return reader.read();
+    });
+    auto second_read = std::async(std::launch::async, [&]() {
+        return reader.read();
+    });
+
+    CHECK(first_read.wait_for(50ms) == std::future_status::timeout);
+    CHECK(second_read.wait_for(50ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(first_read.wait_for(1s) == std::future_status::ready);
+    REQUIRE(second_read.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(first_read.get().has_value());
+    CHECK_FALSE(second_read.get().has_value());
+}
+
+TEST_CASE("BoundedChannel completion wakes all blocked writers")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    auto first_push = std::async(std::launch::async, [&]() {
+        return writer.push(2);
+    });
+    auto second_push = std::async(std::launch::async, [&]() {
+        return writer.push(3);
+    });
+
+    CHECK(first_push.wait_for(50ms) == std::future_status::timeout);
+    CHECK(second_push.wait_for(50ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(first_push.wait_for(1s) == std::future_status::ready);
+    REQUIRE(second_push.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(first_push.get());
+    CHECK_FALSE(second_push.get());
+
+    auto buffered = reader.read();
+    REQUIRE(buffered.has_value());
+    CHECK(*buffered == 1);
+    CHECK_FALSE(reader.read().has_value());
+}

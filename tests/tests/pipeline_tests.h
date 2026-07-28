@@ -2066,7 +2066,7 @@ inline void test_data_trivially_copyable::test(std::istream& source)
             ++received_count;
             //mydata.print();
 
-            buffer = buffer.slice(sizeof(mydata), buffer.end());
+            buffer.slice_in_place(sizeof(mydata), buffer.end());
         }
 
         reader.advance(buffer);
