@@ -1,4 +1,5 @@
 bin/
+coverage/
 
 # This file if used for local testing and should not be committed to the repository.
 samples/test.cpp
