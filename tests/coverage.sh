@@ -66,10 +66,8 @@ fi
 rm -rf "$COVERAGE_DIR"
 rm -rf "$TEST_RESULTS_DIR"
 
-# JUnit reports are generated only in CI.
-if [[ "${CI:-false}" == "true" ]]; then
-    mkdir -p "$TEST_RESULTS_DIR"
-fi
+# Generated both locally and in CI.
+mkdir -p "$TEST_RESULTS_DIR"
 
 # Remove stale GCC coverage data.
 find "$BIN_DIR" -type f \
@@ -109,36 +107,26 @@ echo "Running tests..."
 for index in "${!TEST_BINARIES[@]}"; do
     test_name="${TEST_NAMES[$index]}"
     test_binary="${TEST_BINARIES[$index]}"
+    test_result="$TEST_RESULTS_DIR/${test_name}.xml"
 
     echo "  Running $(basename "$test_binary")..."
 
-    if [[ "${CI:-false}" == "true" ]]; then
-        test_result="$TEST_RESULTS_DIR/${test_name}.xml"
-
-        if "$test_binary" \
-            "$@" \
-            --reporters=junit \
-            --out="$test_result"
-        then
-            echo "  Passed: $test_name"
-        else
-            echo "  Failed: $test_name" >&2
-            TEST_STATUS=1
-        fi
-
-        if [[ ! -s "$test_result" ]]; then
-            echo "JUnit report was not generated: $test_result" >&2
-            TEST_STATUS=1
-        else
-            echo "  JUnit report: $test_result"
-        fi
+    if "$test_binary" \
+        "$@" \
+        --reporters=junit \
+        --out="$test_result"
+    then
+        echo "  Passed: $test_name"
     else
-        if "$test_binary" "$@"; then
-            echo "  Passed: $test_name"
-        else
-            echo "  Failed: $test_name" >&2
-            TEST_STATUS=1
-        fi
+        echo "  Failed: $test_name" >&2
+        TEST_STATUS=1
+    fi
+
+    if [[ ! -s "$test_result" ]]; then
+        echo "JUnit report was not generated: $test_result" >&2
+        TEST_STATUS=1
+    else
+        echo "  JUnit report: $test_result"
     fi
 done
 
@@ -185,11 +173,9 @@ echo
 echo "Coverage report generated at:"
 echo "$HTML_COVERAGE/index.html"
 
-if [[ "${CI:-false}" == "true" ]]; then
-    echo
-    echo "JUnit reports generated at:"
-    echo "$TEST_RESULTS_DIR"
-fi
+echo
+echo "JUnit reports generated at:"
+echo "$TEST_RESULTS_DIR"
 
 if ((TEST_STATUS != 0)); then
     echo
