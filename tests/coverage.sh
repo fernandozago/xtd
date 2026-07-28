@@ -220,7 +220,7 @@ genhtml \
     --show-navigation \
     --show-proportion \
     --legend \
-    --sort-tables \
+    --sort \
     --dark-mode \
     --precision 2 \
     --title "XTD Test Coverage" \
