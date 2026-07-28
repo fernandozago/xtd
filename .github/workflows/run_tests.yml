@@ -30,9 +30,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Configure Git safe directory
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
       - name: Install dependencies
         run: |
           apt-get update
@@ -138,7 +135,7 @@ jobs:
           fail-on-empty: true
           fail-on-error: true
 
-  deploy:
+deploy:
     name: Deploy coverage report
     needs:
       - tests
@@ -162,8 +159,8 @@ jobs:
 
     steps:
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6.0.0
 
       - name: Deploy coverage report
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.0
