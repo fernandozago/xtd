@@ -13,7 +13,7 @@ on:
 
 jobs:
   tests:
-    name: GCC 15 tests
+    name: Tests, Coverage and Benchmarks
     runs-on: ubuntu-latest
 
     permissions:
