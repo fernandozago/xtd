@@ -64,12 +64,12 @@ If this project interests you, feel free to fork it, experiment, and submit a pu
 
 * A C++23 compiler.
 * POSIX threads when building the threaded samples, tests, and benchmarks.
-* The repository scripts currently use GCC 15 through `g++-15`.
+* The repository scripts use the system default `g++`.
 
 The library is header-only. Add `src` to the compiler include path:
 
 ```bash
-g++-15 -std=c++23 -pthread -I./src app.cpp -o app
+g++ -std=c++23 -pthread -I./src app.cpp -o app
 ```
 
 ## Samples
@@ -135,7 +135,7 @@ Run all tests with:
 ./tests/all.sh
 ```
 
-GitHub Actions currently builds and runs the tests and benchmarks with GCC 15:
+GitHub Actions currently builds and runs the tests and benchmarks with the container default `g++`:
 
 * [Test workflow](.github/workflows/run_tests.yml)
 

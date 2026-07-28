@@ -27,7 +27,7 @@ mkdir -p "$RESULTS_DIR"
 rm -f "$BENCH_BINARY"
 rm -f "$BENCH_OUTPUT"
 
-g++-15 \
+g++ \
     @"$COMPILE_FLAGS_FILE" \
     "$BENCH_SOURCE" \
     -o "$BENCH_BINARY" \

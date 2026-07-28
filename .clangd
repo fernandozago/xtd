@@ -1,2 +1,2 @@
 CompileFlags:
-  Compiler: /usr/bin/g++-15
+  Compiler: /usr/bin/g++

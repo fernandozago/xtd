@@ -37,7 +37,7 @@ mkdir -p "$BIN_DIR"
 
 rm -f "$TEST_BINARY"
 echo "Building tests..."
-g++-15 "$TEST_SOURCE" -o "$TEST_BINARY" "${TEST_WARNING_FLAGS[@]}" -O3 -pthread @"$COMPILE_FLAGS_FILE" 
+g++ "$TEST_SOURCE" -o "$TEST_BINARY" "${TEST_WARNING_FLAGS[@]}" -O3 -pthread @"$COMPILE_FLAGS_FILE" 
 echo "Running tests..."
 "$TEST_BINARY" #--duration=true #--success=true "$@"
 

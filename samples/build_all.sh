@@ -36,7 +36,7 @@ for source_file in "${sample_files[@]}"; do
     binary_file="$BIN_DIR/$sample_name"
 
     echo "Building $sample_name..."
-    g++-15 @"$COMPILE_FLAGS_FILE" "$source_file" -o "$binary_file"
+    g++ @"$COMPILE_FLAGS_FILE" "$source_file" -o "$binary_file"
 done
 
 echo "Built ${#sample_files[@]} sample(s) into: $BIN_DIR"

@@ -39,18 +39,10 @@ jobs:
 
           rm -rf /var/lib/apt/lists/*
 
-      - name: Configure GCC 15 commands
+      - name: Show compiler versions
         run: |
-          if ! command -v g++-15 >/dev/null 2>&1; then
-            ln -s "$(command -v g++)" /usr/local/bin/g++-15
-          fi
-
-          if ! command -v gcov-15 >/dev/null 2>&1; then
-            ln -s "$(command -v gcov)" /usr/local/bin/gcov-15
-          fi
-
-          g++-15 --version
-          gcov-15 --version
+          g++ --version
+          gcov --version
           lcov --version
           genhtml --version
 
@@ -128,13 +120,9 @@ jobs:
           echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
           locale-gen en_US.UTF-8
 
-      - name: Configure GCC 15 command
+      - name: Show compiler version
         run: |
-          if ! command -v g++-15 >/dev/null 2>&1; then
-            ln -s "$(command -v g++)" /usr/local/bin/g++-15
-          fi
-
-          g++-15 --version
+          g++ --version
 
       - name: Run benchmark suite
         env:

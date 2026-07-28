@@ -33,5 +33,5 @@ if [[ ! -f "$SOURCE_FILE" ]]; then
 fi
 
 mkdir -p "$BIN_DIR"
-g++-15 @"$COMPILE_FLAGS_FILE" "$SOURCE_FILE" -o "$BINARY_FILE"
+g++ @"$COMPILE_FLAGS_FILE" "$SOURCE_FILE" -o "$BINARY_FILE"
 "$BINARY_FILE" "$@"

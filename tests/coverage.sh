@@ -90,7 +90,7 @@ for test_name in "${TEST_NAMES[@]}"; do
 
     echo "  Building ${test_name}.cpp..."
 
-    g++-15 \
+    g++ \
         "$test_source" \
         -o "$test_binary" \
         "${TEST_WARNING_FLAGS[@]}" \
@@ -140,7 +140,7 @@ lcov \
     --directory "$BIN_DIR" \
     --base-directory "$ROOT_DIR" \
     --no-external \
-    --gcov-tool gcov-15 \
+    --gcov-tool gcov \
     --rc geninfo_gcov_all_blocks=0 \
     --rc geninfo_unexecuted_blocks=0 \
     --ignore-errors inconsistent \

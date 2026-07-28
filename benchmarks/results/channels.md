@@ -5,7 +5,6 @@ Machine Spec:
 
 Warning, results might be unstable:
 * CPU frequency scaling enabled: CPU 0 between 400.0 and 3,700.0 MHz
-* CPU governor is 'powersave' but should be 'performance'
 * Turbo is enabled, CPU frequency will fluctuate
 
 Recommendations
@@ -13,14 +12,14 @@ Recommendations
 
 |          ns/message |           message/s |    err% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------:|:------------------------
-|               14.69 |       68,059,654.41 |    0.4% |     13.73 | `single-thread / bounded_channel`
-|               14.10 |       70,903,372.21 |    0.4% |     13.74 | `single-thread / unbounded_channel`
-|              204.33 |        4,894,154.07 |    1.0% |     13.81 | `multi-thread / bounded_channel`
-|              186.82 |        5,352,669.99 |    1.5% |     13.66 | `multi-thread / unbounded_channel`
+|               14.20 |       70,437,379.00 |    0.7% |     13.67 | `single-thread / bounded_channel`
+|               13.70 |       72,968,546.04 |    0.8% |     13.77 | `single-thread / unbounded_channel`
+|              187.86 |        5,322,994.25 |    1.0% |     13.51 | `multi-thread / bounded_channel`
+|              170.35 |        5,870,411.78 |    1.5% |     13.84 | `multi-thread / unbounded_channel`
 
 | Total Messages Enqueued | xtd::channel throughput 
 |------------------------:|:-------------------------
-|             943,723,622 | `single-thread / bounded_channel`
-|             984,874,197 | `single-thread / unbounded_channel`
-|              68,194,498 | `multi-thread / bounded_channel`
-|              74,103,754 | `multi-thread / unbounded_channel`
+|             971,244,522 | `single-thread / bounded_channel`
+|           1,011,954,769 | `single-thread / unbounded_channel`
+|              71,896,377 | `multi-thread / bounded_channel`
+|              82,484,505 | `multi-thread / unbounded_channel`
