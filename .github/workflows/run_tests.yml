@@ -135,7 +135,7 @@ jobs:
           fail-on-empty: true
           fail-on-error: true
 
-deploy:
+  deploy:
     name: Deploy coverage report
     needs:
       - tests
