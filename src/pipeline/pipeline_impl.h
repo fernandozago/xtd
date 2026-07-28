@@ -243,37 +243,24 @@ private:
                 "pipeline is completed");
 
             const bool wait_succeeded = m_space_available.wait(lock, stop_token, [this] {
-                return is_any_completed()
-                    || !m_writer_paused
-                    || should_resume_writer();
+                return is_any_completed() || !m_writer_paused;
             });
 
-            runtime_assert(!is_any_completed(), 
+            runtime_assert(!is_any_completed(),
                 "pipeline is completed");
 
             if (!wait_succeeded || stop_token.stop_requested()) {
                 return length - remaining.size();
             }
 
-            if (m_writer_paused && should_resume_writer()) {
-                m_writer_paused = false;
-            }
-
             while (!remaining.empty() && !m_writer_paused) {
-                if (m_buffered_size >= m_pause_writer_threshold) {
-                    m_writer_paused = true;
-                    break;
-                }
-
                 const std::size_t available_capacity = m_pause_writer_threshold - m_buffered_size;
                 const std::size_t requested_size = std::min(remaining.size(), available_capacity);
                 const std::size_t copy_size = get_segment().copy_from(remaining.data(), requested_size);
 
-                runtime_assert(copy_size > 0 && copy_size <= requested_size,
-                    "pipeline segment returned an invalid copy size");
-
                 remaining = remaining.subspan(copy_size);
                 m_buffered_size += copy_size;
+
                 if (m_reader_waiting) {
                     notify_data_available.arm();
                 }
