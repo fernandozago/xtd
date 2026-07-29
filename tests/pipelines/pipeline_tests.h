@@ -2048,7 +2048,6 @@ inline void test_data_trivially_copyable::test(std::istream& source)
             REQUIRE(buffer.copy_to(mydata));
             CHECK(mydata == expected_values[received_count]);
             ++received_count;
-            //mydata.print();
 
             buffer.slice_in_place(sizeof(mydata), buffer.end());
         }

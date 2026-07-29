@@ -6,7 +6,9 @@
 
 namespace xtd_fixed_buffer_pool_tests {
 
-TEST_CASE("data_segment: starts empty with full writable capacity")
+struct FixedBufferPoolTests {};
+
+TEST_CASE_METHOD(FixedBufferPoolTests, "starts empty with full writable capacity")
 {
     xtd::fixed_buffer_pool pool(8, 0);
     xtd::data_segment segment(pool);
@@ -20,7 +22,7 @@ TEST_CASE("data_segment: starts empty with full writable capacity")
 }
 
 
-TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
+TEST_CASE_METHOD(FixedBufferPoolTests, "copy_from appends readable bytes until capacity")
 {
     xtd::fixed_buffer_pool pool(5, 0);
     xtd::data_segment segment(pool);
@@ -59,7 +61,7 @@ TEST_CASE("data_segment: copy_from appends readable bytes until capacity")
 }
 
 
-TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consume")
+TEST_CASE_METHOD(FixedBufferPoolTests, "advance consumes readable bytes and rejects over-consume")
 {
     xtd::fixed_buffer_pool pool(6, 0);
     xtd::data_segment segment(pool);
@@ -86,13 +88,13 @@ TEST_CASE("data_segment: advance consumes readable bytes and rejects over-consum
 }
 
 
-TEST_CASE("fixed_buffer_pool: empty") {
+TEST_CASE_METHOD(FixedBufferPoolTests, "fixed_buffer_pool: empty") {
     xtd::fixed_buffer_pool pool(1, 0);
     CHECK(pool.pool_size() == 0);
 }
 
 
-TEST_CASE("data_segment returns buffers to the pool on destruction")
+TEST_CASE_METHOD(FixedBufferPoolTests, "returns buffers to the pool on destruction")
 {
     xtd::fixed_buffer_pool pool(1, 3);
     CHECK(pool.pool_size() == 0);

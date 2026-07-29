@@ -4,20 +4,22 @@
 
 #include "pipeline/position.h"
 
-TEST_CASE("position: default constructed value is invalid")
+struct PositionTests {};
+
+TEST_CASE_METHOD(xtd::position, "default constructed value is invalid")
 {
     const xtd::position pos{};
     CHECK_FALSE(static_cast<bool>(pos));
 }
 
-TEST_CASE("position: public constructor creates valid value")
+TEST_CASE_METHOD(PositionTests, "public constructor creates valid value")
 {
     const xtd::position pos{42, 7};
     CHECK(static_cast<bool>(pos));
     CHECK(pos.sequence_offset() == 42);
 }
 
-TEST_CASE("position: arithmetic on valid value preserves sequence and updates offset")
+TEST_CASE_METHOD(PositionTests, "arithmetic on valid value preserves sequence and updates offset")
 {
     const xtd::position base{10, 99};
 
@@ -30,7 +32,7 @@ TEST_CASE("position: arithmetic on valid value preserves sequence and updates of
     CHECK(minus.sequence_offset() == 12);
 }
 
-TEST_CASE("position: arithmetic on invalid position remains invalid")
+TEST_CASE_METHOD(PositionTests, "arithmetic on invalid position remains invalid")
 {
     xtd::position pos{};
     CHECK_FALSE(static_cast<bool>(pos + 1));
@@ -38,7 +40,7 @@ TEST_CASE("position: arithmetic on invalid position remains invalid")
     CHECK_FALSE(static_cast<bool>(pos));
 }
 
-TEST_CASE("position: increment and decrement operators advance offset")
+TEST_CASE_METHOD(PositionTests, "increment and decrement operators advance offset")
 {
     xtd::position pos{5, 11};
 
@@ -57,7 +59,7 @@ TEST_CASE("position: increment and decrement operators advance offset")
     CHECK(pos.sequence_offset() == 5);
 }
 
-TEST_CASE("position: equality for invalid positions")
+TEST_CASE_METHOD(PositionTests, "equality for invalid positions")
 {
     const xtd::position lhs{};
     const xtd::position rhs{};
@@ -65,7 +67,7 @@ TEST_CASE("position: equality for invalid positions")
     CHECK_FALSE(lhs != rhs);
 }
 
-TEST_CASE("position: equality requires same sequence and offset")
+TEST_CASE_METHOD(PositionTests, "equality requires same sequence and offset")
 {
     const xtd::position a{8, 2};
     const xtd::position b{8, 2};
@@ -82,7 +84,7 @@ TEST_CASE("position: equality requires same sequence and offset")
     CHECK(a != differentSequence);
 }
 
-TEST_CASE("position: greater-than compares only compatible valid positions")
+TEST_CASE_METHOD(PositionTests, "greater-than compares only compatible valid positions")
 {
     const xtd::position low{3, 4};
     const xtd::position high{7, 4};
@@ -96,7 +98,7 @@ TEST_CASE("position: greater-than compares only compatible valid positions")
     CHECK_FALSE(invalid > low);
 }
 
-TEST_CASE("position: copy construction and assignment preserve value")
+TEST_CASE_METHOD(PositionTests, "copy construction and assignment preserve value")
 {
     const xtd::position original{42, 77};
 
@@ -111,7 +113,7 @@ TEST_CASE("position: copy construction and assignment preserve value")
     CHECK(assigned.sequence_offset() == 42);
 }
 
-TEST_CASE("position: compound arithmetic updates valid position")
+TEST_CASE_METHOD(PositionTests, "compound arithmetic updates valid position")
 {
     xtd::position pos{10, 99};
     const xtd::position sameSequence{12, 99};
@@ -126,7 +128,7 @@ TEST_CASE("position: compound arithmetic updates valid position")
     CHECK(pos == sameSequence);
 }
 
-TEST_CASE("position: subtraction on invalid position remains invalid")
+TEST_CASE_METHOD(PositionTests, "subtraction on invalid position remains invalid")
 {
     const xtd::position invalid{};
 
@@ -136,7 +138,7 @@ TEST_CASE("position: subtraction on invalid position remains invalid")
     CHECK(result.sequence_offset() == 0);
 }
 
-TEST_CASE("position: compound subtraction on invalid position has no effect")
+TEST_CASE_METHOD(PositionTests, "compound subtraction on invalid position has no effect")
 {
     xtd::position invalid{};
 
@@ -146,7 +148,7 @@ TEST_CASE("position: compound subtraction on invalid position has no effect")
     CHECK(invalid.sequence_offset() == 0);
 }
 
-TEST_CASE("position: prefix increment and decrement ignore invalid position")
+TEST_CASE_METHOD(PositionTests, "prefix increment and decrement ignore invalid position")
 {
     xtd::position invalid{};
 
@@ -163,7 +165,7 @@ TEST_CASE("position: prefix increment and decrement ignore invalid position")
     CHECK(invalid.sequence_offset() == 0);
 }
 
-TEST_CASE("position: postfix increment and decrement preserve invalidity")
+TEST_CASE_METHOD(PositionTests, "postfix increment and decrement preserve invalidity")
 {
     xtd::position invalid{};
 
@@ -180,7 +182,7 @@ TEST_CASE("position: postfix increment and decrement preserve invalidity")
     CHECK(invalid.sequence_offset() == 0);
 }
 
-TEST_CASE("position: equality handles one valid and one invalid position")
+TEST_CASE_METHOD(PositionTests, "equality handles one valid and one invalid position")
 {
     const xtd::position valid{10, 20};
     const xtd::position invalid{};
