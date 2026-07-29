@@ -1,5 +1,6 @@
 #ifndef XTD_TESTS_PIPELINE_TESTS_H
 #define XTD_TESTS_PIPELINE_TESTS_H
+#include "../third_party/catch2/catch_amalgamated.hpp"
 
 #include <future>
 #include <print>
@@ -7,9 +8,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "../third_party/doctest.h"
-#include "../../src/pipeline/pipeline.h"
-#include "../../src/pipeline/pipe_utils.h"
+#include "pipeline/pipeline.h"
+#include "pipeline/pipe_utils.h"
 
 namespace xtd_pipeline_tests {
 

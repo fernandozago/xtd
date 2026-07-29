@@ -23,6 +23,13 @@ CXX_VERSION       := $(shell $(CXX) --version 2>/dev/null | head -1)
 CXX_VERSION_LOWER := $(shell printf '%s' '$(CXX_VERSION)' | tr '[:upper:]' '[:lower:]')
 CXX_MAJOR         := $(shell $(CXX) -dumpversion 2>/dev/null | sed 's/\..*//')
 
+CATCH_DIR   := $(ROOT)/tests/third_party/catch2
+CATCH_HPP   := $(CATCH_DIR)/catch_amalgamated.hpp
+CATCH_SRC   := $(CATCH_DIR)/catch_amalgamated.cpp
+CATCH_OBJ   := $(BIN)/third_party/catch2/catch_amalgamated.o
+CATCH_DEP   := $(CATCH_OBJ:.o=.d)
+CATCH_FLAGS := -I$(CATCH_DIR)
+
 ifneq ($(findstring clang,$(CXX_VERSION_LOWER)),)
 
 CXX_KIND := clang
@@ -95,6 +102,11 @@ SAMPLE_SRCS := $(shell \
 
 TEST_SRCS := $(shell \
 	find tests \
+		\( \
+			-path 'tests/third_party' -o \
+			-path 'tests/coverage' -o \
+			-path 'tests/test-results' \
+		\) -prune -o \
 		-type f \
 		-name '*.cpp' \
 		-print 2>/dev/null | \
@@ -107,8 +119,8 @@ BENCHMARK_SRCS := $(shell \
 		-print 2>/dev/null | \
 	LC_ALL=C sort)
 
-SAMPLE_BINS := $(patsubst %.cpp,$(BIN)/%,$(SAMPLE_SRCS))
-TEST_BINS := $(patsubst %.cpp,$(BIN)/%,$(TEST_SRCS))
+SAMPLE_BINS    := $(patsubst %.cpp,$(BIN)/%,$(SAMPLE_SRCS))
+TEST_BINS      := $(patsubst %.cpp,$(BIN)/%,$(TEST_SRCS))
 BENCHMARK_BINS := $(patsubst %.cpp,$(BIN)/%,$(BENCHMARK_SRCS))
 
 COVERAGE_BIN  := $(BIN)/coverage
@@ -124,7 +136,7 @@ ALL_BINS := \
 	$(BENCHMARK_BINS) \
 	$(COVERAGE_BINS)
 
-DEPS := $(ALL_BINS:%=%.d)
+DEPS := $(ALL_BINS:%=%.d) $(CATCH_DEP)
 
 TEST_RUN_SRCS := $(if $(strip $(FILE)),$(FILE),$(TEST_SRCS))
 TEST_RUN_BINS := $(patsubst %.cpp,$(BIN)/%,$(TEST_RUN_SRCS))
@@ -226,6 +238,7 @@ $(BUILD_CONFIG): FORCE
 		'CXX_VERSION=$(CXX_VERSION)' \
 		'COMMON=$(COMMON)' \
 		'WARNINGS=$(WARNINGS)' \
+		'CATCH_FLAGS=$(CATCH_FLAGS)' \
 		'COVERAGE_FLAGS=$(COVERAGE_FLAGS)' >"$$tmp"
 
 	if [[ ! -f "$@" ]] || ! cmp -s "$$tmp" "$@"; then
@@ -255,14 +268,30 @@ $(BIN)/samples/%: samples/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 		-o "$@" \
 		$(COMMON)
 
-$(BIN)/tests/%: tests/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
+$(CATCH_OBJ): $(CATCH_SRC) $(CATCH_HPP) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
+	@mkdir -p "$(@D)"
+
+	echo "[$(CXX)] Building Catch2 -> $(patsubst $(ROOT)/%,%,$@)"
+
+	$(CXX) \
+		@$(FLAGS_FILE) \
+		$(CATCH_FLAGS) \
+		"$<" \
+		-c \
+		-o "$@" \
+		$(COMMON) \
+		-O3
+
+$(BIN)/tests/%: tests/%.cpp $(CATCH_OBJ) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 	@mkdir -p "$(@D)"
 
 	echo "[$(CXX)] Building $< -> $(patsubst $(ROOT)/%,%,$@)"
 
 	$(CXX) \
 		@$(FLAGS_FILE) \
+		$(CATCH_FLAGS) \
 		"$<" \
+		"$(CATCH_OBJ)" \
 		-o "$@" \
 		$(COMMON) \
 		$(WARNINGS) \
@@ -280,14 +309,16 @@ $(BIN)/benchmarks/%: benchmarks/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CON
 		$(COMMON) \
 		-O3
 
-$(COVERAGE_BIN)/tests/%: tests/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
+$(COVERAGE_BIN)/tests/%: tests/%.cpp $(CATCH_OBJ) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 	@mkdir -p "$(@D)"
 
 	echo "[$(CXX)] Building coverage $< -> $(patsubst $(ROOT)/%,%,$@)"
 
 	$(CXX) \
 		@$(FLAGS_FILE) \
+		$(CATCH_FLAGS) \
 		"$<" \
+		"$(CATCH_OBJ)" \
 		-o "$@" \
 		$(COMMON) \
 		$(WARNINGS) \
@@ -319,8 +350,8 @@ test: $(TEST_RUN_BINS)
 		echo "Running $${binary#$(ROOT)/}"
 
 		"$$binary" $(ARGS) \
-			--reporters=junit \
-			--out="$$xml" || status=1
+			--reporter console::out=- \
+			--reporter junit::out="$$xml" || status=1
 
 		[[ -s "$$xml" ]] || {
 			echo "JUnit report missing: $$xml" >&2
@@ -428,8 +459,8 @@ for binary in $(2); do
 			-delete 2>/dev/null || true
 
 		"$$binary" $(ARGS) \
-			--reporters=junit \
-			--out="$$xml" || status=1
+			--reporter console::out=- \
+			--reporter junit::out="$$xml" || status=1
 
 		lcov \
 			--capture \
@@ -453,8 +484,8 @@ for binary in $(2); do
 
 		LLVM_PROFILE_FILE="$$profiles/%p.profraw" \
 			"$$binary" $(ARGS) \
-			--reporters=junit \
-			--out="$$xml" || status=1
+				--reporter console::out=- \
+				--reporter junit::out="$$xml" || status=1
 
 		mapfile -d '' profiles_raw < <(
 			find "$$profiles" \

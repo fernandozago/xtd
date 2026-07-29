@@ -1,0 +1,791 @@
+#include "../third_party/catch2/catch_amalgamated.hpp"
+
+#include <future>
+#include "channel/channel.h"
+    
+using namespace std::chrono_literals;
+
+TEST_CASE("BoundedChannel semantics - copy, move, emplace")
+{
+    struct ChannelSemanticsProbe
+    {
+        std::shared_ptr<int> payload;
+    
+        explicit ChannelSemanticsProbe(int value)
+            : payload(std::make_shared<int>(value))
+        {
+        }
+    };
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel(5);
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(42);
+
+        CHECK(writer.push(data));
+        CHECK(data.payload != nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 42);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel(5);
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(43);
+
+        CHECK(writer.push(std::move(data)));
+        CHECK(data.payload == nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 43);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel(5);
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(44);
+
+        CHECK(writer.emplace(data));
+        CHECK(data.payload != nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 44);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel(5);
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(45);
+
+        CHECK(writer.emplace(std::move(data)));
+        CHECK(data.payload == nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 45);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel(5);
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+
+        CHECK(writer.emplace(46));
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 46);
+        CHECK(!reader.try_read().has_value());
+    }
+}
+
+TEST_CASE("UnboundedChannel semantics - copy, move, emplace")
+{
+    struct ChannelSemanticsProbe
+    {
+        std::shared_ptr<int> payload;
+
+        explicit ChannelSemanticsProbe(int value)
+            : payload(std::make_shared<int>(value))
+        {
+        }
+    };
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(42);
+
+        CHECK(writer.push(data));
+        CHECK(data.payload != nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 42);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(43);
+
+        CHECK(writer.push(std::move(data)));
+        CHECK(data.payload == nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 43);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        writer.complete(); // complete the channel before pushing data
+        
+        ChannelSemanticsProbe data(43);
+        CHECK(!writer.push(std::move(data)));
+        CHECK(data.payload != nullptr); // did not move because push failed
+        CHECK(!writer.try_push(std::move(data)));
+        CHECK(data.payload != nullptr); // did not move because push failed
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(44);
+
+        CHECK(writer.emplace(data));
+        CHECK(data.payload != nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 44);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+        ChannelSemanticsProbe data(45);
+
+        CHECK(writer.emplace(std::move(data)));
+        CHECK(data.payload == nullptr);
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 45);
+        CHECK(!reader.try_read().has_value());
+    }
+
+    {
+        xtd::channel<ChannelSemanticsProbe> channel;
+        xtd::channel_writer<ChannelSemanticsProbe>& writer = channel.writer();
+
+        CHECK(writer.emplace(46));
+
+        writer.complete();
+
+        xtd::channel_reader<ChannelSemanticsProbe>& reader = channel.reader();
+        auto value = reader.read();
+
+        CHECK(value.has_value());
+        CHECK(value->payload != nullptr);
+        CHECK(*value->payload == 46);
+        CHECK(!reader.try_read().has_value());
+    }
+}
+
+TEST_CASE("BoundedChannel try_push returns false when full and does not block")
+{
+    xtd::channel<int> channel(1);
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    CHECK(writer.try_push(1));
+
+    auto try_push = std::async(std::launch::async, [&]() {
+        return writer.try_push(2);
+    });
+
+    CHECK(try_push.wait_for(10ms) == std::future_status::ready);
+    CHECK_FALSE(try_push.get());
+}
+
+TEST_CASE("BoundedChannel try_push returns false after completion")
+{
+    xtd::channel<int> channel(2);
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    writer.complete();
+
+    int value = 7;
+    CHECK_FALSE(writer.try_push(value));
+    CHECK_FALSE(writer.try_push(8));
+}
+
+TEST_CASE("BoundedChannel try_emplace returns false when full and does not block")
+{
+    xtd::channel<int> channel(1);
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    CHECK(writer.try_emplace(1));
+
+    auto try_emplace = std::async(std::launch::async, [&]() {
+        return writer.try_emplace(2);
+    });
+
+    CHECK(try_emplace.wait_for(10ms) == std::future_status::ready);
+    CHECK_FALSE(try_emplace.get());
+}
+
+TEST_CASE("BoundedChannel try_emplace returns false after completion")
+{
+    xtd::channel<int> channel(2);
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    writer.complete();
+
+    CHECK_FALSE(writer.try_emplace(7));
+}
+
+TEST_CASE("UnboundedChannel try_emplace succeeds before completion and fails after")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    CHECK(writer.try_emplace(42));
+
+    auto value = reader.read();
+    CHECK(value.has_value());
+    CHECK(*value == 42);
+
+    writer.complete();
+    CHECK_FALSE(writer.try_emplace(43));
+}
+
+TEST_CASE("UnboundedChannel try_push succeeds before completion and fails after")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    int lvalue = 10;
+    CHECK(writer.try_push(lvalue));
+    CHECK(writer.try_push(11));
+
+    auto first = reader.read();
+    auto second = reader.read();
+    CHECK(first.has_value());
+    CHECK(second.has_value());
+    CHECK(*first == 10);
+    CHECK(*second == 11);
+
+    writer.complete();
+    CHECK_FALSE(writer.try_push(lvalue));
+    CHECK_FALSE(writer.try_push(12));
+}
+
+TEST_CASE("BoundedChannel reader get_size reflects enqueue and dequeue")
+{
+    xtd::channel<int> channel(3);
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    CHECK(reader.size() == 0);
+    CHECK(writer.try_push(1));
+    CHECK(writer.try_push(2));
+    CHECK(reader.size() == 2);
+
+    auto first = reader.read();
+    CHECK(first.has_value());
+    CHECK(*first == 1);
+    CHECK(reader.size() == 1);
+}
+
+TEST_CASE("UnboundedChannel reader get_size reflects enqueue and dequeue")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    CHECK(reader.size() == 0);
+    CHECK(writer.try_emplace(21));
+    CHECK(writer.try_emplace(22));
+    CHECK(reader.size() == 2);
+
+    auto first = reader.read();
+    CHECK(first.has_value());
+    CHECK(*first == 21);
+    CHECK(reader.size() == 1);
+}
+
+TEST_CASE("BoundedChannel push blocks when full and resumes after read")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    CHECK(writer.push(1));
+    CHECK(reader.size() == 1);
+
+    auto blockedPush = std::async(std::launch::async, [&writer]() {
+        return writer.push(2);
+    });
+
+    CHECK(blockedPush.wait_for(10ms) == std::future_status::timeout);
+    CHECK(reader.size() == 1);
+
+    auto first = reader.read();
+    REQUIRE(first.has_value());
+    CHECK(*first == 1);
+
+    REQUIRE(blockedPush.wait_for(10ms) == std::future_status::ready);
+    CHECK(blockedPush.get());
+    CHECK(reader.size() == 1);
+
+    auto second = reader.read();
+    REQUIRE(second.has_value());
+    CHECK(*second == 2);
+    CHECK(reader.size() == 0);
+
+    writer.complete();
+    CHECK_FALSE(reader.read().has_value());
+}
+
+TEST_CASE("BoundedChannel blocked push returns false when channel is completed")
+{
+    xtd::channel<int> channel(1);
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    CHECK(writer.push(1));
+
+    auto blockedPush = std::async(std::launch::async, [&writer]() {
+        return writer.push(2);
+    });
+
+    CHECK(blockedPush.wait_for(50ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(blockedPush.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blockedPush.get());
+}
+
+TEST_CASE("BoundedChannel read blocks while empty and unblocks on complete")
+{
+    xtd::channel<int> channel(2);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
+        return reader.read();
+    });
+
+    CHECK(blockedRead.wait_for(10ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(blockedRead.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blockedRead.get().has_value());
+}
+
+TEST_CASE("UnboundedChannel read blocks while empty and unblocks on complete")
+{
+    xtd::channel<int> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
+        return reader.read();
+    });
+
+    CHECK(blockedRead.wait_for(10ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(blockedRead.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blockedRead.get().has_value());
+}
+
+TEST_CASE("UnboundedChannel read blocks while empty and unblocks on pushed value")
+{
+    xtd::channel<int> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto blockedRead = std::async(std::launch::async, [&reader]() {
+        return reader.read();
+    });
+
+    CHECK(blockedRead.wait_for(50ms) == std::future_status::timeout);
+
+    CHECK(writer.push(99));
+
+    REQUIRE(blockedRead.wait_for(1s) == std::future_status::ready);
+    auto value = blockedRead.get();
+    REQUIRE(value.has_value());
+    CHECK(*value == 99);
+
+    writer.complete();
+}
+
+TEST_CASE("UnboundedChannel read returns nullopt after completion when empty")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    writer.complete();
+    writer.complete();
+
+    CHECK_FALSE(reader.read().has_value());
+    CHECK_FALSE(reader.try_read().has_value());
+    CHECK_FALSE(writer.push(1));
+}
+
+TEST_CASE("channel_reader - test stop token when block reading")
+{
+    xtd::channel<int> channel;
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    // Create a stop source and request stop
+    std::stop_source stopSource;
+    stopSource.request_stop();
+
+    // Attempt to read with the stop token, should return nullopt immediately
+    CHECK_FALSE(reader.read(stopSource.get_token()).has_value());
+}
+
+TEST_CASE("channel_writer - test stop token when block writing")
+{
+    xtd::channel<int> channel;
+    xtd::channel_writer<int>& writer = channel.writer();
+
+    // Create a stop source and request stop
+    std::stop_source stopSource;
+    stopSource.request_stop();
+
+    // Attempt to push with the stop token, should return false immediately
+    int value = 2;
+    CHECK_FALSE(writer.push(stopSource.get_token(), value));
+    CHECK_FALSE(writer.push(stopSource.get_token(), 1));
+    CHECK_FALSE(writer.emplace(stopSource.get_token(), 2));
+}
+
+TEST_CASE("BoundedChannel blocked push is canceled by stop token")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    std::stop_source stop_source;
+    auto blocked_push = std::async(std::launch::async, [&writer, token = stop_source.get_token()]() {
+        return writer.push(token, 2);
+    });
+
+    CHECK(blocked_push.wait_for(20ms) == std::future_status::timeout);
+
+    stop_source.request_stop();
+
+    REQUIRE(blocked_push.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blocked_push.get());
+
+    auto value = reader.read();
+    REQUIRE(value.has_value());
+    CHECK(*value == 1);
+}
+
+TEST_CASE("Channel blocked read is canceled by stop token")
+{
+    xtd::channel<int> channel;
+    auto& reader = channel.reader();
+
+    std::stop_source stop_source;
+    auto blocked_read = std::async(std::launch::async, [&reader, token = stop_source.get_token()]() {
+        return reader.read(token);
+    });
+
+    CHECK(blocked_read.wait_for(20ms) == std::future_status::timeout);
+
+    stop_source.request_stop();
+
+    REQUIRE(blocked_read.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(blocked_read.get().has_value());
+}
+
+TEST_CASE("BoundedChannel supports ring-buffer wrap-around correctly")
+{
+    xtd::channel<int> channel(3);
+    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_reader<int>& reader = channel.reader();
+
+    CHECK(writer.push(1));
+    CHECK(writer.push(2));
+    CHECK(writer.push(3));
+
+    auto one = reader.read();
+    auto two = reader.read();
+    REQUIRE(one.has_value());
+    REQUIRE(two.has_value());
+    CHECK(*one == 1);
+    CHECK(*two == 2);
+
+    CHECK(writer.push(4));
+    CHECK(writer.push(5));
+    writer.complete();
+
+    auto three = reader.read();
+    auto four = reader.read();
+    auto five = reader.read();
+    REQUIRE(three.has_value());
+    REQUIRE(four.has_value());
+    REQUIRE(five.has_value());
+    CHECK(*three == 3);
+    CHECK(*four == 4);
+    CHECK(*five == 5);
+
+    CHECK_FALSE(reader.read().has_value());
+}
+
+TEST_CASE("emplace constructs the value in place")
+{
+    struct probe
+    {
+        probe(int, int& moves, int& constructions)
+            : m_moves(&moves)
+            , m_constructions(&constructions)
+        {
+            ++*m_constructions;
+        }
+
+        probe(probe&& other) noexcept
+            : m_moves(other.m_moves)
+            , m_constructions(other.m_constructions)
+        {
+            ++*m_moves;
+        }
+
+        probe(const probe&) = delete;
+        probe& operator=(const probe&) = delete;
+        probe& operator=(probe&&) = delete;
+
+        int* m_moves;
+        int* m_constructions;
+    };
+
+    int moves = 0;
+    int constructions = 0;
+
+    xtd::channel<probe> channel(1);
+
+    {   // should construct in place and not move
+        CHECK(channel.writer().try_emplace(42, moves, constructions));
+        CHECK(moves == 0);
+        CHECK(constructions == 1);
+    }
+    
+
+    {   // should NOT call constructor or move constructor since channel is full
+        CHECK_FALSE(channel.writer().try_emplace(42, moves, constructions));
+        CHECK(moves == 0);
+        CHECK(constructions == 1);
+    }
+}
+
+namespace
+{
+    struct ChannelConstructionProbe
+    {
+        int m_value;
+        std::atomic<int>* m_constructions;
+
+        ChannelConstructionProbe(int value, std::atomic<int>& constructions)
+            : m_value(value)
+            , m_constructions(&constructions)
+        {
+            ++*m_constructions;
+        }
+
+        ChannelConstructionProbe(ChannelConstructionProbe&&) noexcept = default;
+        ChannelConstructionProbe(const ChannelConstructionProbe&) = delete;
+        ChannelConstructionProbe& operator=(const ChannelConstructionProbe&) = delete;
+        ChannelConstructionProbe& operator=(ChannelConstructionProbe&&) = delete;
+    };
+}
+
+TEST_CASE("BoundedChannel lvalue push blocks when full and resumes after read")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    int second = 2;
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_push = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return writer.push(second);
+    });
+
+    started_future.wait();
+    CHECK(blocked_push.wait_for(50ms) == std::future_status::timeout);
+
+    auto first = reader.read();
+    REQUIRE(first.has_value());
+    CHECK(*first == 1);
+
+    REQUIRE(blocked_push.wait_for(1s) == std::future_status::ready);
+    CHECK(blocked_push.get());
+
+    auto value = reader.read();
+    REQUIRE(value.has_value());
+    CHECK(*value == 2);
+}
+
+TEST_CASE("BoundedChannel emplace waits for capacity before constructing")
+{
+    std::atomic<int> constructions = 0;
+    xtd::channel<ChannelConstructionProbe> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.emplace(1, constructions));
+    CHECK(constructions.load() == 1);
+
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_emplace = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return writer.emplace(2, constructions);
+    });
+
+    started_future.wait();
+    CHECK(blocked_emplace.wait_for(50ms) == std::future_status::timeout);
+    CHECK(constructions.load() == 1);
+
+    auto first = reader.read();
+    REQUIRE(first.has_value());
+    CHECK(first->m_value == 1);
+
+    REQUIRE(blocked_emplace.wait_for(1s) == std::future_status::ready);
+    CHECK(blocked_emplace.get());
+    CHECK(constructions.load() == 2);
+
+    auto second = reader.read();
+    REQUIRE(second.has_value());
+    CHECK(second->m_value == 2);
+}
+
+TEST_CASE("Channel read of move-only value blocks and resumes after emplace")
+{
+    std::atomic<int> constructions = 0;
+    xtd::channel<ChannelConstructionProbe> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    std::promise<void> started;
+    auto started_future = started.get_future();
+    auto blocked_read = std::async(std::launch::async, [&]() {
+        started.set_value();
+        return reader.read();
+    });
+
+    started_future.wait();
+    CHECK(blocked_read.wait_for(50ms) == std::future_status::timeout);
+
+    REQUIRE(writer.emplace(42, constructions));
+
+    REQUIRE(blocked_read.wait_for(1s) == std::future_status::ready);
+    auto value = blocked_read.get();
+    REQUIRE(value.has_value());
+    CHECK(value->m_value == 42);
+    CHECK(constructions.load() == 1);
+}
+
+TEST_CASE("Channel completion wakes all blocked readers")
+{
+    xtd::channel<int> channel;
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    auto first_read = std::async(std::launch::async, [&]() {
+        return reader.read();
+    });
+    auto second_read = std::async(std::launch::async, [&]() {
+        return reader.read();
+    });
+
+    CHECK(first_read.wait_for(50ms) == std::future_status::timeout);
+    CHECK(second_read.wait_for(50ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(first_read.wait_for(1s) == std::future_status::ready);
+    REQUIRE(second_read.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(first_read.get().has_value());
+    CHECK_FALSE(second_read.get().has_value());
+}
+
+TEST_CASE("BoundedChannel completion wakes all blocked writers")
+{
+    xtd::channel<int> channel(1);
+    auto& writer = channel.writer();
+    auto& reader = channel.reader();
+
+    REQUIRE(writer.push(1));
+
+    auto first_push = std::async(std::launch::async, [&]() {
+        return writer.push(2);
+    });
+    auto second_push = std::async(std::launch::async, [&]() {
+        return writer.push(3);
+    });
+
+    CHECK(first_push.wait_for(50ms) == std::future_status::timeout);
+    CHECK(second_push.wait_for(50ms) == std::future_status::timeout);
+
+    writer.complete();
+
+    REQUIRE(first_push.wait_for(1s) == std::future_status::ready);
+    REQUIRE(second_push.wait_for(1s) == std::future_status::ready);
+    CHECK_FALSE(first_push.get());
+    CHECK_FALSE(second_push.get());
+
+    auto buffered = reader.read();
+    REQUIRE(buffered.has_value());
+    CHECK(*buffered == 1);
+    CHECK_FALSE(reader.read().has_value());
+}

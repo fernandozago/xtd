@@ -1,8 +1,9 @@
 #ifndef XTD_TESTS_SEGMENTED_BYTE_VIEW_TESTS_H
 #define XTD_TESTS_SEGMENTED_BYTE_VIEW_TESTS_H
 
-#include "../third_party/doctest.h"
-#include "../../src/pipeline/segmented_byte_view.h"
+#include "../third_party/catch2/catch_amalgamated.hpp"
+
+#include "pipeline/segmented_byte_view.h"
 
 namespace xtd {
     class test_helper_segmented_byte_view {

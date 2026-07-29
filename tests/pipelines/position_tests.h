@@ -1,8 +1,8 @@
 #ifndef XTD_TESTS_POSITION_TESTS_H
 #define XTD_TESTS_POSITION_TESTS_H
+#include "../third_party/catch2/catch_amalgamated.hpp"
 
-#include "../third_party/doctest.h"
-#include "../../src/pipeline/position.h"
+#include "pipeline/position.h"
 
 TEST_CASE("position: default constructed value is invalid")
 {
