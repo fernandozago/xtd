@@ -5,6 +5,7 @@
 #include <string>
 #include <thread>
 
+#include "commands_parser.h"
 #include "pipeline/pipeline.h"
 #include "../utils/utils.h"
 #include "pipeline/segmented_byte_view.h"
@@ -15,10 +16,6 @@ Accepts any server type implementing:
 - void reply(int client_id, std::string_view message) noexcept
 - void broadcast(std::string_view message) noexcept
 */
-
-inline constinit std::string_view COMMAND_NAME = "/name ";
-inline constinit std::string_view COMMAND_HELP = "/help";
-inline constinit std::string_view COMMAND_QUIT = "/quit";
 
 inline constinit std::string_view UNKNOWN_COMMAND_RESPONSE = "[⚠️: Unknown command. -- Send `/help` to see more options]\n";
 
@@ -60,12 +57,12 @@ public:
         , m_server(server)
         , m_name(std::to_string(unique_id))
         , m_writer(m_pipeline.writer())
+        , m_thread([this](std::stop_token stopToken) {
+            process_incoming_data(stopToken);
+        })
     {
         m_server.reply(unique_id, std::format(MOTD, m_name));
         m_server.broadcast(std::format("[📣: `{}` joined the chat! Say hello!]\n", m_name));
-        m_thread = std::jthread([this](std::stop_token stopToken) {
-            process_incoming_data(stopToken);
-        });
     }
 
     connection_handler(const connection_handler&) = delete;
@@ -78,7 +75,7 @@ public:
             m_thread.join();
         }
         m_server.broadcast(std::format("[📣: `{}` has left the chat.]\n", m_name));
-        println_locked("handler for client fd {} (Name: `{}`) destroyed", m_unique_id, m_name);
+        println_locked("handler for client fd {} (AKA: `{}`) destroyed", m_unique_id, m_name);
     }
 
     std::string& name() noexcept { return m_name; }
@@ -101,7 +98,7 @@ public:
 private:
     void process_incoming_data(std::stop_token stop_token) noexcept
     {
-        auto& reader = m_pipeline.reader();
+        xtd::pipe_reader& reader = m_pipeline.reader();
 
         try
         {
@@ -112,14 +109,18 @@ private:
                     if (stop_token.stop_requested()) break;
 
                     // Extract the exact line of data up to (excluding) the newline character
-                    auto line_bytes = data.slice(newLine);
+                    xtd::segmented_byte_view line_bytes = data.slice(newLine);
                     
-                    //check the last byte of the line for carriage return (\r) and remove it if present
-                    if (!line_bytes.empty() && line_bytes[xtd::from_end(1)] == std::byte('\r')) {
-                        line_bytes = line_bytes.slice(newLine - 1);
+                    if (!line_bytes.empty()) {
+                        //check the last byte of the line for carriage return (\r) and remove it if present
+                        if (line_bytes[xtd::from_end(1)] == std::byte('\r')) {
+                            line_bytes = line_bytes.slice(newLine - 1);
+                        }
+    
+                        process_command(line_bytes.to_string());
                     }
 
-                    process_message(line_bytes);
+                    // Advance the data view to exclude the processed line and the newline character
                     data.slice_in_place(newLine + 1, data.end());
                 }
 
@@ -142,46 +143,44 @@ private:
         reader.complete();
     }
 
-    void process_message(const xtd::segmented_byte_view& data) noexcept
+    void process_command(const std::string_view& command)
     {
-        if (data.empty()) return;
-        const std::string message = data.to_string();
+        const auto [cmd_type, argument] = commands_parser::parse_command(command);
 
-        if (message.starts_with('/')) {
-            process_command(message);
-            return;
-        }
-        m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, message));
-    }
-
-    void process_command(const std::string& command) noexcept
-    {
-        if (start_with_ingnore_case(COMMAND_NAME, command))
+        switch (cmd_type)
         {
-            const std::string new_name = command.substr(COMMAND_NAME.size());
-            if (new_name.empty() || new_name.size() > 32) {
-                m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
-                return;
+            case command_type::message:
+                m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
+                break;
+
+            case command_type::name:
+            {
+                if (argument.empty() || argument.size() > 32) {
+                    m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
+                    break;
+                }
+
+                std::string old_name = std::exchange(m_name, std::move(argument));
+                m_server.broadcast(std::format("[📣: `{}` is now known as `{}`]\n", old_name, m_name));
+                break;
             }
-            
-            const std::string old_name = std::exchange(m_name, std::move(new_name));
-            m_server.broadcast(std::format("[📣: `{}` is now known as `{}`]\n", old_name, m_name));
-            return;
-        }
 
-        if (start_with_ingnore_case(COMMAND_HELP, command))
-        {
-            m_server.reply(m_unique_id, HELP_RESPONSE);
-            return;
-        }
+            case command_type::help:
+                m_server.reply(m_unique_id, HELP_RESPONSE);
+                break;
 
-        if (start_with_ingnore_case(COMMAND_QUIT, command))
-        {
-            m_server.reply(m_unique_id, "[📣: Disconnecting... Bye! 👋]\n");
-            m_server.user_quit(m_unique_id);
-            return;
-        }
+            case command_type::quit:
+                if (!argument.empty()) {
+                    m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
+                }
+                m_server.reply(m_unique_id, "[📣: Disconnecting... Bye! 👋]\n");
+                m_server.user_quit(m_unique_id);
+                break;
 
-        m_server.reply(m_unique_id, UNKNOWN_COMMAND_RESPONSE);
+            case command_type::unknown:
+            default:
+                m_server.reply(m_unique_id, UNKNOWN_COMMAND_RESPONSE);
+                break;
+        }
     }
 };
