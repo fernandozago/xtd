@@ -598,10 +598,10 @@ help:
 	make tests                                                    # Build all test binaries
 	make coverages                                                # Build all coverage binaries
 	make benchmarks                                               # Build all benchmark binaries
-	make run        FILE=samples/chat.cpp          [ARGS="..."]   # Build if needed, then run one sample
-	make test       [FILE=tests/pipeline.cpp]      [ARGS="..."]   # Build if needed, then run one or all tests
-	make benchmark  [FILE=benchmarks/pipeline.cpp] [ARGS="..."]   # Build if needed, then run one or all benchmarks
-	make coverage   [FILE=tests/pipeline.cpp]      [ARGS="..."]   # Build if needed, then run coverage for one or all tests
+	make run FILE=samples/chat.cpp [ARGS="..."]                   # Build if needed, then run one sample
+	make test [FILE=tests/pipeline.cpp] [ARGS="..."]              # Build if needed, then run one or all tests
+	make benchmark [FILE=benchmarks/pipeline.cpp] [ARGS="..."]    # Build if needed, then run one or all benchmarks
+	make coverage [FILE=tests/pipeline.cpp] [ARGS="..."]          # Build if needed, then run coverage for one or all tests
 	make clean                                                    # Remove generated binaries and reports
 
 	Overrides:
