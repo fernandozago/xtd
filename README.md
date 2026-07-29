@@ -76,15 +76,15 @@ g++ -std=c++23 -pthread -I./src app.cpp -o app
 
 | Sample | Demonstrates | Run |
 |---|---|---|
-| [channel.cpp](samples/channel.cpp) | Bounded or unbounded channels, multiple writers and readers, `emplace`, completion, and backlog validation | `./samples/run.sh channel.cpp bounded` |
-| [pipeline.cpp](samples/pipeline.cpp) | Concurrent byte production, newline-delimited parsing, segmented reads, and backpressure | `./samples/run.sh pipeline.cpp` |
-| [stdin.cpp](samples/stdin.cpp) | Inter-thread console communication using a pipeline, with the main thread consuming data | `./samples/run.sh stdin.cpp` |
-| [Simple Chat Server](samples/chat.md) | A terminal-based TCP chat server with multiple clients and `/name` support | `./samples/run.sh chat.cpp` |
+| [channel.cpp](samples/channel.cpp) | Bounded or unbounded channels, multiple writers and readers, `emplace`, completion, and backlog validation | `make run FILE=samples/channel.cpp ARGS="bounded"` |
+| [pipeline.cpp](samples/pipeline.cpp) | Concurrent byte production, newline-delimited parsing, segmented reads, and backpressure | `make run FILE=samples/pipeline.cpp` |
+| [stdin.cpp](samples/stdin.cpp) | Inter-thread console communication using a pipeline, with the main thread consuming data | `make run FILE=samples/stdin.cpp` |
+| [Simple Chat Server](samples/chat.md) | A terminal-based TCP chat server with multiple clients and `/name` support | `make run FILE=samples/chat.cpp` |
 
 Build every top-level sample with:
 
 ```bash
-./samples/build_all.sh
+make all
 ```
 
 ## Benchmarks
@@ -120,7 +120,7 @@ Current recorded output: [benchmarks/results/pipelines.md](benchmarks/results/pi
 Run all benchmarks with:
 
 ```bash
-./benchmarks/all.sh
+make benchmark
 ```
 
 Benchmark results are machine- and configuration-dependent. Review the machine specification and stability warnings included in each output file before comparing results.
@@ -132,7 +132,7 @@ Channel and pipeline tests are available under [`tests`](tests).
 Run all tests with:
 
 ```bash
-./tests/all.sh
+make test
 ```
 
 GitHub Actions currently builds and runs the tests and benchmarks with the container default `g++`:

@@ -4,8 +4,8 @@
  Simple chat server
  
  Build and run:
-  ./samples/run.sh chat.cpp        # Uses the default port (9090)
-  ./samples/run.sh chat.cpp 8080   # Uses port 8080
+  make run FILE=samples/chat.cpp               #Uses default port 9090
+  make run FILE=samples/chat.cpp ARGS="8080"   #Uses port 8080
  
  Connect using netcat (nc):
    nc <server-ip-address> <port>

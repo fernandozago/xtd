@@ -12,16 +12,16 @@ Recommendations
 
 |              μs/MB |                MB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              280.80 |            3,561.19 |    2.0% |      6.98 | `1 KB writes`
-|              159.49 |            6,270.14 |    1.2% |      6.92 | `2 KB writes`
-|              112.13 |            8,918.27 |    1.5% |      6.80 | `4 KB writes`
-|               88.29 |           11,326.56 |    1.0% |      6.94 | `8 KB writes`
-|               82.99 |           12,050.34 |    1.5% |      6.93 | `16 KB writes`
+|              271.31 |            3,685.76 |    3.0% |      6.62 | `1 KB writes`
+|              154.90 |            6,455.72 |    1.7% |      6.81 | `2 KB writes`
+|              109.09 |            9,166.58 |    1.7% |      6.79 | `4 KB writes`
+|               84.97 |           11,769.40 |    0.7% |      6.90 | `8 KB writes`
+|               79.92 |           12,512.07 |    0.6% |      6.89 | `16 KB writes`
 
 |   Total Transferred | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|            24.53 GB | `1 KB writes`
-|            42.36 GB | `2 KB writes`
-|            59.33 GB | `4 KB writes`
-|            77.37 GB | `8 KB writes`
-|            82.58 GB | `16 KB writes`
+|            24.57 GB | `1 KB writes`
+|            43.26 GB | `2 KB writes`
+|            61.11 GB | `4 KB writes`
+|            80.22 GB | `8 KB writes`
+|            85.35 GB | `16 KB writes`

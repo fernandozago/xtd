@@ -6,10 +6,10 @@ A lightweight terminal-based chat server.
 
 ```bash
 # Uses the default port (9090)
-./samples/run.sh chat.cpp
+make run FILE=samples/chat.cpp
 
 # Uses port 8080
-./samples/run.sh chat.cpp 8080
+make run FILE=samples/chat.cpp ARGS="8080"
 ```
 
 ## Connect
