@@ -468,6 +468,7 @@ for binary in $(2); do
 			--base-directory "$(ROOT)" \
 			--no-external \
 			--branch-coverage \
+			--rc no_exception_branch=1 \
 			--test-name "$$name" \
 			--gcov-tool "$(GCOV)" \
 			--ignore-errors inconsistent,mismatch \
@@ -540,6 +541,7 @@ done
 lcov \
 	"$${adds[@]}" \
 	--branch-coverage \
+	--rc no_exception_branch=1 \
 	--ignore-errors inconsistent,corrupt,mismatch \
 	--output-file "$$raw"
 
@@ -547,6 +549,7 @@ lcov \
 	--extract "$$raw" \
 	"$(ROOT)/*" \
 	--branch-coverage \
+	--rc no_exception_branch=1 \
 	--ignore-errors unused,inconsistent,corrupt,mismatch \
 	--output-file "$$project"
 
@@ -555,12 +558,14 @@ lcov \
 	'*/third_party/*' \
 	'*/tests/*' \
 	--branch-coverage \
+	--rc no_exception_branch=1 \
 	--ignore-errors unused,inconsistent,corrupt,mismatch \
 	--output-file "$$final"
 
 genhtml "$$final" \
 	--function-coverage \
 	--branch-coverage \
+	--rc no_exception_branch=1 \
 	--demangle-cpp \
 	--legend \
 	--sort \
@@ -572,7 +577,8 @@ genhtml "$$final" \
 
 lcov \
 	--summary "$$final" \
-	--branch-coverage
+	--branch-coverage \
+	--rc no_exception_branch=1
 
 echo "Coverage report: tests/coverage/html/index.html"
 
