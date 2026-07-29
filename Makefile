@@ -594,16 +594,16 @@ clean:
 help:
 	@cat <<-'TXT'
 	Targets:
-	make all                                                    # Build all sample, test, coverage, and benchmark binaries
-	make samples                                                # Build all sample binaries
-	make tests                                                  # Build all test binaries
-	make coverages                                              # Build all coverage binaries
-	make benchmarks                                             # Build all benchmark binaries
-	make run FILE=samples/example.cpp ARGS="..."                # Build if needed, then run one sample
-	make test [FILE=tests/example.cpp] [ARGS="..."]             # Build if needed, then run one or all tests
-	make benchmark [FILE=benchmarks/example.cpp] [ARGS="..."]   # Build if needed, then run one or all benchmarks
-	make coverage [FILE=tests/example.cpp] [ARGS="..."]         # Build if needed, then run coverage for one or all tests
-	make clean                                                  # Remove generated binaries and reports
+	make all                                                     # Build all binaries [samples, tests, coverages, benchmarks]
+	make samples                                                 # Build all sample binaries
+	make tests                                                   # Build all test binaries
+	make coverages                                               # Build all coverage binaries
+	make benchmarks                                              # Build all benchmark binaries
+	make run FILE=samples/chat.cpp [ARGS="..."]                  # Build if needed, then run one sample
+	make test [FILE=tests/pipeline.cpp] [ARGS="..."]             # Build if needed, then run one or all tests
+	make benchmark [FILE=benchmarks/pipeline.cpp] [ARGS="..."]   # Build if needed, then run one or all benchmarks
+	make coverage [FILE=tests/pipeline.cpp] [ARGS="..."]         # Build if needed, then run coverage for one or all tests
+	make clean                                                   # Remove generated binaries and reports
 
 	Overrides:
 	  CXX=clang++
