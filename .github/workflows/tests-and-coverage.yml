@@ -35,7 +35,8 @@ jobs:
           apt-get update
 
           apt-get install -y --no-install-recommends \
-            lcov
+            lcov \
+            make
 
           rm -rf /var/lib/apt/lists/*
 
@@ -50,8 +51,7 @@ jobs:
         env:
           CI: "true"
         run: |
-          chmod +x ./build.sh
-          ./build.sh tests +coverage
+          make clean coverage
 
       - name: Verify test results
         if: always()
@@ -129,8 +129,7 @@ jobs:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
         run: |
-          chmod +x ./build.sh
-          ./build.sh benchmarks
+          make clean benchmark
 
   publish-tests:
     name: Publish Test Results
