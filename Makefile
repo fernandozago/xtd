@@ -564,6 +564,7 @@ genhtml "$$final" \
 	--demangle-cpp \
 	--legend \
 	--sort \
+	--dark-mode \
 	--title 'XTD Test Coverage' \
 	--header-title 'XTD Code Coverage' \
 	--description-file "$$desc" \
