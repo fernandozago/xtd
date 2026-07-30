@@ -3,6 +3,8 @@
 
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
+#include <vector>
+
 #include "pipeline/segmented_byte_view.h"
 
 namespace xtd {
@@ -390,6 +392,67 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of(byte)") {
 
     const auto empty = xtd::test_helper_segmented_byte_view::create_from_segments({""});
     CHECK_FALSE(empty.position_of(std::byte{'x'}));
+}
+
+template<typename T>
+struct position_of_any_test_data {
+    T value;
+    std::size_t offset;
+};
+
+TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
+    const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cd"}
+    );
+
+    SECTION("string_view") {
+        const std::array cases = {
+            position_of_any_test_data<std::string>{"-a-", 0},
+            position_of_any_test_data<std::string>{"-b-", 1},
+            position_of_any_test_data<std::string>{"-c-", 2},
+            position_of_any_test_data<std::string>{"-d-", 3},
+        };
+
+        for (const auto& test : cases) {
+            CAPTURE(test.offset);
+            const std::string_view value = test.value;
+            const xtd::position result = sequence.position_of_any(value);
+            CHECK(result);
+            CHECK(result == sequence.begin() + test.offset);
+        }
+    }
+
+    SECTION("span<char>") {
+        const std::array cases = {
+            position_of_any_test_data<std::vector<char>>{{'-', 'a', '-'}, 0},
+            position_of_any_test_data<std::vector<char>>{{'-', 'b', '-'}, 1},
+            position_of_any_test_data<std::vector<char>>{{'-', 'c', '-'}, 2},
+            position_of_any_test_data<std::vector<char>>{{'-', 'd', '-'}, 3},
+        };
+
+        for (const auto& test : cases) {
+            CAPTURE(test.offset);
+            const xtd::position result = sequence.position_of_any(test.value);
+            CHECK(result);
+            CHECK(result == sequence.begin() + test.offset);
+        }
+    }
+
+    SECTION("span<byte>") {
+        const std::array cases = {
+            position_of_any_test_data<std::vector<std::byte>>{{std::byte{'-'}, std::byte{'a'}, std::byte{'-'}}, 0},
+            position_of_any_test_data<std::vector<std::byte>>{{std::byte{'-'}, std::byte{'b'}, std::byte{'-'}}, 1},
+            position_of_any_test_data<std::vector<std::byte>>{{std::byte{'-'}, std::byte{'c'}, std::byte{'-'}}, 2},
+            position_of_any_test_data<std::vector<std::byte>>{{std::byte{'-'}, std::byte{'d'}, std::byte{'-'}}, 3},
+        };
+
+        for (const auto& test : cases) {
+            CAPTURE(test.offset);
+            const xtd::position result = sequence.position_of_any(test.value);
+            CHECK(result);
+            CHECK(result == sequence.begin() + test.offset);
+        }
+    }
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(byte*, size_t)") {

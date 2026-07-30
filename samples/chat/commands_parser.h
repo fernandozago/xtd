@@ -1,9 +1,11 @@
+#include "pipeline/segmented_byte_view.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <string_view>
 #include <tuple>
 #include <array>
+#include <string>
 
 #define COMMAND_LIST(X) \
     X(name)             \
@@ -73,28 +75,23 @@ private:
     }
 
 public:
-    static std::tuple<command_type, std::string_view> parse_command(std::string_view command_line)
+    static std::tuple<command_type, std::string> parse_command(const xtd::segmented_byte_view& line_bytes)
     {
-        assert(!command_line.empty());
+        assert(!line_bytes.empty());
 
-        if (command_line.front() != '/') {
-            return {command_type::message, command_line};
+        if (line_bytes[0] == std::byte('/')) {
+            const xtd::position separator = line_bytes.position_of_any(whitespace);
+            return {
+                parse_command_type(line_bytes.slice(1, separator 
+                    ? separator 
+                    : line_bytes.end()).to_string()),
+
+                std::string{separator 
+                    ? trim(line_bytes.slice(separator + 1, line_bytes.end()).to_string()) 
+                    : std::string{}}
+            };
         }
-
-        const auto separator = command_line.find_first_of(whitespace);
-
-        return {
-            // Parsed command type
-            parse_command_type(command_line.substr(1,
-                separator == std::string_view::npos
-                    ? std::string_view::npos
-                    : separator - 1
-            )), 
-
-            // Command argument
-            separator == std::string_view::npos
-                ? std::string_view{}
-                : trim(command_line.substr(separator + 1))
-        };
+        
+        return {command_type::message, std::string{line_bytes.to_string()}};
     }
 };

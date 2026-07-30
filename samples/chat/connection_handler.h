@@ -117,7 +117,7 @@ private:
                             line_bytes = line_bytes.slice(newLine - 1);
                         }
     
-                        process_command(line_bytes.to_string());
+                        process_command(line_bytes);
                     }
 
                     // Advance the data view to exclude the processed line and the newline character
@@ -143,9 +143,9 @@ private:
         reader.complete();
     }
 
-    void process_command(const std::string_view& command)
+    void process_command(const xtd::segmented_byte_view& line_bytes)
     {
-        const auto [cmd_type, argument] = commands_parser::parse_command(command);
+        const auto [cmd_type, argument] = commands_parser::parse_command(line_bytes);
 
         switch (cmd_type)
         {

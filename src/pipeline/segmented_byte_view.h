@@ -2,6 +2,7 @@
 #define PIPELINE_SEGMENTED_BYTE_VIEW_H
 
 #include <algorithm>
+#include <cstddef>
 #include <span>
 #include <stdexcept>
 #include <utility>
@@ -358,9 +359,49 @@ public:
     }
 
     [[nodiscard]]
+    position position_of_any(const std::span<const std::byte> values) const
+    {
+        if (values.empty()) {
+            return position{};
+        }
+
+        std::size_t segment_begin = m_begin_offset;
+
+        for (const std::span<const std::byte> segment : m_segments) {
+            const auto found = std::ranges::find_first_of(segment, values);
+
+            if (found != segment.end()) {
+                const auto distance =
+                    std::ranges::distance(segment.begin(), found);
+
+                return position{
+                    segment_begin + static_cast<std::size_t>(distance),
+                    m_sequence_id
+                };
+            }
+
+            segment_begin += segment.size();
+        }
+
+        return position{};
+    }
+
+    [[nodiscard]]
     position position_of(const char value) const
     {
         return position_of(static_cast<std::byte>(value));
+    }
+
+    [[nodiscard]]
+    position position_of_any(const std::string_view values) const
+    {
+        return position_of_any(std::span<const char>(values.data(), values.size()));
+    }
+
+    [[nodiscard]]
+    position position_of_any(const std::span<const char> values) const
+    {
+        return position_of_any(std::span<const std::byte>(reinterpret_cast<const std::byte*>(values.data()), values.size()));
     }
 
     [[nodiscard]]
