@@ -322,6 +322,41 @@ namespace reader_tests {
         read_thread.join();
     }
 
+    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "should wait to read when channel is empty and open", "[channel][reader]",
+        BoundedChannelMode,
+        UnboundedChannelMode)
+    {
+        auto channel = make_channel<TestType, int>();
+        auto& writer = channel.writer();
+        auto& reader = channel.reader();
+
+        std::latch started{1};
+        std::promise<bool> result_promise;
+        auto result = result_promise.get_future();
+
+        std::jthread read_thread(
+            [&](std::stop_token stop_token)
+            {
+                started.count_down();
+                result_promise.set_value(reader.wait_to_read(stop_token));
+            });
+
+        started.wait();
+
+        REQUIRE(writer.push(42));
+
+        const auto status = result.wait_for(1s);
+
+        if (status != std::future_status::ready)
+        {
+            read_thread.request_stop();
+        }
+
+        REQUIRE(status == std::future_status::ready);
+        CHECK(result.get());
+        read_thread.join();
+    }
+
     TEMPLATE_TEST_CASE_METHOD(ReaderTests, "an already requested stop token cancels read", "[channel][reader]",
         BoundedChannelMode,
         UnboundedChannelMode)

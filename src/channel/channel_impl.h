@@ -128,7 +128,7 @@ namespace xtd
         bool wait_to_read(const std::stop_token stop_token)
         {
             std::unique_lock lock(m_mutex);
-            return internal_wait_to_read(lock, stop_token);
+            return internal_wait_to_read(lock, stop_token).has_value();
         }
 
         std::expected<void, channel_read_errors> internal_wait_to_read(std::unique_lock<std::mutex>& lock, const std::stop_token stop_token)
