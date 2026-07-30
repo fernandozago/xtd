@@ -36,10 +36,11 @@ private:
     struct notifier
     {
         std::condition_variable_any& m_cv;
-        bool should_notify = false;
+        bool m_should_notify = false;
 
-        explicit notifier(std::condition_variable_any& cv) noexcept
+        explicit notifier(std::condition_variable_any& cv, bool should_notify = false) noexcept
             : m_cv(cv)
+            , m_should_notify(should_notify)
         {
         }
 
@@ -48,12 +49,12 @@ private:
 
         void arm() noexcept
         {
-            should_notify = true;
+            m_should_notify = true;
         }
 
         ~notifier()
         {
-            if (should_notify) {
+            if (m_should_notify) {
                 m_cv.notify_one();
             }
         }
