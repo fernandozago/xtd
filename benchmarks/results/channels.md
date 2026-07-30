@@ -12,14 +12,5 @@ Recommendations
 
 |          ns/message |           message/s |    err% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------:|:------------------------
-|               15.56 |       64,272,002.73 |    0.5% |     13.82 | `single-thread / bounded_channel`
-|               15.86 |       63,056,166.32 |    0.4% |     13.76 | `single-thread / unbounded_channel`
-|              204.52 |        4,889,398.44 |    0.8% |     14.18 | `multi-thread / bounded_channel`
-|              199.70 |        5,007,592.70 |    1.1% |     13.81 | `multi-thread / unbounded_channel`
-
-| Total Messages Enqueued | xtd::channel throughput 
-|------------------------:|:-------------------------
-|             896,730,846 | `single-thread / bounded_channel`
-|             878,889,788 | `single-thread / unbounded_channel`
-|              70,597,198 | `multi-thread / bounded_channel`
-|              70,093,614 | `multi-thread / unbounded_channel`
+|               16.11 |       62,061,375.94 |    0.2% |     13.79 | `single-thread / bounded_channel`
+|               16.24 |       61,594,017.58 |    0.2% |     13.72 | `single-thread / unbounded_channel`

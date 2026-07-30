@@ -51,7 +51,8 @@ jobs:
         env:
           CI: "true"
         run: |
-          make clean coverage
+          make -j coverages
+          make coverage
 
       - name: Verify test results
         if: always()
@@ -129,7 +130,8 @@ jobs:
           LANG: en_US.UTF-8
           LC_ALL: en_US.UTF-8
         run: |
-          make clean benchmark
+          make -j benchmarks
+          make benchmark
 
   publish-tests:
     name: Publish Test Results
