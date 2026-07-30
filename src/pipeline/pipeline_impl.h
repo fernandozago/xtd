@@ -119,14 +119,12 @@ private:
     {
         return m_writer_completed || m_reader_completed;
     }
-
+    
     read_result read_at_least(const std::size_t min_size, std::stop_token stop_token)
     {
-        runtime_assert(!m_has_pending_read, 
-            "advance(consumed, examined) must be called before the next read");
-
-        runtime_assert(!m_reader_completed, 
-            "pipeline reader is completed");
+        // this is shared across all instances of the pipeline class
+        // so it is safe to use it to generate unique sequence ids
+        static std::atomic<std::uint64_t> unique_read_id_generator{1};
 
         std::unique_lock lock{m_mutex};
         
@@ -135,16 +133,18 @@ private:
             
         runtime_assert(!m_reader_completed, 
             "pipeline reader is completed");
-                
-        m_reader_waiting = true;
-        m_data_available.wait(lock, stop_token, [this, &min_size] { 
-            return m_writer_completed
-            || (
-                m_buffered_size > m_examined_size 
-                && (min_size == 0 || m_buffered_size >= min_size)
-            ); 
-        });
-        m_reader_waiting = false;
+
+        if (!m_writer_completed) {
+            m_reader_waiting = true;
+            m_data_available.wait(lock, stop_token, [this, &min_size] { 
+                return m_writer_completed
+                || (
+                    m_buffered_size > m_examined_size 
+                    && (min_size == 0 || m_buffered_size >= min_size)
+                ); 
+            });
+            m_reader_waiting = false;
+        }
        
         if (stop_token.stop_requested()) {
             return read_result(true);
@@ -152,13 +152,9 @@ private:
 
         m_has_pending_read = true;
 
-        // this is shared across all instances of the pipeline class
-        // so it is safe to use it to generate unique sequence ids
-        static std::atomic<std::uint64_t> next{1};
-
         return xtd::read_result (
             m_segments,
-            m_pending_read_sequence_id = next.fetch_add(1, std::memory_order_relaxed),
+            m_pending_read_sequence_id = unique_read_id_generator.fetch_add(1, std::memory_order_relaxed),
             m_writer_completed,
             m_pending_read_size
         );
