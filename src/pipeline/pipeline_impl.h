@@ -97,11 +97,6 @@ private:
         }
     }
 
-    static std::uint64_t next_read_sequence_id() {
-        static std::atomic<std::uint64_t> next{1};
-        return next.fetch_add(1, std::memory_order_relaxed);
-    }
-
     // Writer backpressure is based only on the total amount of unconsumed buffered data.
     //
     // `m_examined_size` must not affect writer resumption. Examined bytes are still
@@ -130,35 +125,43 @@ private:
         runtime_assert(!m_has_pending_read, 
             "advance(consumed, examined) must be called before the next read");
 
+        runtime_assert(!m_reader_completed, 
+            "pipeline reader is completed");
+
         std::unique_lock lock{m_mutex};
+        
+        runtime_assert(!m_has_pending_read, 
+            "advance(consumed, examined) must be called before the next read");
+            
+        runtime_assert(!m_reader_completed, 
+            "pipeline reader is completed");
+                
         m_reader_waiting = true;
-        const bool w_result = m_data_available.wait(lock, stop_token, [this, min_size] { 
-            return is_any_completed()
+        m_data_available.wait(lock, stop_token, [this, &min_size] { 
+            return m_writer_completed
             || (
                 m_buffered_size > m_examined_size 
                 && (min_size == 0 || m_buffered_size >= min_size)
             ); 
         });
         m_reader_waiting = false;
-
-        if (!w_result || stop_token.stop_requested()) {
+       
+        if (stop_token.stop_requested()) {
             return read_result(true);
         }
 
-        runtime_assert(!m_reader_completed, 
-            "pipeline reader is completed");
-        runtime_assert(!m_has_pending_read, 
-            "advance(consumed, examined) must be called before the next read");
-
-        xtd::read_result result(
-            m_segments,
-            m_pending_read_sequence_id = next_read_sequence_id(),
-            m_writer_completed
-        );
-
-        m_pending_read_size = result.buffer().size();
         m_has_pending_read = true;
-        return result;
+
+        // this is shared across all instances of the pipeline class
+        // so it is safe to use it to generate unique sequence ids
+        static std::atomic<std::uint64_t> next{1};
+
+        return xtd::read_result (
+            m_segments,
+            m_pending_read_sequence_id = next.fetch_add(1, std::memory_order_relaxed),
+            m_writer_completed,
+            m_pending_read_size
+        );
     }
 
     void advance(const position& consumed, const position& examined)
@@ -242,14 +245,14 @@ private:
             runtime_assert(!is_any_completed(), 
                 "pipeline is completed");
 
-            const bool wait_succeeded = m_space_available.wait(lock, stop_token, [this] {
-                return is_any_completed() || !m_writer_paused;
+            m_space_available.wait(lock, stop_token, [&paused = m_writer_paused] {
+                return !paused;
             });
 
             runtime_assert(!is_any_completed(),
                 "pipeline is completed");
 
-            if (!wait_succeeded || stop_token.stop_requested()) {
+            if (stop_token.stop_requested()) {
                 return length - remaining.size();
             }
 
@@ -277,6 +280,7 @@ private:
     void complete_writer() {
         {
             std::scoped_lock lock(m_mutex);
+            m_writer_paused = false;
             m_writer_completed = true;
         }
 
@@ -289,8 +293,8 @@ private:
             std::scoped_lock lock(m_mutex);
             m_reader_completed = true;
             m_has_pending_read = false;
-            m_pending_read_size = 0;
             m_writer_paused = false;
+            m_pending_read_size = 0;
             m_buffered_size = 0;
             m_examined_size = 0;
         }

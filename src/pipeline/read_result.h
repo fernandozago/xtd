@@ -44,11 +44,12 @@ private:
         };
     }
 
-    explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed)
+    explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed, std::size_t& pending_read_size)
         : m_buffer(make_readable_view(segments, sequence_id))
         , m_completed(completed)
         , m_cancelled(false)
     {
+        pending_read_size = m_buffer.size();
     }
 
     explicit read_result(bool cancelled)
