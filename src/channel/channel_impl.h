@@ -31,6 +31,28 @@ namespace xtd
         friend class channel_writer<T>;
         friend class channel_reader<T>;
 
+        struct can_read_predicate
+        {
+            const channel& m_channel;
+
+            [[nodiscard]]
+            bool operator()() const noexcept
+            {
+                return m_channel.m_writer_completed || !m_channel.m_queue.empty();
+            }
+        };
+
+        struct can_write_predicate
+        {
+            const channel& m_channel;
+
+            [[nodiscard]]
+            bool operator()() const noexcept
+            {
+                return m_channel.m_writer_completed || !m_channel.full();
+            }
+        };
+
         struct notifier
         {
             std::condition_variable_any& m_cv;
@@ -79,6 +101,18 @@ namespace xtd
             return m_capacity > 0 && m_queue.size() >= m_capacity;
         }
 
+        bool internal_wait_to_write(std::unique_lock<std::mutex>& lock, const std::stop_token stop_token)
+        {
+            if (!stop_token.stop_requested() && !m_writer_completed && full())
+            {
+                ++m_write_waiters;
+                m_not_full.wait(lock, stop_token, can_write_predicate{*this});
+                --m_write_waiters;
+            }
+
+            return !stop_token.stop_requested() && !m_writer_completed && !full();
+        }
+
         template<typename... Args>
         bool emplace(const std::stop_token stop_token, const block_strategy strategy, Args&&... args)
         requires std::constructible_from<T, Args...>
@@ -86,32 +120,22 @@ namespace xtd
             notifier notify_reader(m_not_empty);
             std::unique_lock lock(m_mutex);
 
-            if (stop_token.stop_requested()) {
-                return false;
-            }
-
-            if (strategy == block_strategy::WAIT && !m_writer_completed && full())
+            if (strategy == block_strategy::WAIT)
             {
-                ++m_write_waiters;
-                m_not_full.wait(lock, stop_token, [this] {
-                    return m_writer_completed || !full();
-                });
-                --m_write_waiters;
-
-                if (stop_token.stop_requested()) {
+                if (!internal_wait_to_write(lock, stop_token)) {
+                    return false;
+                }
+            }
+            else {
+                if (m_writer_completed || full()) {
                     return false;
                 }
             }
 
-            if (m_writer_completed || full()) {
-                return false;
-            }
-
+            m_queue.emplace(std::forward<Args>(args)...);
             if (m_read_waiters > 0) {
                 notify_reader.arm();
             }
-            
-            m_queue.emplace(std::forward<Args>(args)...);
             return true;
         }
 
@@ -133,16 +157,10 @@ namespace xtd
 
         std::expected<void, channel_read_errors> internal_wait_to_read(std::unique_lock<std::mutex>& lock, const std::stop_token stop_token)
         {
-            if (stop_token.stop_requested()) {
-                return std::unexpected<channel_read_errors>(channel_read_errors::REQUEST_CANCELLED);
-            }
-
-            if (!m_writer_completed && m_queue.empty())
+            if (!stop_token.stop_requested() && !m_writer_completed && m_queue.empty())
             {
                 ++m_read_waiters;
-                m_not_empty.wait(lock, stop_token, [this] {
-                    return m_writer_completed || !m_queue.empty();
-                });
+                m_not_empty.wait(lock, stop_token, can_read_predicate{*this});
                 --m_read_waiters;
             }
 
@@ -176,12 +194,14 @@ namespace xtd
                 }
             }
 
+            
+            std::expected<T, channel_read_errors> result(std::in_place, std::move(m_queue.front()));
+            m_queue.pop();
+
             if (m_write_waiters > 0) {
                 notify_writer.arm();
             }
 
-            std::expected<T, channel_read_errors> result(std::in_place, std::move(m_queue.front()));
-            m_queue.pop();
             return result;
         }
 
