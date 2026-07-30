@@ -5,6 +5,7 @@
 #include <thread>
 
 #include "channel/channel.h"
+#include "channel/channel_impl.h"
 
 using namespace std::chrono_literals;
 
@@ -53,9 +54,9 @@ namespace reader_tests {
 
         CHECK(reader.size() == 0);
 
-        auto value = reader.try_read();
+        const auto value = reader.try_read();
 
-        CHECK_FALSE(value.has_value());
+        CHECK(value.error() == xtd::channel_read_errors::CHANNEL_EMPTY);
         CHECK(reader.size() == 0);
     }
 
@@ -74,30 +75,30 @@ namespace reader_tests {
         CHECK(reader.size() == 3);
 
         {
-            auto value = reader.try_read();
+            const auto value = reader.try_read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(*value == 10);
             CHECK(reader.size() == 2);
         }
 
         {
-            auto value = reader.try_read();
+            const auto value = reader.try_read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(*value == 20);
             CHECK(reader.size() == 1);
         }
 
         {
-            auto value = reader.try_read();
+            const auto value = reader.try_read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(*value == 30);
             CHECK(reader.size() == 0);
         }
 
-        CHECK_FALSE(reader.try_read().has_value());
+        CHECK(reader.try_read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
     }
 
     TEMPLATE_TEST_CASE_METHOD(ReaderTests, "read returns a queued value", "[channel][reader]",
@@ -112,7 +113,7 @@ namespace reader_tests {
 
         auto value = reader.read();
 
-        REQUIRE(value.has_value());
+        REQUIRE(value);
         CHECK(*value == 42);
         CHECK(reader.size() == 0);
     }
@@ -131,14 +132,14 @@ namespace reader_tests {
         {
             auto value = reader.try_read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(value->m_value == 42);
         }
 
         {
             auto value = reader.read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(value->m_value == 43);
         }
 
@@ -192,14 +193,14 @@ namespace reader_tests {
         {
             auto value = reader.try_read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(*value == 10);
         }
 
         {
             auto value = reader.read();
 
-            REQUIRE(value.has_value());
+            REQUIRE(value);
             CHECK(*value == 20);
         }
 
@@ -222,9 +223,9 @@ namespace reader_tests {
         REQUIRE(queued.has_value());
         CHECK(*queued == 42);
 
-        CHECK_FALSE(reader.read().has_value());
-        CHECK_FALSE(reader.try_read().has_value());
-        CHECK_FALSE(reader.read().has_value());
+        CHECK(reader.read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
+        CHECK(reader.try_read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
+        CHECK(reader.read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
         CHECK(reader.size() == 0);
     }
 
@@ -238,8 +239,8 @@ namespace reader_tests {
 
         writer.complete();
 
-        CHECK_FALSE(reader.read().has_value());
-        CHECK_FALSE(reader.try_read().has_value());
+        CHECK(reader.read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
+        CHECK(reader.try_read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
         CHECK(reader.size() == 0);
     }
 
@@ -252,7 +253,7 @@ namespace reader_tests {
         auto& reader = channel.reader();
 
         std::latch started{1};
-        std::promise<std::optional<int>> result_promise;
+        std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
         auto result = result_promise.get_future();
 
         std::jthread read_thread(
@@ -294,7 +295,7 @@ namespace reader_tests {
         auto& reader = channel.reader();
 
         std::latch started{1};
-        std::promise<std::optional<int>> result_promise;
+        std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
         auto result = result_promise.get_future();
 
         std::jthread read_thread(
@@ -355,7 +356,7 @@ namespace reader_tests {
         auto& reader = channel.reader();
 
         std::latch started{1};
-        std::promise<std::optional<int>> result_promise;
+        std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
         auto result = result_promise.get_future();
 
         std::jthread read_thread(

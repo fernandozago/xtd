@@ -21,15 +21,21 @@ namespace xtd
     public:
 
         [[nodiscard]]
-        std::optional<T> try_read()
+        std::expected<T, channel_read_errors> try_read()
         {
             return m_channel.read({}, block_strategy::TRY);
         }
 
         [[nodiscard]]
-        std::optional<T> read(std::stop_token stopToken = {})
+        std::expected<T, channel_read_errors> read(std::stop_token stopToken = {})
         {
             return m_channel.read(stopToken, block_strategy::WAIT);
+        }
+
+        [[nodiscard]]
+        bool wait_to_read(std::stop_token stopToken = {})
+        {
+            return m_channel.wait_to_read(stopToken);
         }
 
         [[nodiscard]]

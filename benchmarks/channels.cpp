@@ -23,7 +23,7 @@ private:
     void consume()
     {
         m_latch.count_down();
-        while (m_reader.read()) {
+        while (const auto value = m_reader.read()) {
             ++m_received_messages;
         }
     }
@@ -34,16 +34,8 @@ public:
         , m_latch(latch)
         , m_thread(&consumer::consume, this)
     {
+    }
         
-    }
-
-    ~consumer()
-    {
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
-    }
-
     std::size_t get_received_messages()
     {
         if (m_thread.joinable()) {

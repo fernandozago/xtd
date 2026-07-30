@@ -1,11 +1,11 @@
 #ifndef CHANNEL_CHANNEL_H
 #define CHANNEL_CHANNEL_H
 
+#include <expected>
 #include <condition_variable>
 #include <cstddef>
 #include <queue>
 #include <mutex>
-#include <optional>
 #include <utility>
 #include <stop_token>
 
@@ -18,6 +18,11 @@ namespace xtd
     
     template<typename T>
     class channel_reader;
+    
+    enum class channel_read_errors {
+        REQUEST_CANCELLED = 1,
+        CHANNEL_EMPTY = 2,
+    };
 
     template<typename T>
     class channel
@@ -29,24 +34,25 @@ namespace xtd
         struct notifier
         {
             std::condition_variable_any& m_cv;
-            bool should_notify = false;
+            bool m_should_notify = false;
 
-            explicit notifier(std::condition_variable_any& cv) noexcept
+            explicit notifier(std::condition_variable_any& cv, bool should_notify = false) noexcept
                 : m_cv(cv)
+                , m_should_notify(should_notify)
             {
             }
 
             notifier(const notifier&) = delete;
             notifier& operator=(const notifier&) = delete;
 
-            void set_waiters(std::size_t waiters_count) noexcept
+            void arm() noexcept
             {
-                should_notify = waiters_count != 0;
+                m_should_notify = true;
             }
 
             ~notifier()
             {
-                if (should_notify) {
+                if (m_should_notify) {
                     m_cv.notify_one();
                 }
             }
@@ -87,14 +93,12 @@ namespace xtd
             if (strategy == block_strategy::WAIT && !m_writer_completed && full())
             {
                 ++m_write_waiters;
-
-                const bool ready = m_not_full.wait(lock, stop_token, [this] {
+                m_not_full.wait(lock, stop_token, [this] {
                     return m_writer_completed || !full();
                 });
-
                 --m_write_waiters;
 
-                if (!ready) {
+                if (stop_token.stop_requested()) {
                     return false;
                 }
             }
@@ -103,8 +107,11 @@ namespace xtd
                 return false;
             }
 
+            if (m_read_waiters > 0) {
+                notify_reader.arm();
+            }
+            
             m_queue.emplace(std::forward<Args>(args)...);
-            notify_reader.set_waiters(m_read_waiters);
             return true;
         }
 
@@ -118,38 +125,63 @@ namespace xtd
             m_not_full.notify_all();
         }
 
+        bool wait_to_read(const std::stop_token stop_token)
+        {
+            std::unique_lock lock(m_mutex);
+            return internal_wait_to_read(lock, stop_token);
+        }
+
+        std::expected<void, channel_read_errors> internal_wait_to_read(std::unique_lock<std::mutex>& lock, const std::stop_token stop_token)
+        {
+            if (stop_token.stop_requested()) {
+                return std::unexpected<channel_read_errors>(channel_read_errors::REQUEST_CANCELLED);
+            }
+
+            if (!m_writer_completed && m_queue.empty())
+            {
+                ++m_read_waiters;
+                m_not_empty.wait(lock, stop_token, [this] {
+                    return m_writer_completed || !m_queue.empty();
+                });
+                --m_read_waiters;
+            }
+
+            if (stop_token.stop_requested()) {
+                return std::unexpected<channel_read_errors>(channel_read_errors::REQUEST_CANCELLED);
+            }
+
+            if (m_queue.empty()) {
+                return std::unexpected<channel_read_errors>(channel_read_errors::CHANNEL_EMPTY);
+            }
+
+            return {};
+        }
+
         [[nodiscard]]
-        std::optional<T> read(const std::stop_token stop_token, const block_strategy strategy)
+        std::expected<T, channel_read_errors> read(const std::stop_token stop_token, const block_strategy strategy)
         {
             notifier notify_writer(m_not_full);
             std::unique_lock lock(m_mutex);
 
-            if (stop_token.stop_requested()) {
-                return std::nullopt;
-            }
-
-            if (strategy == block_strategy::WAIT && !m_writer_completed && m_queue.empty())
+            if (strategy == block_strategy::WAIT)
             {
-                ++m_read_waiters;
-
-                const bool ready = m_not_empty.wait(lock, stop_token, [this] {
-                    return m_writer_completed || !m_queue.empty();
-                });
-
-                --m_read_waiters;
-
-                if (!ready) {
-                    return std::nullopt;
+                const auto result = internal_wait_to_read(lock, stop_token);
+                if (!result) {
+                    return std::unexpected<channel_read_errors>(result.error());
+                }
+            }
+            else {
+                if (m_queue.empty()) {
+                    return std::unexpected<channel_read_errors>(channel_read_errors::CHANNEL_EMPTY);
                 }
             }
 
-            if (m_queue.empty()) {
-                return std::nullopt;
+            if (m_write_waiters > 0) {
+                notify_writer.arm();
             }
 
-            std::optional<T> result(std::in_place, std::move(m_queue.front()));
+            std::expected<T, channel_read_errors> result(std::in_place, std::move(m_queue.front()));
             m_queue.pop();
-            notify_writer.set_waiters(m_write_waiters);
             return result;
         }
 
@@ -191,4 +223,4 @@ namespace xtd
     };
 }
 
-#endif // CHANNEL_CHANNEL_H
+#endif // CHANNEL_CHANNEL_IMPL_H
