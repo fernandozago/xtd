@@ -56,13 +56,15 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
     xtd::channel_reader<int>& reader = channel.reader();
     std::vector<std::unique_ptr<consumer>> consumers;
 
-        if (!single_thread) {
-        std::latch latch(2);
-        consumers.emplace_back(std::make_unique<consumer>(reader, latch));
-        consumers.emplace_back(std::make_unique<consumer>(reader, latch));
-
-        // wait for the consumers to be ready before starting the benchmark
-        latch.wait();
+    if (!single_thread) {
+        constexpr std::size_t consumer_count = 2;
+        std::latch started{consumer_count};
+        for (std::size_t i = 0; i < consumer_count; ++i) {
+            consumers.emplace_back(
+                std::make_unique<consumer>(reader, started)
+            );
+        }
+        started.wait();
     }
 
     std::uint64_t total_messages_enqueued = 0;
@@ -70,15 +72,13 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
     bench.run(name,
             [&reader, &writer, single_thread, &total_messages_enqueued, &total_messages_received]
             {
-                if (const auto write = writer.push(0); write) {
-                    ++total_messages_enqueued;
-                }
+                ankerl::nanobench::doNotOptimizeAway(writer.push(0));
+                ++total_messages_enqueued;
 
                 if (single_thread)
                 {
-                    if (const auto read = reader.read(); read) {
-                        ++total_messages_received;
-                    }
+                    ankerl::nanobench::doNotOptimizeAway(reader.read());
+                    ++total_messages_received;
                 }
             });
 
