@@ -53,33 +53,6 @@ namespace xtd
             }
         };
 
-        struct notifier
-        {
-            std::condition_variable_any& m_cv;
-            bool m_should_notify = false;
-
-            explicit notifier(std::condition_variable_any& cv, bool should_notify = false) noexcept
-                : m_cv(cv)
-                , m_should_notify(should_notify)
-            {
-            }
-
-            notifier(const notifier&) = delete;
-            notifier& operator=(const notifier&) = delete;
-
-            void arm() noexcept
-            {
-                m_should_notify = true;
-            }
-
-            ~notifier()
-            {
-                if (m_should_notify) {
-                    m_cv.notify_one();
-                }
-            }
-        };
-
         std::queue<T> m_queue{};
 
         std::condition_variable_any m_not_full{};
@@ -117,7 +90,6 @@ namespace xtd
         bool emplace(const std::stop_token stop_token, const block_strategy strategy, Args&&... args)
         requires std::constructible_from<T, Args...>
         {
-            notifier notify_reader(m_not_empty);
             std::unique_lock lock(m_mutex);
 
             if (strategy == block_strategy::WAIT)
@@ -133,8 +105,9 @@ namespace xtd
             }
 
             m_queue.emplace(std::forward<Args>(args)...);
+            lock.unlock();
             if (m_read_waiters > 0) {
-                notify_reader.arm();
+                m_not_empty.notify_one();
             }
             return true;
         }
@@ -178,7 +151,6 @@ namespace xtd
         [[nodiscard]]
         std::expected<T, channel_read_errors> read(const std::stop_token stop_token, const block_strategy strategy)
         {
-            notifier notify_writer(m_not_full);
             std::unique_lock lock(m_mutex);
 
             if (strategy == block_strategy::WAIT)
@@ -197,9 +169,10 @@ namespace xtd
             
             std::expected<T, channel_read_errors> result(std::in_place, std::move(m_queue.front()));
             m_queue.pop();
-
+            
+            lock.unlock();
             if (m_write_waiters > 0) {
-                notify_writer.arm();
+                m_not_full.notify_one();
             }
 
             return result;
