@@ -105,10 +105,13 @@ namespace xtd
             }
 
             m_queue.emplace(std::forward<Args>(args)...);
+
+            const bool notify = m_read_waiters != 0;
             lock.unlock();
-            if (m_read_waiters > 0) {
+            if (notify) {
                 m_not_empty.notify_one();
             }
+
             return true;
         }
 
@@ -169,9 +172,10 @@ namespace xtd
             
             std::expected<T, channel_read_errors> result(std::in_place, std::move(m_queue.front()));
             m_queue.pop();
-            
+
+            const bool notify = m_write_waiters != 0;
             lock.unlock();
-            if (m_write_waiters > 0) {
+            if (notify) {
                 m_not_full.notify_one();
             }
 
