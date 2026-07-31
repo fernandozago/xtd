@@ -220,4 +220,4 @@ namespace xtd
     };
 }
 
-#endif // CHANNEL_CHANNEL_IMPL_H
+#endif // CHANNEL_CHANNEL_H
