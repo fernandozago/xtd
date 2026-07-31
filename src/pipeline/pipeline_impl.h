@@ -33,6 +33,32 @@ private:
     friend class pipe_reader_impl<>;
     friend class pipe_writer_impl<>;
 
+    struct data_available_predicate
+    {
+        const pipeline& m_pipeline;
+        const std::size_t& m_min_size;
+
+        [[nodiscard]]
+        bool operator()() const noexcept
+        {
+            return m_pipeline.m_writer_completed
+                || (
+                    m_pipeline.m_buffered_size > m_pipeline.m_examined_size 
+                    && (m_min_size == 0 || m_pipeline.m_buffered_size >= m_min_size)
+                ); 
+        }
+    };
+    struct space_available_predicate
+    {
+        const pipeline& m_pipeline;
+
+        [[nodiscard]]
+        bool operator()() const noexcept
+        {
+            return !m_pipeline.m_writer_paused;
+        }
+    };
+
     struct notifier
     {
         std::condition_variable_any& m_cv;
@@ -128,7 +154,7 @@ private:
         static std::atomic<std::uint64_t> unique_read_id_generator{1};
 
         std::unique_lock lock{m_mutex};
-        
+               
         runtime_assert(!m_has_pending_read, 
             "advance(consumed, examined) must be called before the next read");
             
@@ -137,13 +163,7 @@ private:
 
         if (!m_writer_completed) {
             m_reader_waiting = true;
-            m_data_available.wait(lock, stop_token, [this, &min_size] { 
-                return m_writer_completed
-                || (
-                    m_buffered_size > m_examined_size 
-                    && (min_size == 0 || m_buffered_size >= min_size)
-                ); 
-            });
+            m_data_available.wait(lock, stop_token, data_available_predicate{*this, min_size});
             m_reader_waiting = false;
         }
        
@@ -242,9 +262,7 @@ private:
             runtime_assert(!is_any_completed(), 
                 "pipeline is completed");
 
-            m_space_available.wait(lock, stop_token, [&paused = m_writer_paused] {
-                return !paused;
-            });
+            m_space_available.wait(lock, stop_token, space_available_predicate{*this});
 
             runtime_assert(!is_any_completed(),
                 "pipeline is completed");
