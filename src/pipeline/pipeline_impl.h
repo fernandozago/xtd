@@ -74,13 +74,13 @@ namespace xtd
         bool m_reader_completed = false;
         bool m_writer_paused = false;
 
-        inline static void runtime_assert(bool condition, const char* message) {
+        static void runtime_assert(bool condition, const char* message) {
             if (!condition) {
                 throw std::runtime_error(message);
             }
         }
 
-        inline static void argument_assert(bool condition, const char* message) {
+        static void argument_assert(bool condition, const char* message) {
             if (!condition) {
                 throw std::invalid_argument(message);
             }
@@ -96,15 +96,13 @@ namespace xtd
         //
         // The configured pause and resume thresholds must therefore be large enough to
         // accommodate the largest expected message.
-        [[nodiscard]]
-        inline bool should_resume_writer() const noexcept
+        bool should_resume_writer() const noexcept
         {
             return m_buffered_size <= m_resume_writer_threshold
                 && m_buffered_size < m_pause_writer_threshold;
         }
 
-        [[nodiscard]]
-        inline bool is_any_completed() const noexcept
+        bool is_any_completed() const noexcept
         {
             return m_writer_completed || m_reader_completed;
         }
@@ -192,7 +190,7 @@ namespace xtd
             }
         }
 
-        inline data_segment& get_segment() {
+        data_segment& get_segment() {
             if (m_segments.empty() || m_segments.back().full()) {
                 m_segments.emplace_back(m_data_segment_pool);
             }

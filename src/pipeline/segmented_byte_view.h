@@ -37,14 +37,14 @@ private:
     std::size_t m_begin_offset;
     std::size_t m_size;
 
-    inline static void argument_assert(bool condition, const char* message)
+    static void argument_assert(bool condition, const char* message)
     {
         if (!condition) {
             throw std::invalid_argument(message);
         }
     }
 
-    inline static void range_assert(bool condition, const char* message)
+    static void range_assert(bool condition, const char* message)
     {
         if (!condition) {
             throw std::out_of_range(message);
@@ -69,7 +69,7 @@ private:
             "slice end is out of range");
     }
 
-    inline void validate_relative_slice(const std::size_t begin_offset, const std::size_t size) const
+    void validate_relative_slice(const std::size_t begin_offset, const std::size_t size) const
     {
         range_assert(begin_offset <= m_size,
             "slice begin offset is out of range");

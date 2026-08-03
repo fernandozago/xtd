@@ -31,7 +31,6 @@ namespace xtd
         {
             const channel& m_channel;
 
-            [[nodiscard]]
             bool operator()() const noexcept
             {
                 return m_channel.m_writer_completed || !m_channel.m_queue.empty();
@@ -42,7 +41,6 @@ namespace xtd
         {
             const channel& m_channel;
 
-            [[nodiscard]]
             bool operator()() const noexcept
             {
                 return m_channel.m_writer_completed || !m_channel.full();
@@ -62,8 +60,7 @@ namespace xtd
 
         bool m_writer_completed = false;
 
-        [[nodiscard]]
-        inline bool full() const noexcept
+        bool full() const noexcept
         {
             return m_capacity > 0 && m_queue.size() >= m_capacity;
         }
@@ -145,7 +142,6 @@ namespace xtd
             return {};
         }
 
-        [[nodiscard]]
         std::expected<T, channel_read_errors> read(const std::stop_token stop_token, const block_strategy strategy)
         {
             std::unique_lock lock(m_mutex);
