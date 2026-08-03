@@ -8,7 +8,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "pipeline/pipe_writer.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
 
@@ -65,7 +64,6 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
         
         while (xtd::position pos = seq.position_of(delimiter))
         {
-            (void)pos;
             ++index;
             seq.slice_in_place(pos + 1, seq.end());
         }
@@ -115,7 +113,6 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
         
         while (xtd::position pos = ros.position_of('\n'))
         {
-            (void)pos;
             ++received_lines;
             ros.slice_in_place(pos + 1, ros.end());
         }
@@ -470,8 +467,8 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         const xtd::read_result result = reader.read();
         xtd::segmented_byte_view seq = result.buffer();
 
-        xtd::position pos{};
-        CHECK((pos = seq.position_of('\n')));
+        xtd::position pos = seq.position_of('\n');
+        CHECK(pos);
 
         const xtd::position consumed = pos + 1;
         reader.advance(consumed, seq.end());
@@ -484,8 +481,8 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
         const xtd::read_result result = reader.read();
         xtd::segmented_byte_view seq = result.buffer();
 
-        xtd::position pos{};
-        CHECK((pos = seq.position_of('\n')));
+        xtd::position pos = seq.position_of('\n');
+        CHECK(pos);
 
         reader.advance(pos + 1, seq.end());
     }
@@ -1535,8 +1532,8 @@ TEST_CASE("deserialize windows strings with CRLF line endings") {
 
         while (xtd::position pos = seq.position_of('\n'))
         {
-            auto line_bytes = seq.slice(pos);
-            if (auto carriege_return_pos = line_bytes.position_of('\r')) {
+            xtd::segmented_byte_view line_bytes = seq.slice(pos);
+            if (xtd::position carriege_return_pos = line_bytes.position_of('\r')) {
                 line_bytes = line_bytes.slice(0, carriege_return_pos);
             }
             lines.push_back(line_bytes.to_string());
