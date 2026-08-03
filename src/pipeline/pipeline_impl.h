@@ -3,7 +3,6 @@
 
 #include <condition_variable>
 #include <cstddef>
-#include <cstdint>
 #include <deque>
 #include <mutex>
 #include <span>
@@ -70,7 +69,6 @@ private:
     const std::size_t m_pause_writer_threshold;
     const std::size_t m_resume_writer_threshold;
 
-    std::uint64_t m_pending_read_sequence_id = 0;
     std::size_t m_buffered_size = 0;
     std::size_t m_examined_size = 0;
     std::size_t m_pending_read_size = 0;
