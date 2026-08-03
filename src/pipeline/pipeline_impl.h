@@ -227,31 +227,32 @@ private:
             return 0;
         }
 
+        std::size_t copied = 0;
         std::span<const std::byte> remaining{data, length};
 
         while (!remaining.empty()) {
             bool notify_data_available = false;
+
             std::unique_lock lock{m_mutex};
-
-            runtime_assert(!is_any_completed(), 
-                "pipeline is completed");
-
+            runtime_assert(!is_any_completed(), "pipeline is completed");
             m_space_available.wait(lock, stop_token, space_available_predicate{*this});
 
-            runtime_assert(!is_any_completed(),
-                "pipeline is completed");
-
-            if (stop_token.stop_requested()) {
-                return length - remaining.size();
-            }
-
+            
             while (!remaining.empty() && !m_writer_paused) {
+                runtime_assert(!is_any_completed(),
+                    "pipeline is completed");
+    
+                if (stop_token.stop_requested()) {
+                    return copied;
+                }
+
                 const std::size_t available_capacity = m_pause_writer_threshold - m_buffered_size;
                 const std::size_t requested_size = std::min(remaining.size(), available_capacity);
                 const std::size_t copy_size = get_segment().copy_from(remaining.data(), requested_size);
 
                 remaining = remaining.subspan(copy_size);
                 m_buffered_size += copy_size;
+                copied += copy_size;
 
                 if (m_reader_waiting) {
                     notify_data_available = true;
@@ -268,7 +269,8 @@ private:
             }
         }
 
-        return length;
+        runtime_assert(copied == length, "copied bytes must equal requested length");
+        return copied;
     }
 
     void complete_writer() {
