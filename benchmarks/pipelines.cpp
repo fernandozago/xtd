@@ -32,7 +32,7 @@ static double bytes_to_mb(const std::size_t bytes)
 struct consumer {
 private:
     std::size_t total_bytes_read = 0;
-    xtd::pipe_reader& m_reader;
+    xtd::pipe_reader m_reader;
     std::latch& m_latch;
     std::jthread reader_task;
 
@@ -53,8 +53,8 @@ private:
     }
 
 public:
-    consumer(xtd::pipe_reader& reader, std::latch& latch) 
-        : m_reader(reader) 
+    consumer(xtd::pipeline& pipeline, std::latch& latch) 
+        : m_reader(pipeline)
         , m_latch(latch)
         , reader_task(&consumer::consume, this)
     {
@@ -93,8 +93,7 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
 
     // Start consumer thread before starting the benchmark
     std::latch latch(1);
-    xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
-    consumer consumer(reader, latch);
+    consumer consumer(pipeline, latch);
     latch.wait();
 
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);

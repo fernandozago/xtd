@@ -56,6 +56,7 @@ public:
         : m_unique_id(unique_id)
         , m_server(server)
         , m_name(std::to_string(unique_id))
+        , m_pipeline()
         , m_writer(m_pipeline)
         , m_thread([this](std::stop_token stopToken) {
             process_incoming_data(stopToken);
