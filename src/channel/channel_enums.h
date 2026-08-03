@@ -1,5 +1,5 @@
-#ifndef CHANNEL_BLOCK_STRATEGY_H
-#define CHANNEL_BLOCK_STRATEGY_H
+#ifndef CHANNEL_ENUMS_H
+#define CHANNEL_ENUMS_H
 
 #include <cstdint>
 
@@ -11,10 +11,10 @@ namespace xtd
         TRY
     };
 
-    enum class channel_read_errors {
+    enum class channel_read_errors : std::uint8_t {
         REQUEST_CANCELLED = 1,
         CHANNEL_EMPTY = 2,
     };
 } // namespace xtd
 
-#endif // CHANNEL_BLOCK_STRATEGY_H
+#endif // CHANNEL_ENUMS_H
