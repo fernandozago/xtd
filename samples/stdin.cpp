@@ -3,6 +3,7 @@
 #include <print>
 #include <string>
 
+#include "pipeline/pipe_reader.h"
 #include "pipeline/pipeline.h"
 #include "pipeline/position.h"
 
@@ -23,10 +24,12 @@ int main()
     xtd::pipeline pipeline({.buffer_size = 64});
 
     // Secondary thread reads stdin and produces pipeline data.
-    auto stdin_reader_task = start_stdin_reader(pipeline.writer());
+    xtd::pipe_writer writer(pipeline);
+    auto stdin_reader_task = start_stdin_reader(writer);
 
+    xtd::pipe_reader reader(pipeline);
     // Main thread consumes pipeline data.
-    consume(pipeline.reader());
+    consume(reader);
 
     // Propagate any exception raised by the stdin thread.
     stdin_reader_task.get();

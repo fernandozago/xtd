@@ -1,4 +1,5 @@
 //#define ANKERL_NANOBENCH_LOG_ENABLED
+#include "pipeline/pipe_reader.h"
 #define ANKERL_NANOBENCH_IMPLEMENT
 #include "third_party/nanobench.h"
 
@@ -92,10 +93,11 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
 
     // Start consumer thread before starting the benchmark
     std::latch latch(1);
-    consumer consumer(pipeline.reader(), latch);
+    xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
+    consumer consumer(reader, latch);
     latch.wait();
 
-    xtd::pipe_writer& writer = pipeline.writer();
+    xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     std::size_t total_bytes_written = 0;
     std::string bench_name = std::format("{} KB writes", write_chunk_size / (double)bytes_per_kb);
     bench

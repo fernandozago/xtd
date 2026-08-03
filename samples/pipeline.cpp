@@ -3,6 +3,7 @@
 #include <print>
 
 #include "pipeline/pipeline.h"
+#include "pipeline/pipe_reader.h"
 #include "pipeline/position.h"
 
 
@@ -17,11 +18,11 @@ int main()
 		.pause_writer_threshold = 1024 * 256
 	}};
 
-	auto& reader = pipeline.reader();
+	xtd::pipe_reader reader(pipeline);
 	
 	// Start a producer thread that writes messages to the pipeline
 	std::thread producer([&]() {
-		xtd::pipe_writer& writer = pipeline.writer();
+		xtd::pipe_writer writer(pipeline);
 		const int randSize = 1024 * 2;
 		writer.write("First message\n");
 		for (int i = 1; i <= 100'000; ++i)

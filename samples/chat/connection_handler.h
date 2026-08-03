@@ -46,7 +46,7 @@ private:
     std::string m_name;
 
     xtd::pipeline m_pipeline;
-    xtd::pipe_writer& m_writer;
+    xtd::pipe_writer m_writer;
 
     std::atomic_bool m_closed = false;
     std::jthread m_thread;
@@ -56,7 +56,7 @@ public:
         : m_unique_id(unique_id)
         , m_server(server)
         , m_name(std::to_string(unique_id))
-        , m_writer(m_pipeline.writer())
+        , m_writer(m_pipeline)
         , m_thread([this](std::stop_token stopToken) {
             process_incoming_data(stopToken);
         })
@@ -98,7 +98,7 @@ public:
 private:
     void process_incoming_data(std::stop_token stop_token) noexcept
     {
-        xtd::pipe_reader& reader = m_pipeline.reader();
+        xtd::pipe_reader reader(m_pipeline);
 
         try
         {
