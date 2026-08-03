@@ -41,7 +41,7 @@ nc 192.168.1.100 9090
   ```text
   /name <your_name>
   ```
-- Disconnect form the server
+- Disconnect from the server
   ```text
   /quit
   ```

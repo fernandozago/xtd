@@ -69,12 +69,13 @@ The cancellation overloads use the standard C++20 stop-token types:
 xtd::channel<T>
 xtd::channel_writer<T>
 xtd::channel_reader<T>
+xtd::channel_read_errors
 ```
 
 `channel_writer<T>` and `channel_reader<T>` are concrete, non-polymorphic
 endpoint types. They are owned by their `channel<T>` and returned by reference.
 
-All three public objects are non-copyable and non-movable.
+`channel<T>` is non-copyable and non-movable.
 
 ## 3) `xtd::channel<T>`
 
@@ -174,10 +175,7 @@ namespace xtd {
 template<class T>
 class channel_writer {
 public:
-    channel_writer(const channel_writer&) = delete;
-    channel_writer& operator=(const channel_writer&) = delete;
-    channel_writer(channel_writer&&) = delete;
-    channel_writer& operator=(channel_writer&&) = delete;
+    explicit channel_writer(channel<T>& channel) noexcept;
 
     [[nodiscard]]
     bool push(const T& value);
@@ -345,7 +343,7 @@ After completion:
 - blocked writers wake and return `false`;
 - blocked readers wake;
 - buffered values remain readable;
-- readers receive `std::nullopt` after the queue is drained.
+- readers receive `channel_read_errors::CHANNEL_EMPTY` after the queue is drained.
 
 Calling `complete()` multiple times is supported.
 
@@ -361,16 +359,16 @@ namespace xtd {
 template<class T>
 class channel_reader {
 public:
-    channel_reader(const channel_reader&) = delete;
-    channel_reader& operator=(const channel_reader&) = delete;
-    channel_reader(channel_reader&&) = delete;
-    channel_reader& operator=(channel_reader&&) = delete;
+    explicit channel_reader(channel<T>& channel) noexcept;
 
     [[nodiscard]]
-    std::optional<T> try_read();
+    std::expected<T, channel_read_errors> try_read();
 
     [[nodiscard]]
-    std::optional<T> read(std::stop_token stop_token = {});
+    std::expected<T, channel_read_errors> read(std::stop_token stop_token = {});
+
+    [[nodiscard]]
+    bool wait_to_read(std::stop_token stop_token = {});
 
     [[nodiscard]]
     std::size_t size() const;
@@ -382,32 +380,34 @@ public:
 ### `try_read`
 
 ```cpp
-std::optional<T> try_read();
+std::expected<T, channel_read_errors> try_read();
 ```
 
 Attempts to remove and return the next value without waiting.
 
 Returns:
 
-- an engaged `std::optional<T>` when a value is available;
-- `std::nullopt` when the queue is empty.
+- an engaged `std::expected<T, channel_read_errors>` when a value is available;
+- `std::unexpected(channel_read_errors::CHANNEL_EMPTY)` when the queue is empty.
 
-An empty result does not distinguish an empty active channel from an empty
-completed channel.
+A `CHANNEL_EMPTY` result does not distinguish an empty active channel from an
+empty completed channel.
 
 ### `read`
 
 ```cpp
-std::optional<T> read(std::stop_token stop_token = {});
+std::expected<T, channel_read_errors> read(std::stop_token stop_token = {});
 ```
 
 Waits while the queue is empty and the writer is not completed.
 
 Returns:
 
-- an engaged `std::optional<T>` containing the next value;
-- `std::nullopt` when the channel is completed and drained;
-- `std::nullopt` when cancellation is observed before a value is removed.
+- an engaged `std::expected<T, channel_read_errors>` containing the next value;
+- `std::unexpected(channel_read_errors::CHANNEL_EMPTY)` when the channel is
+    completed and drained;
+- `std::unexpected(channel_read_errors::REQUEST_CANCELLED)` when cancellation
+    is observed before a value is removed.
 
 A default-constructed token has no stop state, so this remains valid:
 
@@ -416,23 +416,42 @@ auto value = reader.read();
 ```
 
 The implementation checks cancellation before removing a queued value. An
-already-stopped token therefore returns `std::nullopt` immediately, even if the
-operation would otherwise not need to block.
+already-stopped token therefore returns
+`channel_read_errors::REQUEST_CANCELLED` immediately, even if the operation
+would otherwise not need to block.
 
-Because cancellation and completed-and-drained both return `std::nullopt`,
-callers that need to distinguish them should also inspect their token:
+`read(stop_token)` distinguishes cancellation and completed-and-drained through
+the `channel_read_errors` value:
 
 ```cpp
 auto value = reader.read(stop_token);
 
 if (!value) {
-    if (stop_token.stop_requested()) {
+    if (value.error() == xtd::channel_read_errors::REQUEST_CANCELLED) {
         // Cancelled.
-    } else {
+    } else if (value.error() == xtd::channel_read_errors::CHANNEL_EMPTY) {
         // Writer completed and queue drained.
     }
 }
 ```
+
+### `wait_to_read`
+
+```cpp
+bool wait_to_read(std::stop_token stop_token = {});
+```
+
+Waits until one of these conditions becomes true:
+
+- a value is available for reading;
+- the writer is completed;
+- cancellation is requested.
+
+Returns:
+
+- `true` when at least one value is available;
+- `false` when cancelled;
+- `false` when completed without queued values.
 
 ### `size`
 
@@ -456,13 +475,15 @@ Supported cancellable operations:
 | Writer | `push(stop_token, value)` |
 | Writer | `emplace(stop_token, args...)` |
 | Reader | `read(stop_token)` |
+| Reader | `wait_to_read(stop_token)` |
 
 Non-blocking operations do not accept a token.
 
 A stop request:
 
 - wakes a blocked channel wait;
-- causes the operation to return `false` or `std::nullopt`;
+- causes the operation to return `false` or
+    `channel_read_errors::REQUEST_CANCELLED`;
 - does not complete the channel;
 - does not discard buffered messages;
 - does not affect future operations using another token.
@@ -491,10 +512,20 @@ If the call is cancelled, `2` is not inserted.
 std::stop_source source;
 auto& reader = channel.reader();
 
-const std::optional<int> value = reader.read(source.get_token());
+const auto value = reader.read(source.get_token());
 ```
 
 If cancelled before removal, the queue remains unchanged.
+
+To check cancellation explicitly:
+
+```cpp
+const auto value = reader.read(source.get_token());
+
+if (!value && value.error() == xtd::channel_read_errors::REQUEST_CANCELLED) {
+    // Cancelled.
+}
+```
 
 ### `std::jthread`
 
@@ -540,7 +571,8 @@ Completion is cooperative:
 1. a writer calls `complete()`;
 2. later writes return `false`;
 3. buffered values remain available;
-4. after the queue is drained, `read()` returns `std::nullopt`.
+4. after the queue is drained, `read()` returns
+    `channel_read_errors::CHANNEL_EMPTY`.
 
 ```cpp
 while (auto value = reader.read()) {
@@ -556,7 +588,7 @@ while (auto value = reader.read()) {
 | Future writes | Allowed | Rejected |
 | Buffered values | Preserved | Preserved |
 | Blocked operations wake | Yes | Yes |
-| Consumer can distinguish from return alone | No | No |
+| Consumer can distinguish using `read(stop_token)` error code | Yes | Yes |
 
 ### Blocking behavior
 
@@ -565,6 +597,7 @@ while (auto value = reader.read()) {
 | `push`, `emplace` | No capacity wait | Waits while full | Yes |
 | `try_push`, `try_emplace` | Never waits for capacity | Never waits; fails when full | No |
 | `read` | Waits while empty | Waits while empty | Yes |
+| `wait_to_read` | Waits while empty | Waits while empty | Yes |
 | `try_read` | Never waits for data | Never waits for data | No |
 
 Operations may briefly wait to acquire the internal mutex even when described
@@ -586,7 +619,7 @@ No fairness guarantee is provided.
 - `push(lvalue)` copies;
 - `push(rvalue)` moves when insertion succeeds;
 - `emplace(args...)` constructs directly in the queue;
-- `read()` and `try_read()` move the front value into an optional result.
+- `read()` and `try_read()` move the front value into an expected result.
 
 For move-only or expensive values:
 

@@ -197,6 +197,8 @@ namespace xtd {
 
 class pipe_writer {
 public:
+    explicit pipe_writer(pipeline& state) noexcept;
+
     std::size_t write(
         const std::byte* data,
         std::size_t length,
@@ -215,8 +217,6 @@ public:
 
 }
 ```
-
-The endpoint is non-copyable and non-movable.
 
 ### `write(const std::byte*, std::size_t, std::stop_token)`
 
@@ -318,6 +318,8 @@ namespace xtd {
 
 class pipe_reader {
 public:
+    explicit pipe_reader(pipeline& state) noexcept;
+
     [[nodiscard]]
     read_result read(std::stop_token stop_token = {}) const;
 
@@ -338,8 +340,6 @@ public:
 
 }
 ```
-
-The endpoint is non-copyable and non-movable.
 
 ### `read`
 
@@ -407,15 +407,15 @@ Requirements:
 
 - one successful read is pending;
 - `consumed <= examined`;
-- both positions belong to the most recent read sequence;
 - `examined` does not exceed the pending read length;
 - the reader is not completed.
 
 Errors:
 
 - protocol-state violations throw `std::runtime_error`;
-- foreign, stale, reversed, or out-of-range positions throw
-  `std::invalid_argument`.
+- invalid argument combinations (for example `consumed > examined`) throw
+    `std::invalid_argument`;
+- out-of-range offsets throw `std::invalid_argument`.
 
 Consuming data reduces `buffered_size` and can resume a paused writer.
 
@@ -656,6 +656,9 @@ const std::byte& operator[](const xtd::from_end& from_end) const;
 
 position position_of(std::byte value) const;
 position position_of(char value) const;
+position position_of_any(std::span<const std::byte> values) const;
+position position_of_any(std::string_view values) const;
+position position_of_any(std::span<const char> values) const;
 
 std::size_t copy_to(
     std::span<std::byte> destination) const noexcept;
@@ -690,13 +693,11 @@ The returned span is subject to the same lifetime as the read snapshot.
 
 ### Slicing
 
-Position-based slices use absolute offsets and require matching sequence
-identity.
+Position-based slices use absolute offsets.
 
 Offset-based slices are relative to the current view's beginning.
 
-Invalid ranges throw `std::out_of_range`. Foreign positions throw
-`std::invalid_argument`.
+Invalid ranges throw `std::out_of_range`.
 
 `slice_in_place(...)` uses the same overload families as `slice(...)`, but
 mutates the current view instead of returning a new one.
@@ -712,7 +713,7 @@ working.slice_in_place(working.begin(), newline);
 
 `operator[](std::size_t)` indexes from the current view begin (`0`-based).
 
-`operator[](position)` validates sequence identity and range.
+`operator[](position)` validates range.
 
 `operator[](xtd::from_end{n})` indexes from the view end (`1`-based), where:
 
@@ -756,25 +757,32 @@ Copies the complete logical view into a `std::string`, preserving segment order.
 
 ## 10) `xtd::position`
 
-A lightweight cursor associated with one segmented sequence identity.
+A lightweight offset cursor.
 
 Typical operations include:
 
 ```cpp
 explicit operator bool() const noexcept;
 
+std::size_t sequence_offset() const noexcept;
+
 position operator+(std::size_t offset) const noexcept;
+position operator-(std::size_t offset) const noexcept;
 position& operator+=(std::size_t offset) noexcept;
+position& operator-=(std::size_t offset) noexcept;
 
 position& operator++() noexcept;
+position& operator--() noexcept;
 position operator++(int) noexcept;
+position operator--(int) noexcept;
 
 bool operator==(const position&) const noexcept;
+bool operator!=(const position&) const noexcept;
+bool operator>(const position&) const noexcept;
 ```
 
 Position arithmetic:
 
-- is forward-only;
 - is `noexcept`;
 - does not clamp;
 - does not validate against a sequence end;
@@ -783,7 +791,7 @@ Position arithmetic:
 A position can therefore be constructed past the end. Later slicing or
 advancing rejects it.
 
-Positions from older reads are stale after `advance(...)`.
+Positions from older reads should be treated as stale after `advance(...)`.
 
 ## 11) `xtd::pipe_utils`
 
@@ -939,8 +947,8 @@ No fairness guarantee is provided.
 
 A writer notifies a waiting reader after appending data.
 
-Reader advancement notifies waiting readers and can notify one paused writer
-when consumption crosses the resume threshold.
+Reader advancement can notify one paused writer when consumption crosses the
+resume threshold.
 
 Completion notifies all relevant waits.
 
@@ -1157,10 +1165,10 @@ std::jthread producer([&](std::stop_token stop_token) {
 ## See also
 
 - [`tests/pipelines.cpp`](../../tests/pipelines.cpp)
-- [`tests/tests/pipeline_tests.h`](../../tests/tests/pipeline_tests.h)
-- [`tests/tests/segmented_byte_view_tests.h`](../../tests/tests/segmented_byte_view_tests.h)
-- [`tests/tests/fixed_buffer_pool_tests.h`](../../tests/tests/fixed_buffer_pool_tests.h)
-- [`tests/tests/position_tests.h`](../../tests/tests/position_tests.h)
+- [`tests/pipelines/pipeline_tests.h`](../../tests/pipelines/pipeline_tests.h)
+- [`tests/pipelines/segmented_byte_view_tests.h`](../../tests/pipelines/segmented_byte_view_tests.h)
+- [`tests/pipelines/fixed_buffer_pool_tests.h`](../../tests/pipelines/fixed_buffer_pool_tests.h)
+- [`tests/pipelines/position_tests.h`](../../tests/pipelines/position_tests.h)
 - [`pipeline.h`](pipeline.h)
 - [`pipe_writer.h`](pipe_writer.h)
 - [`pipe_reader.h`](pipe_reader.h)
