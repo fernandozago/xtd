@@ -2,7 +2,6 @@
 #define PIPELINE_POSITION_H
 
 #include <cstddef>
-#include <cstdint>
 
 namespace xtd
 {
@@ -18,21 +17,18 @@ private:
     friend class pipeline;
     
     std::size_t m_offset = 0;
-    std::uint64_t m_sequence_id = 0;
     bool m_valid = false;
 
 public:
 
-    explicit position(const std::size_t offset, const std::uint64_t sequence_id) noexcept
+    explicit position(const std::size_t offset) noexcept
         : m_offset(offset)
-        , m_sequence_id(sequence_id)
         , m_valid(true)
     {
     }
 
     explicit position() 
         : m_offset(0)
-        , m_sequence_id(0)
         , m_valid(false)
     {
 
@@ -59,7 +55,7 @@ public:
             return position{};
         }
 
-        return position{m_offset + offset, m_sequence_id};
+        return position{m_offset + offset};
     }
 
     [[nodiscard]]
@@ -69,7 +65,7 @@ public:
             return position{};
         }
 
-        return position{m_offset - offset, m_sequence_id};
+        return position{m_offset - offset};
     }
 
     // Advances this position by the given offset.
@@ -130,8 +126,7 @@ public:
             return m_valid == rhs.m_valid;
         }
 
-        return m_sequence_id == rhs.m_sequence_id 
-            && m_offset == rhs.m_offset;
+        return m_offset == rhs.m_offset;
     }
 
     [[nodiscard]]
@@ -143,9 +138,7 @@ public:
     [[nodiscard]]
     bool operator>(const position& rhs) const noexcept
     {
-        return m_valid && rhs.m_valid 
-               && m_sequence_id == rhs.m_sequence_id 
-               && m_offset > rhs.m_offset;
+        return m_valid && rhs.m_valid && m_offset > rhs.m_offset;
     }
 };
 

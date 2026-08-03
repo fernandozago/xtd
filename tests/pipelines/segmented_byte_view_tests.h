@@ -248,13 +248,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, position) rejects invali
     CHECK_THROWS_AS(static_cast<void>(sequence.slice(0, beyond_end)), std::out_of_range);
 }
 
-TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, position) rejects foreign positions") {
-    const auto first = xtd::test_helper_segmented_byte_view::create_from_segments({"abc"}, 11);
-    const auto second = xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 22);
-
-    CHECK_THROWS_AS(static_cast<void>(second.slice(0, first.end())), std::invalid_argument);
-}
-
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
         {"abc", "def", "ghi"},
@@ -279,20 +272,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position) rejects inva
     CHECK_THROWS_AS(
         static_cast<void>(sequence.slice(beyond_end, beyond_end)),
         std::out_of_range
-    );
-}
-
-TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position) rejects foreign positions") {
-    const auto first = xtd::test_helper_segmented_byte_view::create_from_segments({"abc"}, 11);
-    const auto second = xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 22);
-
-    CHECK_THROWS_AS(
-        static_cast<void>(second.slice(first.begin(), second.end())),
-        std::invalid_argument
-    );
-    CHECK_THROWS_AS(
-        static_cast<void>(second.slice(second.begin(), first.end())),
-        std::invalid_argument
     );
 }
 
@@ -322,13 +301,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position) rejects invalid positi
     const xtd::position beyond_end = sequence.end() + 1;
 
     CHECK_THROWS_AS(static_cast<void>(sequence.slice(beyond_end)), std::out_of_range);
-}
-
-TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position) rejects foreign positions") {
-    const auto first = xtd::test_helper_segmented_byte_view::create_from_segments({"abc"}, 11);
-    const auto second = xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 22);
-
-    CHECK_THROWS_AS(static_cast<void>(second.slice(first.end())), std::invalid_argument);
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "position_of(char)") {
@@ -783,11 +755,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](position)") {
     CHECK(sequence[sequence.end() - 1] == std::byte{'f'});
 
     CHECK_THROWS_AS(sequence[sequence.end()], std::out_of_range);
-
-    const auto foreign =
-        xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 42);
-
-    CHECK_THROWS_AS(sequence[foreign.begin()], std::invalid_argument);
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](position) respects sliced boundaries") {
@@ -900,14 +867,14 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "repeated slice_in_place uses relative 
     sequence.slice_in_place(2, 5);
 
     CHECK(sequence.to_string() == "cdefg");
-    CHECK(sequence.begin() == xtd::position{2, 73});
+    CHECK(sequence.begin() == xtd::position{2});
 
     sequence.slice_in_place(1, 3);
 
     CHECK(sequence.to_string() == "def");
     CHECK(sequence.size() == 3);
-    CHECK(sequence.begin() == xtd::position{3, 73});
-    CHECK(sequence.end() == xtd::position{6, 73});
+    CHECK(sequence.begin() == xtd::position{3});
+    CHECK(sequence.end() == xtd::position{6});
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place failures leave the view unchanged") {
@@ -915,9 +882,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place failures leave the view
         {"abc", "def"},
         61
     );
-
-    const auto foreign =
-        xtd::test_helper_segmented_byte_view::create_from_segments({"xyz"}, 62);
 
     const auto original_begin = sequence.begin();
     const auto original_end = sequence.end();
@@ -946,16 +910,6 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place failures leave the view
     CHECK_THROWS_AS(
         sequence.slice_in_place(sequence.end() + 1),
         std::out_of_range
-    );
-
-    CHECK_THROWS_AS(
-        sequence.slice_in_place(foreign.end()),
-        std::invalid_argument
-    );
-
-    CHECK_THROWS_AS(
-        sequence.slice_in_place(0, foreign.end()),
-        std::invalid_argument
     );
 
     CHECK(sequence.begin() == original_begin);

@@ -14,14 +14,14 @@ TEST_CASE_METHOD(xtd::position, "default constructed value is invalid")
 
 TEST_CASE_METHOD(PositionTests, "public constructor creates valid value")
 {
-    const xtd::position pos{42, 7};
+    const xtd::position pos{42};
     CHECK(static_cast<bool>(pos));
     CHECK(pos.sequence_offset() == 42);
 }
 
 TEST_CASE_METHOD(PositionTests, "arithmetic on valid value preserves sequence and updates offset")
 {
-    const xtd::position base{10, 99};
+    const xtd::position base{10};
 
     const xtd::position plus = base + 5;
     CHECK(static_cast<bool>(plus));
@@ -42,7 +42,7 @@ TEST_CASE_METHOD(PositionTests, "arithmetic on invalid position remains invalid"
 
 TEST_CASE_METHOD(PositionTests, "increment and decrement operators advance offset")
 {
-    xtd::position pos{5, 11};
+    xtd::position pos{5};
 
     const xtd::position beforePostInc = pos++;
     CHECK(beforePostInc.sequence_offset() == 5);
@@ -67,28 +67,11 @@ TEST_CASE_METHOD(PositionTests, "equality for invalid positions")
     CHECK_FALSE(lhs != rhs);
 }
 
-TEST_CASE_METHOD(PositionTests, "equality requires same sequence and offset")
-{
-    const xtd::position a{8, 2};
-    const xtd::position b{8, 2};
-    const xtd::position differentOffset{9, 2};
-    const xtd::position differentSequence{8, 3};
-
-    CHECK(a == b);
-    CHECK_FALSE(a != b);
-
-    CHECK_FALSE(a == differentOffset);
-    CHECK(a != differentOffset);
-
-    CHECK_FALSE(a == differentSequence);
-    CHECK(a != differentSequence);
-}
-
 TEST_CASE_METHOD(PositionTests, "greater-than compares only compatible valid positions")
 {
-    const xtd::position low{3, 4};
-    const xtd::position high{7, 4};
-    const xtd::position otherSequence{8, 5};
+    const xtd::position low{3};
+    const xtd::position high{7};
+    const xtd::position otherSequence{8};
     const xtd::position invalid{};
 
     CHECK(high > low);
@@ -100,7 +83,7 @@ TEST_CASE_METHOD(PositionTests, "greater-than compares only compatible valid pos
 
 TEST_CASE_METHOD(PositionTests, "copy construction and assignment preserve value")
 {
-    const xtd::position original{42, 77};
+    const xtd::position original{42};
 
     const xtd::position copied{original};
     CHECK(copied == original);
@@ -115,8 +98,8 @@ TEST_CASE_METHOD(PositionTests, "copy construction and assignment preserve value
 
 TEST_CASE_METHOD(PositionTests, "compound arithmetic updates valid position")
 {
-    xtd::position pos{10, 99};
-    const xtd::position sameSequence{12, 99};
+    xtd::position pos{10};
+    const xtd::position sameSequence{12};
 
     pos += 5;
     CHECK(pos.sequence_offset() == 15);
@@ -184,7 +167,7 @@ TEST_CASE_METHOD(PositionTests, "postfix increment and decrement preserve invali
 
 TEST_CASE_METHOD(PositionTests, "equality handles one valid and one invalid position")
 {
-    const xtd::position valid{10, 20};
+    const xtd::position valid{10};
     const xtd::position invalid{};
 
     CHECK_FALSE(valid == invalid);

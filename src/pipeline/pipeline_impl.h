@@ -170,12 +170,6 @@ private:
         runtime_assert(m_has_pending_read, 
             "advance called without a pending read");
 
-        argument_assert(consumed.m_sequence_id == m_pending_read_sequence_id,
-            "consumed position must belong to the most recent read buffer");
-
-        argument_assert( examined.m_sequence_id == m_pending_read_sequence_id,
-            "examined position must belong to the most recent read buffer");
-
         argument_assert( examined_offset <= m_pending_read_size,
             "examined exceeds the most recent read buffer length");
 

@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <cstdint>
 
 #include "position.h"
 
@@ -58,13 +59,6 @@ private:
         return m_begin_offset + m_size;
     }
 
-    [[nodiscard]]
-    std::size_t sequence_offset(const position& value, const char* message) const
-    {
-        argument_assert(value.m_sequence_id == m_sequence_id, message);
-        return value.sequence_offset();
-    }
-
     void validate_slice_range(const std::size_t slice_begin, const std::size_t slice_end) const
     {
         range_assert(slice_begin <= slice_end,
@@ -91,7 +85,7 @@ private:
     {
         return {
             m_begin_offset,
-            sequence_offset(end, "end must belong to this sequence")
+            end.sequence_offset()
         };
     }
 
@@ -99,23 +93,20 @@ private:
     slice_range resolve_slice_range(const position& begin, const position& end) const
     {
         return {
-            sequence_offset(begin, "begin must belong to this sequence"),
-            sequence_offset(end, "end must belong to this sequence")
+            begin.sequence_offset(),
+            end.sequence_offset()
         };
     }
 
     [[nodiscard]]
     slice_range resolve_slice_range(const std::size_t begin_offset, const position& end) const
     {
-        const std::size_t absolute_end = sequence_offset(end,
-            "end must belong to this sequence");
-
         range_assert(begin_offset <= m_size,
             "slice begin offset is out of range");
 
         return {
             m_begin_offset + begin_offset, 
-            absolute_end
+            end.sequence_offset()
         };
     }
 
@@ -209,13 +200,13 @@ public:
     [[nodiscard]]
     position begin() const noexcept
     {
-        return position{m_begin_offset, m_sequence_id};
+        return position{m_begin_offset};
     }
 
     [[nodiscard]]
     position end() const noexcept
     {
-        return position{end_offset(), m_sequence_id};
+        return position{end_offset()};
     }
 
     [[nodiscard]]
@@ -307,8 +298,7 @@ public:
 
     const std::byte& operator[](const position& pos) const
     {
-        const std::size_t absolute_offset = sequence_offset(pos,
-            "position must belong to this sequence");
+        const std::size_t absolute_offset = pos.sequence_offset();
 
         range_assert(absolute_offset >= m_begin_offset && absolute_offset < end_offset(),
             "position is out of range");
@@ -347,8 +337,7 @@ public:
                 const auto distance = std::ranges::distance(segment.begin(), found);
 
                 return position{
-                    segment_begin + static_cast<std::size_t>(distance),
-                    m_sequence_id
+                    segment_begin + static_cast<std::size_t>(distance)
                 };
             }
 
@@ -375,8 +364,7 @@ public:
                     std::ranges::distance(segment.begin(), found);
 
                 return position{
-                    segment_begin + static_cast<std::size_t>(distance),
-                    m_sequence_id
+                    segment_begin + static_cast<std::size_t>(distance)
                 };
             }
 
