@@ -8,7 +8,6 @@
 #include "commands_parser.h"
 #include "pipeline/pipeline.h"
 #include "../utils/utils.h"
-#include "pipeline/segmented_byte_view.h"
 
 /*
 Accepts any server type implementing:

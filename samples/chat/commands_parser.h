@@ -1,4 +1,3 @@
-#include "pipeline/segmented_byte_view.h"
 #include <algorithm>
 #include <cassert>
 #include <cctype>
@@ -6,6 +5,7 @@
 #include <tuple>
 #include <array>
 #include <string>
+#include "pipeline/segmented_byte_view.h"
 
 #define COMMAND_LIST(X) \
     X(name)             \

@@ -10,7 +10,6 @@
 #include <utility>
 #include <execution>
 
-#include "../utils/utils.h"
 #include "connection_handler.h"
 
 const constinit int EPOLL_MAX_LISTEN_BACKLOG = 16;
