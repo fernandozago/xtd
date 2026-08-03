@@ -334,7 +334,7 @@ public:
     position position_of(const std::byte value) const
     {
         const unsigned char target = std::to_integer<unsigned char>(value);
-        
+       
         std::size_t offset = m_begin_offset;
         for (const auto segment : m_segments) {
             const void* found = std::memchr(segment.data(), target, segment.size());
@@ -359,21 +359,26 @@ public:
     [[nodiscard]]
     position position_of_any(const std::span<const std::byte> values) const
     {
-        if (!values.empty()) {
-            std::size_t segment_begin = m_begin_offset;
+        if (values.empty()) {
+            return position{};
+        }
 
-            for (const std::span<const std::byte> segment : m_segments) {
-                const auto found = std::ranges::find_first_of(segment, values);
+        if (values.size() == 1) {
+            return position_of(values[0]);
+        }
 
-                if (found != segment.end()) {
-                    const auto distance = static_cast<std::size_t>(
-                        std::ranges::distance(segment.begin(), found));
+        std::size_t segment_begin = m_begin_offset;
+        for (const std::span<const std::byte> segment : m_segments) {
+            const auto found = std::ranges::find_first_of(segment, values);
 
-                    return position{segment_begin + distance};
-                }
+            if (found != segment.end()) {
+                const auto distance = static_cast<std::size_t>(
+                    std::ranges::distance(segment.begin(), found));
 
-                segment_begin += segment.size();
+                return position{segment_begin + distance};
             }
+
+            segment_begin += segment.size();
         }
 
         return position{};
@@ -400,33 +405,61 @@ public:
             return position{};
         }
 
-        if (is_single_segment()) {
-            const std::span<const std::byte> segment = m_segments.front();
-            const auto found = std::ranges::search(segment, sequence);
+        if (sequence.size() == 1) {
+            return position_of(sequence.front());
+        }
 
-            if (found.empty()) {
-                return position{};
+        std::size_t segment_offset = 0;
+        auto joined_segments = m_segments | std::views::join;
+        for (const std::span<const std::byte> segment : m_segments) {
+            /*
+            * Fast check: sequence contained entirely in this segment.
+            */
+            if (const auto found = std::ranges::search(segment, sequence); !found.empty()) {
+                return position{
+                    m_begin_offset +
+                    segment_offset +
+                    static_cast<std::size_t>(
+                        found.begin() - segment.begin()
+                    )
+                };
             }
 
-            return position{
-                m_begin_offset +
-                static_cast<std::size_t>(found.begin() - segment.begin())
-            };
+            // no more work to do if this is the last segment
+            if (is_single_segment()) {
+                break;
+            }
+
+            /*
+            * Slow check around the boundary:
+            *
+            *   last sequence.size() - 1 bytes of this segment
+            *   +
+            *   first sequence.size() - 1 following bytes
+            */
+            const std::size_t tail_size = std::min(segment.size(), sequence.size() - 1);
+
+            if (tail_size != 0) {
+                const std::size_t boundary_offset = segment_offset + segment.size() - tail_size;
+                const std::size_t boundary_size = tail_size + sequence.size() - 1;
+
+                auto boundary = joined_segments
+                    | std::views::drop(boundary_offset)
+                    | std::views::take(boundary_size);
+
+                if (const auto boundary_found = std::ranges::search(boundary, sequence); !boundary_found.empty()) {
+                    const auto offset_in_boundary = static_cast<std::size_t>(
+                        std::ranges::distance(boundary.begin(),boundary_found.begin())
+                    );
+
+                    return position{m_begin_offset + boundary_offset + offset_in_boundary};
+                }
+            }
+
+            segment_offset += segment.size();
         }
 
-        const auto joined_segments = m_segments | std::views::join;
-        const auto found = std::ranges::search(joined_segments, sequence);
-
-        if (found.empty()) {
-            return position{};
-        }
-
-        return position{
-            m_begin_offset +
-            static_cast<std::size_t>(
-                std::ranges::distance(joined_segments.begin(), found.begin())
-            )
-        };
+        return position{};
     }
 
     [[nodiscard]]
