@@ -197,16 +197,15 @@ namespace xtd
             return m_segments.back();
         }
 
-        std::size_t write(const std::byte* data, const std::size_t length, std::stop_token stop_token)
+        std::size_t write(std::span<const std::byte> data, std::stop_token stop_token)
         {
-            if (length == 0 || data == nullptr) {
+            if (data.size() == 0) {
                 return 0;
             }
 
             std::size_t copied = 0;
-            std::span<const std::byte> remaining{data, length};
 
-            while (!remaining.empty()) {
+            while (!data.empty()) {
                 bool notify_data_available = false;
 
                 std::unique_lock lock{m_mutex};
@@ -214,7 +213,7 @@ namespace xtd
                 m_space_available.wait(lock, stop_token, space_available_predicate{*this});
 
                 
-                while (!remaining.empty() && !m_writer_paused) {
+                while (!data.empty() && !m_writer_paused) {
                     runtime_assert(!is_any_completed(),
                         "pipeline is completed");
         
@@ -223,10 +222,10 @@ namespace xtd
                     }
 
                     const std::size_t available_capacity = m_pause_writer_threshold - m_buffered_size;
-                    const std::size_t requested_size = std::min(remaining.size(), available_capacity);
-                    const std::size_t copy_size = get_segment().copy_from(remaining.data(), requested_size);
+                    const std::size_t requested_size = std::min(data.size(), available_capacity);
+                    const std::size_t copy_size = get_segment().copy_from(data.data(), requested_size);
 
-                    remaining = remaining.subspan(copy_size);
+                    data = data.subspan(copy_size);
                     m_buffered_size += copy_size;
                     copied += copy_size;
 
@@ -245,7 +244,6 @@ namespace xtd
                 }
             }
 
-            runtime_assert(copied == length, "copied bytes must equal requested length");
             return copied;
         }
 
@@ -262,7 +260,7 @@ namespace xtd
 
         void complete_reader() {
             {
-                std::scoped_lock lock(m_mutex);
+                std::scoped_lock lock{m_mutex};
                 m_reader_completed = true;
                 m_has_pending_read = false;
                 m_writer_paused = false;

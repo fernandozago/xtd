@@ -19,7 +19,10 @@ namespace xtd {
         // length: Number of bytes to write.
         std::size_t write(const std::byte* data, std::size_t length, std::stop_token stop_token = {})
         {
-            return m_state.write(data, length, stop_token);
+            if (data == nullptr && length > 0) {
+                return 0;
+            }
+            return m_state.write(std::span<const std::byte>{data, length}, stop_token);
         }
 
         // Writes a trivially copyable value into the pipeline.
@@ -32,11 +35,11 @@ namespace xtd {
             if constexpr (std::convertible_to<const T&, std::string_view>)
             {
                 std::string_view strView = static_cast<std::string_view>(value);
-                return m_state.write(reinterpret_cast<const std::byte*>(strView.data()), strView.size(), stop_token);
+                return m_state.write(std::as_bytes(std::span{strView.data(), strView.size()}), stop_token);
             }
             else
             {
-                return m_state.write(reinterpret_cast<const std::byte*>(&value), sizeof(T), stop_token);
+                return m_state.write(std::as_bytes(std::span<const T>{&value, 1}), stop_token);
             }
         }
 

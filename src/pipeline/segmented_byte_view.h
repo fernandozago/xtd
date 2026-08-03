@@ -18,7 +18,9 @@ class test_helper_segmented_byte_view;
 
 struct from_end {
     std::size_t m_offset;
-    explicit from_end(std::size_t offset) : m_offset(offset) {}
+    constexpr from_end(std::size_t offset) 
+        : m_offset(offset) 
+    {}
 };
 
 struct segmented_byte_view
