@@ -207,6 +207,12 @@ public:
     }
 
     [[nodiscard]]
+    bool is_single_segment() const noexcept
+    {
+        return m_segments.size() == 1;
+    }
+
+    [[nodiscard]]
     std::size_t size() const noexcept
     {
         return m_size;
@@ -395,9 +401,13 @@ public:
         if (target_size == 0) {
             return 0;
         }
-
+        
+        if (is_single_segment()) {
+            std::ranges::copy(m_segments.front().first(target_size), destination.begin());
+            return target_size;
+        }
+        
         std::size_t copied = 0;
-
         for (const std::span<const std::byte> segment : m_segments) {
             if (copied == target_size) {
                 break;
@@ -447,16 +457,35 @@ public:
         return copy_to(destination_bytes) == destination_bytes.size();
     }
 
+    const std::span<const std::byte>& as_span() const noexcept
+    {
+        argument_assert(is_single_segment(),
+            "buffer must be a single segment to convert to span");
+        return m_segments.front();
+    }
+
+    [[nodiscard]]
+
+    std::string_view as_string_view() const
+    {
+        argument_assert(is_single_segment(),
+            "buffer must be a single segment to convert to string_view");
+        return std::string_view{reinterpret_cast<const char*>(m_segments.front().data()), m_size};
+    }
+
     [[nodiscard]]
     std::string to_string() const
     {
         if (empty()) {
             return {};
         }
-
+        
+        if (is_single_segment()) {
+            return std::string{reinterpret_cast<const char*>(m_segments.front().data()), m_size};
+        }
+        
         std::string result;
         result.reserve(m_size);
-
         for (const std::span<const std::byte>& segment : m_segments) {
             result.append(
                 reinterpret_cast<const char*>(segment.data()),

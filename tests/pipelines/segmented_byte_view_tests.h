@@ -529,6 +529,69 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(T&) copies a trivially copyabl
     CHECK(destination.value.integer == source.value.integer);
 }
 
+TEST_CASE_METHOD(SegmentedByteViewTests, "is_single_segment reflects current slice layout") {
+    const xtd::segmented_byte_view single = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abcdef"}
+    );
+
+    const xtd::segmented_byte_view multiple = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abc", "def"}
+    );
+
+    CHECK(single.is_single_segment());
+    CHECK_FALSE(multiple.is_single_segment());
+
+    const xtd::segmented_byte_view sliced_single = multiple.slice(1, 2);
+    CHECK(sliced_single.is_single_segment());
+
+    const xtd::segmented_byte_view sliced_multiple = multiple.slice(1, 4);
+    CHECK_FALSE(sliced_multiple.is_single_segment());
+}
+
+TEST_CASE_METHOD(SegmentedByteViewTests, "as_span returns contiguous bytes for a single segment") {
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"abcdef"}
+    );
+
+    REQUIRE(sequence.is_single_segment());
+
+    const std::span<const std::byte>& span = sequence.as_span();
+
+    REQUIRE(span.size() == sequence.size());
+
+    constexpr std::string_view expected = "abcdef";
+    CHECK(std::equal(
+        span.begin(),
+        span.end(),
+        expected.begin(),
+        [](const std::byte left, const char right) {
+            return left == static_cast<std::byte>(right);
+        }
+    ));
+}
+
+TEST_CASE_METHOD(SegmentedByteViewTests, "as_string_view returns text for a single segment") {
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"hello world"}
+    );
+
+    REQUIRE(sequence.is_single_segment());
+    CHECK(sequence.as_string_view() == "hello world");
+}
+
+TEST_CASE_METHOD(SegmentedByteViewTests, "as_string_view rejects multi-segment views") {
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"hello", " world"}
+    );
+
+    REQUIRE_FALSE(sequence.is_single_segment());
+
+    CHECK_THROWS_AS(
+        static_cast<void>(sequence.as_string_view()),
+        std::invalid_argument
+    );
+}
+
 TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](from_end)") {
     const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
         {"hel", "lo"}

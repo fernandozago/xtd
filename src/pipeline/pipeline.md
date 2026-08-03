@@ -618,6 +618,7 @@ position end() const noexcept;
 std::size_t size() const noexcept;
 bool empty() const noexcept;
 std::size_t segment_count() const noexcept;
+bool is_single_segment() const noexcept;
 
 std::span<const std::span<const std::byte>>
 segments() const noexcept;
@@ -676,6 +677,9 @@ template<class T>
         !std::is_convertible_v<T, std::string_view>)
 bool copy_to(T& destination) const;
 
+const std::span<const std::byte>& as_span() const noexcept;
+std::string_view as_string_view() const;
+
 std::string to_string() const;
 ```
 
@@ -690,6 +694,9 @@ struct from_end {
 `segments()` exposes the currently sliced spans. It does not copy payload bytes.
 
 The returned span is subject to the same lifetime as the read snapshot.
+
+`is_single_segment()` reports whether the current view can be exposed as one
+contiguous span/string-view without flattening.
 
 ### Slicing
 
@@ -750,6 +757,16 @@ const std::size_t copied = sequence.copy_to(destination);
 
 Typed copying requires enough source bytes for `sizeof(T)` and copies exactly
 the destination object size.
+
+### Contiguous reads
+
+`as_span()` and `as_string_view()` expose zero-copy contiguous reads when the
+view is a single segment.
+
+Both throw `std::invalid_argument` if the current view spans multiple segments.
+
+Use `is_single_segment()` to check first when a parser requires contiguous
+storage.
 
 ### `to_string`
 
