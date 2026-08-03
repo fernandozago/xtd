@@ -88,9 +88,6 @@ namespace xtd
             m_channel.complete_writer();
         }
     };
-
-    template<typename T>
-    channel_writer(channel<T>&) -> channel_writer<T>;
 }
 
 #endif // CHANNEL_WRITER_H
