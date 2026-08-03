@@ -14,8 +14,6 @@ namespace xtd
 struct read_result
 {
 private:
-    friend class pipeline;
-
     const segmented_byte_view m_buffer;
     const bool m_completed;
     const bool m_cancelled;
@@ -42,6 +40,7 @@ private:
         };
     }
 
+public:
     explicit read_result(const std::deque<data_segment>& segments, bool completed, std::size_t& pending_read_size)
         : m_buffer(make_readable_view(segments))
         , m_completed(completed)
@@ -57,9 +56,7 @@ private:
     {
     }
 
-public:
     read_result() = delete;
-
     read_result(const read_result&) = delete;
     read_result& operator=(const read_result&) = delete;
     read_result(read_result&&) noexcept = default;

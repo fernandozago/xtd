@@ -345,25 +345,23 @@ public:
     [[nodiscard]]
     position position_of_any(const std::span<const std::byte> values) const
     {
-        if (values.empty()) {
-            return position{};
-        }
+        if (!values.empty()) {
+            std::size_t segment_begin = m_begin_offset;
 
-        std::size_t segment_begin = m_begin_offset;
+            for (const std::span<const std::byte> segment : m_segments) {
+                const auto found = std::ranges::find_first_of(segment, values);
 
-        for (const std::span<const std::byte> segment : m_segments) {
-            const auto found = std::ranges::find_first_of(segment, values);
+                if (found != segment.end()) {
+                    const auto distance =
+                        std::ranges::distance(segment.begin(), found);
 
-            if (found != segment.end()) {
-                const auto distance =
-                    std::ranges::distance(segment.begin(), found);
+                    return position{
+                        segment_begin + static_cast<std::size_t>(distance)
+                    };
+                }
 
-                return position{
-                    segment_begin + static_cast<std::size_t>(distance)
-                };
+                segment_begin += segment.size();
             }
-
-            segment_begin += segment.size();
         }
 
         return position{};

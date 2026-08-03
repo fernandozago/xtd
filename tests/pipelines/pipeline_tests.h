@@ -185,6 +185,37 @@ TEST_CASE("pipeline: message spans multiple buffers when exceeding buffer_size")
 }
 
 
+TEST_CASE("read_result: skips empty data segments when building readable view")
+{
+    xtd::fixed_buffer_pool pool(8, 0);
+    std::deque<xtd::data_segment> segments;
+    segments.emplace_back(pool); // remains empty
+    segments.emplace_back(pool);
+    segments.emplace_back(pool); // remains empty
+
+    const std::array<std::byte, 4> payload = {
+        std::byte{'t'},
+        std::byte{'e'},
+        std::byte{'s'},
+        std::byte{'t'},
+    };
+
+    REQUIRE(segments[1].copy_from(payload.data(), payload.size()) == payload.size());
+    REQUIRE(segments[0].readable_size() == 0);
+    REQUIRE(segments[2].readable_size() == 0);
+
+    std::size_t pending_read_size = 0;
+    const xtd::read_result result(segments, false, pending_read_size);
+    const xtd::segmented_byte_view buffer = result.buffer();
+
+    CHECK(result.completed() == false);
+    CHECK(buffer.size() == payload.size());
+    CHECK(buffer.to_string() == "test");
+    CHECK(buffer.segment_count() == 1);
+    CHECK(pending_read_size == payload.size());
+}
+
+
 TEST_CASE("pipe_options: rejects invalid thresholds")
 {
     CHECK_THROWS_AS(

@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <memory>
 #include <vector>
+#include <cassert>
 
 namespace xtd
 {
@@ -20,7 +21,7 @@ private:
         fixed_buffer_pool* pool = nullptr;
         void operator()(std::byte* buffer) const noexcept
         {
-            if (buffer == nullptr) return;
+            assert(pool != nullptr);
             pool->release(buffer);
         }
     };
@@ -59,10 +60,12 @@ public:
     [[nodiscard]]
     fixed_buffer_ptr get_buffer()
     {
-        return fixed_buffer_ptr{m_available_buffers.empty()
-                ? std::make_unique_for_overwrite<std::byte[]>(m_buffer_size).release()
-                : get_buffer_from_pool().release(), 
-            unique_ptr_releaser{this}};
+        if (m_available_buffers.empty()) {
+            return fixed_buffer_ptr{std::make_unique_for_overwrite<std::byte[]>(m_buffer_size).release(), unique_ptr_releaser{this}};
+        }
+        else {
+            return fixed_buffer_ptr{get_buffer_from_pool().release(), unique_ptr_releaser{this}};
+        }
     }
 
     [[nodiscard]]
