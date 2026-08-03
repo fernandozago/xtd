@@ -5,7 +5,6 @@
 #include <thread>
 
 #include "channel/channel.h"
-#include "channel/channel_impl.h"
 
 using namespace std::chrono_literals;
 

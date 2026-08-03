@@ -1,95 +1,55 @@
-#ifndef CHANNEL_CHANNEL_WRITER_H
-#define CHANNEL_CHANNEL_WRITER_H
+#ifndef CHANNEL_WRITER_H
+#define CHANNEL_WRITER_H
 
-#include "channel_impl.h"
+#include <stop_token>
 
 namespace xtd
 {
+    template<typename T>
+    class channel;
+    
     template<typename T>
     class channel_writer
     {   
     private:
         friend class channel<T>;
         channel<T>& m_channel;
-
-        explicit channel_writer(channel<T>& channel) noexcept
-            : m_channel(channel)
-        {
-        }
-
+        
     public:
+        explicit channel_writer(channel<T>& channel) noexcept;
 
         [[nodiscard]]
-        bool push(const T& value)
-        requires std::copy_constructible<T>
-        {
-            return m_channel.emplace({}, block_strategy::WAIT, value);
-        }
+        bool push(const T& value);
 
         [[nodiscard]]
-        bool push(std::stop_token stop_token, const T& value)
-        requires std::copy_constructible<T>
-        {
-            return m_channel.emplace(stop_token, block_strategy::WAIT, value);
-        }
+        bool push(std::stop_token stop_token, const T& value);
 
         [[nodiscard]]
-        bool push(T&& value)
-        requires std::move_constructible<T>
-        {
-            return m_channel.emplace({}, block_strategy::WAIT, std::move(value));
-        }
+        bool push(T&& value);
 
         [[nodiscard]]
-        bool push(std::stop_token stop_token, T&& value)
-        requires std::move_constructible<T>
-        {
-            return m_channel.emplace(stop_token, block_strategy::WAIT, std::move(value));
-        }
+        bool push(std::stop_token stop_token, T&& value);
 
         template<typename... Args>
         [[nodiscard]]
-        bool emplace(Args&&... args)
-        requires std::constructible_from<T, Args...>
-        {
-            return m_channel.emplace({}, block_strategy::WAIT, std::forward<Args>(args)...);
-        }
+        bool emplace(Args&&... args);
 
         template<typename... Args>
         [[nodiscard]]
-        bool emplace(std::stop_token stop_token, Args&&... args)
-        requires std::constructible_from<T, Args...>
-        {
-            return m_channel.emplace(stop_token, block_strategy::WAIT, std::forward<Args>(args)...);
-        }
+        bool emplace(std::stop_token stop_token, Args&&... args);
 
         [[nodiscard]]
-        bool try_push(const T& value)
-        requires std::copy_constructible<T>
-        {
-            return m_channel.emplace({}, block_strategy::TRY, value);
-        }
+        bool try_push(const T& value);
 
         [[nodiscard]]
-        bool try_push(T&& value)
-        requires std::move_constructible<T>
-        {
-            return m_channel.emplace({}, block_strategy::TRY, std::move(value));
-        }
+        bool try_push(T&& value);
 
         template<typename... Args>
         [[nodiscard]]
-        bool try_emplace(Args&&... args)
-        requires std::constructible_from<T, Args...>
-        {
-            return m_channel.emplace({}, block_strategy::TRY, std::forward<Args>(args)...);
-        }
+        bool try_emplace(Args&&... args);
 
-        void complete()
-        {
-            m_channel.complete_writer();
-        }
+        void complete();
     };
 }
 
-#endif
+#endif // CHANNEL_WRITER_H

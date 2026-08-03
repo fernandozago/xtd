@@ -1,10 +1,19 @@
-#ifndef CHANNEL_CHANNEL_READER_H
-#define CHANNEL_CHANNEL_READER_H
+#ifndef CHANNEL_READER_H
+#define CHANNEL_READER_H
 
-#include "channel_impl.h"
+#include <expected>
+#include <stop_token>
 
 namespace xtd
 {
+    template<typename T>
+    class channel;
+
+    enum class channel_read_errors {
+        REQUEST_CANCELLED = 1,
+        CHANNEL_EMPTY = 2,
+    };
+
     template<typename T>
     class channel_reader
     {
@@ -12,38 +21,22 @@ namespace xtd
     private:
         friend class channel<T>;
         channel<T>& m_channel;
-
-        explicit channel_reader(channel<T>& channel) noexcept
-            : m_channel(channel)
-        {
-        }
-
-    public:
+        
+        public:
+        explicit channel_reader(channel<T>& channel) noexcept;
 
         [[nodiscard]]
-        std::expected<T, channel_read_errors> try_read()
-        {
-            return m_channel.read({}, block_strategy::TRY);
-        }
+        std::expected<T, channel_read_errors> try_read();
 
         [[nodiscard]]
-        std::expected<T, channel_read_errors> read(std::stop_token stopToken = {})
-        {
-            return m_channel.read(stopToken, block_strategy::WAIT);
-        }
+        std::expected<T, channel_read_errors> read(std::stop_token stopToken = {});
 
         [[nodiscard]]
-        bool wait_to_read(std::stop_token stopToken = {})
-        {
-            return m_channel.wait_to_read(stopToken);
-        }
+        bool wait_to_read(std::stop_token stopToken = {});
 
         [[nodiscard]]
-        std::size_t size() const
-        {
-            return m_channel.size();
-        }
+        std::size_t size() const;
     };
 }
 
-#endif
+#endif // CHANNEL_READER_H
