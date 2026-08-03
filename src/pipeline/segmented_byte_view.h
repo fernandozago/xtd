@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <ranges>
+#include <cstring>
 
 #include "position.h"
 
@@ -331,45 +333,18 @@ public:
     [[nodiscard]]
     position position_of(const std::byte value) const
     {
-        std::size_t segment_begin = m_begin_offset;
-
-        for (const std::span<const std::byte> segment : m_segments) {
-            const auto found = std::ranges::find(segment, value);
-
-            if (found != segment.end()) {
-                const auto distance = std::ranges::distance(segment.begin(), found);
-
+        const unsigned char target = std::to_integer<unsigned char>(value);
+        
+        std::size_t offset = m_begin_offset;
+        for (const auto segment : m_segments) {
+            const void* found = std::memchr(segment.data(), target, segment.size());
+            if (found != nullptr) {
                 return position{
-                    segment_begin + static_cast<std::size_t>(distance)
+                    offset + static_cast<std::size_t>(static_cast<const std::byte*>(found) - segment.data())
                 };
             }
 
-            segment_begin += segment.size();
-        }
-
-        return position{};
-    }
-
-    [[nodiscard]]
-    position position_of_any(const std::span<const std::byte> values) const
-    {
-        if (!values.empty()) {
-            std::size_t segment_begin = m_begin_offset;
-
-            for (const std::span<const std::byte> segment : m_segments) {
-                const auto found = std::ranges::find_first_of(segment, values);
-
-                if (found != segment.end()) {
-                    const auto distance =
-                        std::ranges::distance(segment.begin(), found);
-
-                    return position{
-                        segment_begin + static_cast<std::size_t>(distance)
-                    };
-                }
-
-                segment_begin += segment.size();
-            }
+            offset += segment.size();
         }
 
         return position{};
@@ -382,6 +357,29 @@ public:
     }
 
     [[nodiscard]]
+    position position_of_any(const std::span<const std::byte> values) const
+    {
+        if (!values.empty()) {
+            std::size_t segment_begin = m_begin_offset;
+
+            for (const std::span<const std::byte> segment : m_segments) {
+                const auto found = std::ranges::find_first_of(segment, values);
+
+                if (found != segment.end()) {
+                    const auto distance = static_cast<std::size_t>(
+                        std::ranges::distance(segment.begin(), found));
+
+                    return position{segment_begin + distance};
+                }
+
+                segment_begin += segment.size();
+            }
+        }
+
+        return position{};
+    }
+
+    [[nodiscard]]
     position position_of_any(const std::string_view values) const
     {
         return position_of_any(std::span<const char>(values.data(), values.size()));
@@ -391,6 +389,53 @@ public:
     position position_of_any(const std::span<const char> values) const
     {
         return position_of_any(std::span<const std::byte>(reinterpret_cast<const std::byte*>(values.data()), values.size()));
+    }
+
+    // Use with caution for large sequences or consider copying to a contiguous buffer first. (benchmark it)
+    // This is ok when is_single_segment() is true, but for multiple segments, it will be slow.
+    [[nodiscard]]
+    position position_of_sequence(const std::span<const std::byte> sequence) const
+    {
+        if (sequence.empty()) {
+            return position{};
+        }
+
+        if (is_single_segment()) {
+            const std::span<const std::byte> segment = m_segments.front();
+            const auto found = std::ranges::search(segment, sequence);
+
+            if (found.empty()) {
+                return position{};
+            }
+
+            return position{
+                m_begin_offset +
+                static_cast<std::size_t>(found.begin() - segment.begin())
+            };
+        }
+
+        const auto joined_segments = m_segments | std::views::join;
+        const auto found = std::ranges::search(joined_segments, sequence);
+
+        if (found.empty()) {
+            return position{};
+        }
+
+        return position{
+            m_begin_offset +
+            static_cast<std::size_t>(
+                std::ranges::distance(joined_segments.begin(), found.begin())
+            )
+        };
+    }
+
+    [[nodiscard]]
+    position position_of_sequence(const std::string_view sequence) const {
+        
+        return position_of_sequence(std::span<const std::byte>(
+            reinterpret_cast<const std::byte*>(sequence.data()),
+            sequence.size()
+        ));
     }
 
     [[nodiscard]]
@@ -449,15 +494,14 @@ public:
     [[nodiscard]]
     bool copy_to(T& destination) const
     {
-        argument_assert(sizeof(T) <= m_size,
+        const std::size_t destination_size = sizeof(T);
+        argument_assert(destination_size <= m_size,
             "buffer size is smaller than the size of the destination type");
 
-        const std::span<std::byte> destination_bytes = std::as_writable_bytes(std::span<T, 1>{&destination, 1});
-
-        return copy_to(destination_bytes) == destination_bytes.size();
+        return copy_to(std::as_writable_bytes(std::span<T, 1>{&destination, 1})) == destination_size;
     }
 
-    const std::span<const std::byte>& as_span() const noexcept
+    std::span<const std::byte> as_span() const noexcept
     {
         argument_assert(is_single_segment(),
             "buffer must be a single segment to convert to span");
@@ -476,9 +520,7 @@ public:
     [[nodiscard]]
     std::string to_string() const
     {
-        if (empty()) {
-            return {};
-        }
+        if (empty()) return {};
         
         if (is_single_segment()) {
             return std::string{reinterpret_cast<const char*>(m_segments.front().data()), m_size};
@@ -487,9 +529,7 @@ public:
         std::string result;
         result.reserve(m_size);
         for (const std::span<const std::byte>& segment : m_segments) {
-            result.append(
-                reinterpret_cast<const char*>(segment.data()),
-                segment.size());
+            result.append(reinterpret_cast<const char*>(segment.data()), segment.size());
         }
 
         return result;

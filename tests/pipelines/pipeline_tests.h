@@ -2,6 +2,7 @@
 #define XTD_TESTS_PIPELINE_TESTS_H
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
+#include <cstddef>
 #include <future>
 #include <print>
 #include <netinet/in.h>
@@ -10,6 +11,7 @@
 
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
+#include "pipeline/segmented_byte_view.h"
 
 namespace xtd_pipeline_tests {
 
@@ -62,7 +64,7 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
     {
         xtd::segmented_byte_view seq = result.buffer();
         
-        while (xtd::position pos = seq.position_of(delimiter))
+        while (const xtd::position pos = seq.position_of(delimiter))
         {
             ++index;
             seq.slice_in_place(pos + 1, seq.end());
@@ -111,7 +113,7 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
         xtd::segmented_byte_view ros = result.buffer();
         readCount++;
         
-        while (xtd::position pos = ros.position_of('\n'))
+        while (const xtd::position pos = ros.position_of('\n'))
         {
             ++received_lines;
             ros.slice_in_place(pos + 1, ros.end());
@@ -1312,7 +1314,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
         {
             xtd::segmented_byte_view seq = result.buffer();
 
-            while (xtd::position pos = seq.position_of(delimiter))
+            while (const xtd::position pos = seq.position_of(delimiter))
             {
                 received.push_back(seq.slice(pos).to_string());
                 seq.slice_in_place(pos + 1, seq.end());
@@ -1530,11 +1532,11 @@ TEST_CASE("deserialize windows strings with CRLF line endings") {
     {
         xtd::segmented_byte_view seq = rr.buffer();
 
-        while (xtd::position pos = seq.position_of('\n'))
+        while (const xtd::position pos = seq.position_of('\n'))
         {
             xtd::segmented_byte_view line_bytes = seq.slice(pos);
-            if (xtd::position carriege_return_pos = line_bytes.position_of('\r')) {
-                line_bytes = line_bytes.slice(0, carriege_return_pos);
+            if (line_bytes[xtd::from_end(1)] == std::byte{'\r'}) {
+                line_bytes = line_bytes.slice(0, line_bytes.size() - 1);
             }
             lines.push_back(line_bytes.to_string());
             seq.slice_in_place(pos + 1, seq.end());
@@ -1565,7 +1567,7 @@ TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
     {
         xtd::segmented_byte_view seq = rr.buffer();
 
-        while (xtd::position pos = seq.position_of('\n'))
+        while (const xtd::position pos = seq.position_of('\n'))
         {
             lines.push_back(seq.slice(pos).to_string());
             seq = seq.slice(pos + 1, seq.end());

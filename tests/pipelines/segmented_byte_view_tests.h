@@ -407,6 +407,83 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
     }
 }
 
+TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_sequence(span<byte>)") {
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cde", "fgh", "ij"}
+    );
+
+    const auto as_bytes = [](const std::string_view value) {
+        return std::span<const std::byte>{
+            reinterpret_cast<const std::byte*>(value.data()),
+            value.size()
+        };
+    };
+
+    struct test_case {
+        std::string_view needle;
+        std::size_t offset;
+    };
+
+    const std::array cases = {
+        test_case{"ab", 0},
+        test_case{"bc", 1},
+        test_case{"cdef", 2},
+        test_case{"efgh", 4},
+        test_case{"fghi", 5},
+        test_case{"hij", 7},
+        test_case{"ij", 8}
+    };
+
+    for (const auto& test : cases) {
+        CAPTURE(test.needle);
+        CAPTURE(test.offset);
+
+        const xtd::position result = sequence.position_of_sequence(as_bytes(test.needle));
+        REQUIRE(result);
+        CHECK(result == sequence.begin() + test.offset);
+    }
+
+    CHECK_FALSE(sequence.position_of_sequence(as_bytes("")));
+    CHECK_FALSE(sequence.position_of_sequence(as_bytes("xyz")));
+    CHECK_FALSE(sequence.position_of_sequence(as_bytes("abcdeff")));
+    CHECK_FALSE(sequence.position_of_sequence(as_bytes("abcdefghijk")));
+}
+
+TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_sequence(string_view)") {
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
+        {"ab", "cde", "fgh", "ij"}
+    );
+
+    struct test_case {
+        std::string_view needle;
+        std::size_t offset;
+    };
+
+    const std::array cases = {
+        test_case{"ab", 0},
+        test_case{"bc", 1},
+        test_case{"cdef", 2},
+        test_case{"efgh", 4},
+        test_case{"fghi", 5},
+        test_case{"hij", 7},
+        test_case{"ij", 8}
+    };
+
+    for (const auto& test : cases) {
+        CAPTURE(test.needle);
+        CAPTURE(test.offset);
+
+        const xtd::position result = sequence.position_of_sequence(test.needle);
+        REQUIRE(result);
+        CHECK(result == sequence.begin() + test.offset);
+    }
+
+    CHECK_FALSE(sequence.position_of_sequence(""));
+    CHECK_FALSE(sequence.position_of_sequence("xyz"));
+    CHECK_FALSE(sequence.position_of_sequence("abcdeff"));
+    CHECK_FALSE(sequence.position_of_sequence("abcdefghijk"));
+}
+
 TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(byte*, size_t)") {
     const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
         {"ab", "cde", "f"}

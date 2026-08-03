@@ -105,7 +105,7 @@ private:
             while (const xtd::read_result result = reader.read())
             {
                 xtd::segmented_byte_view data = result.buffer();
-                while (xtd::position newLine = data.position_of('\n')) {
+                while (const xtd::position newLine = data.position_of('\n')) {
                     if (stop_token.stop_requested()) break;
 
                     // Extract the exact line of data up to (excluding) the newline character

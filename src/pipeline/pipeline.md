@@ -655,11 +655,13 @@ const std::byte& operator[](std::size_t index) const;
 const std::byte& operator[](const position& pos) const;
 const std::byte& operator[](const xtd::from_end& from_end) const;
 
-position position_of(std::byte value) const;
-position position_of(char value) const;
-position position_of_any(std::span<const std::byte> values) const;
-position position_of_any(std::string_view values) const;
-position position_of_any(std::span<const char> values) const;
+position position_of(const std::byte value) const;
+position position_of(const char value) const;
+position position_of_any(const std::span<const std::byte> values) const;
+position position_of_any(const std::span<const char> values) const;
+position position_of_sequence(const std::span<const std::byte> sequence) const;
+position position_of_any(const std::string_view values) const;
+position position_of_sequence(const std::string_view sequence) const;
 
 std::size_t copy_to(
     std::span<std::byte> destination) const noexcept;
@@ -744,6 +746,12 @@ if (xtd::position newline = sequence.position_of('\n')) {
 ```
 
 Search works across segment boundaries.
+
+`position_of_sequence(...)` searches for a contiguous byte/text pattern and
+returns the first match position, or an invalid/default position when no match
+exists.
+
+An empty pattern returns an invalid/default position.
 
 ### Copying
 

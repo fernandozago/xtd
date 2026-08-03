@@ -71,7 +71,7 @@ void consume(xtd::pipeline& pipeline)
             buffer.size(),
             buffer.segment_count());*/
 
-        while (xtd::position pos = buffer.position_of('\n'))
+        while (const xtd::position pos = buffer.position_of('\n'))
         {
             const xtd::segmented_byte_view lineBytes = buffer.slice(pos);
             std::println("\tECHO: {}", lineBytes.to_string());
