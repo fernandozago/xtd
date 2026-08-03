@@ -28,8 +28,8 @@ struct pipe_options {
 class pipeline
 {
 private:
-    friend class pipe_reader_impl<>;
-    friend class pipe_writer_impl<>;
+    friend class pipe_reader;
+    friend class pipe_writer;
 
     struct data_available_predicate
     {
@@ -65,7 +65,6 @@ private:
     mutable std::condition_variable_any m_data_available{};
     mutable std::condition_variable_any m_space_available{};
 
-    const std::size_t m_buffer_size;
     const std::size_t m_pause_writer_threshold;
     const std::size_t m_resume_writer_threshold;
 
@@ -351,7 +350,6 @@ private:
 
     explicit pipeline(const validated_options& options, validated_options_tag)
         : m_data_segment_pool(options.buffer_size, options.max_pooled_segments)
-        , m_buffer_size(options.buffer_size)
         , m_pause_writer_threshold(options.pause_writer_threshold)
         , m_resume_writer_threshold(options.resume_writer_threshold)
         , m_writer(*this)
@@ -390,6 +388,60 @@ public:
         return m_writer;
     }
 };
+
+inline xtd::pipe_writer::pipe_writer(pipeline& state)  noexcept
+        : m_state(state) 
+{}
+
+inline std::size_t xtd::pipe_writer::write(const std::byte* data, std::size_t length, std::stop_token stop_token) {
+    return m_state.write(data, length, stop_token);
+}
+
+template <typename T>
+requires (std::convertible_to<const T&, std::string_view> || std::is_trivially_copyable_v<T>)
+inline std::size_t xtd::pipe_writer::write(const T& value, std::stop_token stop_token) {
+    if constexpr (std::convertible_to<const T&, std::string_view>)
+    {
+        std::string_view strView = static_cast<std::string_view>(value);
+        return m_state.write(reinterpret_cast<const std::byte*>(strView.data()), strView.size(), stop_token);
+    }
+    else
+    {
+        return m_state.write(reinterpret_cast<const std::byte*>(&value), sizeof(T), stop_token);
+    }
+}
+
+inline void xtd::pipe_writer::complete() {
+    m_state.complete_writer();
+}
+
+inline xtd::pipe_reader::pipe_reader(pipeline& state) noexcept
+        : m_state(state) 
+{}
+
+inline read_result xtd::pipe_reader::read(std::stop_token stop_token) const {
+    return m_state.read_at_least(0, stop_token);
+}
+
+inline read_result xtd::pipe_reader::read_at_least(const std::size_t min_size, std::stop_token stop_token) const {
+    return m_state.read_at_least(min_size, stop_token);
+}
+
+inline void xtd::pipe_reader::advance(const position& consumed, const position& examined) {
+    m_state.advance(consumed, examined);
+}
+
+inline void xtd::pipe_reader::advance(const position& consumed) {
+    m_state.advance(consumed, consumed);
+}
+
+inline void xtd::pipe_reader::advance(const segmented_byte_view& sequence) {
+    m_state.advance(sequence.begin(), sequence.end());
+}
+
+inline void xtd::pipe_reader::complete() {
+    m_state.complete_reader();
+}
 
 } // namespace xtd
 
