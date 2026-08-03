@@ -134,11 +134,18 @@ Construct endpoints explicitly from a channel:
 ```cpp
 xtd::channel<int> channel;
 
-xtd::channel_writer<int> writer(channel);
-xtd::channel_reader<int> reader(channel);
+xtd::channel_writer writer(channel);
+xtd::channel_reader reader(channel);
 ```
 
 Endpoints store a reference to the channel and must not outlive it.
+
+Explicit typed endpoint declarations are also supported:
+
+```cpp
+xtd::channel_writer<int> writer(channel);
+xtd::channel_reader<int> reader(channel);
+```
 
 ### Destructor and lifetime
 
@@ -209,13 +216,13 @@ Construct the endpoint from a channel:
 
 ```cpp
 xtd::channel<int> channel;
-xtd::channel_writer<int> writer(channel);
+xtd::channel_writer writer(channel);
 ```
 
-Type deduction is also supported:
+An explicit typed declaration is also supported:
 
 ```cpp
-xtd::channel_writer writer(channel);
+xtd::channel_writer<int> writer(channel);
 ```
 
 ### `push`
@@ -481,7 +488,7 @@ An already-requested stop cancels immediately.
 
 ```cpp
 xtd::channel<int> channel(1);
-xtd::channel_writer<int> writer(channel);
+xtd::channel_writer writer(channel);
 
 writer.push(1);
 
@@ -497,7 +504,7 @@ If the call is cancelled, `2` is not inserted.
 
 ```cpp
 std::stop_source source;
-xtd::channel_reader<int> reader(channel);
+xtd::channel_reader reader(channel);
 
 const auto value = reader.read(source.get_token());
 ```
@@ -518,7 +525,7 @@ if (!value && value.error() == xtd::channel_read_errors::REQUEST_CANCELLED) {
 
 ```cpp
 std::jthread consumer([&](std::stop_token stop_token) {
-    xtd::channel_reader<int> reader(channel);
+    xtd::channel_reader reader(channel);
 
     while (!stop_token.stop_requested()) {
         auto item = reader.read(stop_token);
@@ -649,8 +656,8 @@ does not exceed the configured capacity.
 ```cpp
 xtd::channel<int> channel;
 
-xtd::channel_writer<int> writer(channel);
-xtd::channel_reader<int> reader(channel);
+xtd::channel_writer writer(channel);
+xtd::channel_reader reader(channel);
 ```
 
 ### Create a bounded pair with backpressure
@@ -658,8 +665,8 @@ xtd::channel_reader<int> reader(channel);
 ```cpp
 xtd::channel<int> channel(128);
 
-xtd::channel_writer<int> writer(channel);
-xtd::channel_reader<int> reader(channel);
+xtd::channel_writer writer(channel);
+xtd::channel_reader reader(channel);
 ```
 
 ### Stop consumers cleanly with completion
@@ -698,8 +705,8 @@ if (!writer.try_push(item)) {
 ```cpp
 xtd::channel<std::unique_ptr<Job>> jobs;
 
-xtd::channel_writer<std::unique_ptr<Job>> writer(jobs);
-xtd::channel_reader<std::unique_ptr<Job>> reader(jobs);
+xtd::channel_writer writer(jobs);
+xtd::channel_reader reader(jobs);
 
 writer.push(std::make_unique<Job>());
 writer.complete();
@@ -742,8 +749,8 @@ int main()
 {
     xtd::channel<int> channel(4);
 
-    xtd::channel_writer<int> writer(channel);
-    xtd::channel_reader<int> reader(channel);
+    xtd::channel_writer writer(channel);
+    xtd::channel_reader reader(channel);
 
     std::thread producer([&writer] {
         for (int i = 1; i <= 8; ++i) {
@@ -773,7 +780,7 @@ int main()
 #include <thread>
 
 xtd::channel<Work> work(64);
-xtd::channel_writer<Work> writer(work);
+xtd::channel_writer writer(work);
 
 std::jthread producer([&](std::stop_token stop_token) {
     for (Work item : make_work()) {
@@ -791,8 +798,8 @@ std::jthread producer([&](std::stop_token stop_token) {
 ```cpp
 xtd::channel<int> channel(64);
 
-xtd::channel_writer<int> writer(channel);
-xtd::channel_reader<int> reader(channel);
+xtd::channel_writer writer(channel);
+xtd::channel_reader reader(channel);
 
 std::thread consumer([&] {
     while (auto item = reader.read()) {

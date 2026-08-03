@@ -42,6 +42,9 @@ namespace xtd
             return m_channel.size();
         }
     };
+
+    template<typename T>
+    channel_reader(channel<T>&) -> channel_reader<T>;
 }
 
 #endif // CHANNEL_READER_H

@@ -47,11 +47,8 @@ int main(int argc, char* argv[])
 template<typename TChannel>
 int run_sample(TChannel& channel, const char* channel_name)
 {
-    xtd::channel_writer<TestData> writer(channel);
-    xtd::channel_reader<TestData> reader(channel);
-
     std::thread writer_a([&channel]() {
-        xtd::channel_writer<TestData> writer(channel);
+        xtd::channel_writer writer(channel);
         barrier.arrive_and_wait();
         for (int i = 0; i < 1000; ++i) {
             (void)writer.emplace(i, static_cast<float>(i) * 0.1f);
@@ -60,7 +57,7 @@ int run_sample(TChannel& channel, const char* channel_name)
     });
 
     auto writer_b = std::async(std::launch::async, [&channel]() {
-        xtd::channel_writer<TestData> writer(channel);
+        xtd::channel_writer writer(channel);
         barrier.arrive_and_wait();
         for (int i = 0; i < 1000; ++i) {
             (void)writer.emplace(i, static_cast<float>(i) * 0.1f);
@@ -69,7 +66,7 @@ int run_sample(TChannel& channel, const char* channel_name)
     });
 
     std::thread slow_consumer([&channel]() {
-        xtd::channel_reader<TestData> reader(channel);
+        xtd::channel_reader reader(channel);
         barrier.arrive_and_wait();
         while (auto value = reader.read()) {
             println_locked("Consumer 1 read value: {}, {}", value->value, value->z);
@@ -79,7 +76,7 @@ int run_sample(TChannel& channel, const char* channel_name)
     });
 
     auto faster_consumer = std::async(std::launch::async, [&channel]() {
-        xtd::channel_reader<TestData> reader(channel);
+        xtd::channel_reader reader(channel);
         barrier.arrive_and_wait();
         while (auto value = reader.read()) {
             println_locked("Consumer 2 read value: {}, {}", value->value, value->z);
@@ -92,12 +89,19 @@ int run_sample(TChannel& channel, const char* channel_name)
 
     writer_a.join();
     writer_b.get();
-    writer.complete();
-    assert(writer.emplace(0, 0.0f) == false);
+    
+    {
+        xtd::channel_writer writer(channel);
+        writer.complete();
+        assert(writer.emplace(0, 0.0f) == false);
+    }
 
     slow_consumer.join();
     faster_consumer.get();
-    assert(reader.size() == 0);
+    {
+        xtd::channel_reader reader(channel);
+        assert(reader.size() == 0);
+    }
 
     println_locked("{} channel test completed successfully.", channel_name);
     return 0;
