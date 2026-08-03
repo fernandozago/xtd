@@ -3,12 +3,10 @@
 #include <print>
 #include <string>
 
-#include "pipeline/pipe_reader.h"
 #include "pipeline/pipeline.h"
-#include "pipeline/position.h"
 
-std::future<void> start_stdin_reader(xtd::pipe_writer& writer);
-void consume(xtd::pipe_reader& reader);
+std::future<void> start_stdin_reader(xtd::pipeline& pipeline);
+void consume(xtd::pipeline& pipeline);
 
 // This sample is designed to be run in a terminal or console that supports standard input and output. 
 // It demonstrates the use of a xtd::pipeline for inter-thread communication, where one thread writes 
@@ -24,22 +22,21 @@ int main()
     xtd::pipeline pipeline({.buffer_size = 64});
 
     // Secondary thread reads stdin and produces pipeline data.
-    xtd::pipe_writer writer(pipeline);
-    auto stdin_reader_task = start_stdin_reader(writer);
+    auto stdin_reader_task = start_stdin_reader(pipeline);
 
-    xtd::pipe_reader reader(pipeline);
     // Main thread consumes pipeline data.
-    consume(reader);
+    consume(pipeline);
 
     // Propagate any exception raised by the stdin thread.
     stdin_reader_task.get();
     return 0;
 }
 
-std::future<void> start_stdin_reader(xtd::pipe_writer& writer)
+std::future<void> start_stdin_reader(xtd::pipeline& pipeline)
 {
-    return std::async(std::launch::async, [&writer]()
+    return std::async(std::launch::async, [&pipeline]()
     {
+        xtd::pipe_writer writer(pipeline);
         std::string line;
         while (std::getline(std::cin, line))
         {
@@ -61,8 +58,9 @@ std::future<void> start_stdin_reader(xtd::pipe_writer& writer)
     });
 }
 
-void consume(xtd::pipe_reader& reader)
+void consume(xtd::pipeline& pipeline)
 {
+    xtd::pipe_reader reader(pipeline);
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view buffer = result.buffer();

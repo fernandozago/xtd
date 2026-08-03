@@ -1992,9 +1992,8 @@ inline void test_data_trivially_copyable::test(std::istream& source)
     std::vector<test_data_trivially_copyable> expected_values(expected_count);
 
     xtd::pipeline pipeline;
-    std::future<std::size_t> producer = std::async(
-        std::launch::async,
-        [&pipeline, &source, &expected_values] {           
+    std::future<std::size_t> producer = std::async(std::launch::async,
+        [&pipeline, &source, &expected_values] {
             std::size_t written_count = 0;
             test_data_trivially_copyable mydata;
             xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
