@@ -7,7 +7,6 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-#include <cstdint>
 
 #include "position.h"
 
@@ -35,7 +34,6 @@ private:
     };
 
     std::vector<std::span<const std::byte>> m_segments;
-    std::uint64_t m_sequence_id;
     std::size_t m_begin_offset;
     std::size_t m_size;
 
@@ -174,15 +172,13 @@ private:
 
     explicit segmented_byte_view(const segmented_byte_view& source, const slice_range& range)
         : m_segments(source.make_slice_segments(range.begin, range.end))
-        , m_sequence_id(source.m_sequence_id)
         , m_begin_offset(range.begin)
         , m_size(range.end - range.begin)
     {
     }
 
-    explicit segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, std::uint64_t sequence_id, std::size_t size)
+    explicit segmented_byte_view(std::vector<std::span<const std::byte>>&& segments, std::size_t size)
         : m_segments(std::move(segments))
-        , m_sequence_id(sequence_id)
         , m_begin_offset(0)
         , m_size(size)
     {
@@ -190,7 +186,6 @@ private:
 
     explicit segmented_byte_view()
         : m_segments()
-        , m_sequence_id(0)
         , m_begin_offset(0)
         , m_size(0)
     {

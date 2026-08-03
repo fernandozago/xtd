@@ -10,7 +10,7 @@
 namespace xtd {
     class test_helper_segmented_byte_view {
     public:
-        static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments, const std::uint64_t sequence_id) {
+        static segmented_byte_view create_from_segments(std::vector<std::span<const std::byte>>&& segments) {
             std::vector<std::span<const std::byte>> readable_segments;
             readable_segments.reserve(segments.size());
 
@@ -26,12 +26,11 @@ namespace xtd {
 
             return segmented_byte_view{
                 std::move(readable_segments),
-                sequence_id,
                 total_size
             };
         }
 
-        static segmented_byte_view create_from_segments(const std::vector<std::string_view>& segments, const std::uint64_t sequence_id = 1) {
+        static segmented_byte_view create_from_segments(const std::vector<std::string_view>& segments) {
             std::vector<std::span<const std::byte>> byte_segments;
             byte_segments.reserve(segments.size());
 
@@ -41,22 +40,17 @@ namespace xtd {
                 ));
             }
 
-            return create_from_segments(std::move(byte_segments), sequence_id);
+            return create_from_segments(std::move(byte_segments));
         }
 
-        static segmented_byte_view create_from_segments(const std::initializer_list<std::string_view> segments, const std::uint64_t sequence_id = 1) {
+        static segmented_byte_view create_from_segments(const std::initializer_list<std::string_view> segments) {
             return create_from_segments(
-                std::vector<std::string_view>{segments},
-                sequence_id
+                std::vector<std::string_view>{segments}
             );
         }
 
         static std::size_t get_first_segment_begin(const segmented_byte_view& sequence) {
             return sequence.m_begin_offset;
-        }
-
-        static std::uint64_t get_sequence_id(const segmented_byte_view& sequence) {
-            return sequence.m_sequence_id;
         }
     };
 }
@@ -79,10 +73,9 @@ namespace {
         slice_case{9, 0, ""}
     };
 
-    void check_slice_result(const xtd::segmented_byte_view& sequence,const slice_case& test, const std::uint64_t sequence_id) {
+    void check_slice_result(const xtd::segmented_byte_view& sequence,const slice_case& test) {
         CHECK(sequence.to_string() == test.expected);
         CHECK(sequence.size() == test.size);
-        CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(sequence) == sequence_id);
         if (!sequence.empty()) {
             CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(sequence) == test.offset);
         }
@@ -129,15 +122,13 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "construction normalizes segments") {
 
     for (const auto& test : cases) {
         const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-            test.segments,
-            45
+            test.segments
         );
 
         CHECK(sequence.size() == test.expected_size);
         CHECK(sequence.segment_count() == test.expected_segment_count);
         CHECK(sequence.empty() == test.expected_text.empty());
         CHECK(sequence.to_string() == test.expected_text);
-        CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(sequence) == 45);
 
         const auto segments = sequence.segments();
         CHECK(segments.size() == test.expected_segment_count);
@@ -156,8 +147,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "construction normalizes segments") {
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     for (const auto& test : slice_cases) {
@@ -165,14 +155,13 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t)") {
         CAPTURE(test.size);
         CAPTURE(test.expected);
 
-        check_slice_result(sequence.slice(test.offset, test.size), test, 73);
+        check_slice_result(sequence.slice(test.offset, test.size), test);
     }
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) supports nested slices") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"0123456789", "abcdefghij", "KLMNOPQRST"},
-        99
+        {"0123456789", "abcdefghij", "KLMNOPQRST"}
     );
 
     const auto outer = sequence.slice(5, 20);
@@ -182,14 +171,11 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) supports nested 
     CHECK(nested.to_string() == "9abcdefghi");
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(outer) == 5);
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(nested) == 9);
-    CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(outer) == 99);
-    CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(nested) == 99);
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) supports overlapping slices") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"0123456789", "abcdefghij", "KLMNOPQRST"},
-        99
+        {"0123456789", "abcdefghij", "KLMNOPQRST"}
     );
 
     const auto first = sequence.slice(5, 20);
@@ -199,14 +185,11 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) supports overlap
     CHECK(second.to_string() == "abcdefghijKLMNO");
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(first) == 5);
     CHECK(xtd::test_helper_segmented_byte_view::get_first_segment_begin(second) == 10);
-    CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(first) == 99);
-    CHECK(xtd::test_helper_segmented_byte_view::get_sequence_id(second) == 99);
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) that reaches end keeps trailing segments") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"ab", "cd", "efg"},
-        18
+        {"ab", "cd", "efg"}
     );
 
     const auto sliced = sequence.slice(1, 6);
@@ -227,8 +210,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, size_t) rejects invalid 
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, position)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     for (const auto& test : slice_cases) {
@@ -237,7 +219,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, position)") {
         CAPTURE(test.expected);
 
         const xtd::position end = sequence.begin() + test.offset + test.size;
-        check_slice_result(sequence.slice(test.offset, end), test, 73);
+        check_slice_result(sequence.slice(test.offset, end), test);
     }
 }
 
@@ -250,8 +232,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(size_t, position) rejects invali
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     for (const auto& test : slice_cases) {
@@ -261,7 +242,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position)") {
 
         const xtd::position begin = sequence.begin() + test.offset;
         const xtd::position end = begin + test.size;
-        check_slice_result(sequence.slice(begin, end), test, 73);
+        check_slice_result(sequence.slice(begin, end), test);
     }
 }
 
@@ -277,8 +258,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position, position) rejects inva
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     const std::array cases = {
@@ -292,7 +272,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice(position)") {
         CAPTURE(test.expected);
 
         const xtd::position end = sequence.begin() + test.size;
-        check_slice_result(sequence.slice(end), test, 73);
+        check_slice_result(sequence.slice(end), test);
     }
 }
 
@@ -507,8 +487,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(T&) copies a scalar") {
     };
 
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {raw.first<2>(), raw.last<2>()},
-        7
+        {raw.first<2>(), raw.last<2>()}
     );
 
     std::uint32_t destination = 0;
@@ -538,8 +517,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(T&) copies a trivially copyabl
             bytes.first(first_size),
             bytes.subspan(first_size, second_size),
             bytes.subspan(first_size + second_size)
-        },
-        8
+        }
     );
 
     test_data_trivially_copyable destination{};
@@ -569,12 +547,11 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place(size_t, size_t)") {
         CAPTURE(test.expected);
 
         auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-            {"abc", "def", "ghi"},
-            73
+            {"abc", "def", "ghi"}
         );
 
         sequence.slice_in_place(test.offset, test.size);
-        check_slice_result(sequence, test, 73);
+        check_slice_result(sequence, test);
     }
 }
 
@@ -585,13 +562,12 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place(size_t, position)") {
         CAPTURE(test.expected);
 
         auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-            {"abc", "def", "ghi"},
-            73
+            {"abc", "def", "ghi"}
         );
         const xtd::position end = sequence.begin() + test.offset + test.size;
 
         sequence.slice_in_place(test.offset, end);
-        check_slice_result(sequence, test, 73);
+        check_slice_result(sequence, test);
     }
 }
 
@@ -602,14 +578,13 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place(position, position)") {
         CAPTURE(test.expected);
 
         auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-            {"abc", "def", "ghi"},
-            73
+            {"abc", "def", "ghi"}
         );
         const xtd::position begin = sequence.begin() + test.offset;
         const xtd::position end = begin + test.size;
 
         sequence.slice_in_place(begin, end);
-        check_slice_result(sequence, test, 73);
+        check_slice_result(sequence, test);
     }
 }
 
@@ -625,20 +600,18 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place(position)") {
         CAPTURE(test.expected);
 
         auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-            {"abc", "def", "ghi"},
-            73
+            {"abc", "def", "ghi"}
         );
         const xtd::position end = sequence.begin() + test.size;
 
         sequence.slice_in_place(end);
-        check_slice_result(sequence, test, 73);
+        check_slice_result(sequence, test);
     }
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "begin and end reflect slice boundaries") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     const auto sliced = sequence.slice(2, 5);
@@ -746,8 +719,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](size_t) works on sliced vie
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](position)") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"ab", "cde", "f"},
-        41
+        {"ab", "cde", "f"}
     );
 
     CHECK(sequence[sequence.begin()] == std::byte{'a'});
@@ -794,8 +766,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "operator[](from_end) works on sliced v
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "position_of only searches inside a sliced view") {
     const auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"x", "abc", "xdefx"},
-        51
+        {"x", "abc", "xdefx"}
     );
 
     const auto sliced = sequence.slice(1, 7);
@@ -860,8 +831,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to copies a sliced view") {
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "repeated slice_in_place uses relative offsets") {
     auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def", "ghi"},
-        73
+        {"abc", "def", "ghi"}
     );
 
     sequence.slice_in_place(2, 5);
@@ -879,8 +849,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "repeated slice_in_place uses relative 
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "slice_in_place failures leave the view unchanged") {
     auto sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abc", "def"},
-        61
+        {"abc", "def"}
     );
 
     const auto original_begin = sequence.begin();

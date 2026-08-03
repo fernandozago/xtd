@@ -1,7 +1,6 @@
 #ifndef PIPELINE_READ_RESULT_H
 #define PIPELINE_READ_RESULT_H
 
-#include <cstdint>
 #include <deque>
 #include <span>
 #include <vector>
@@ -21,7 +20,7 @@ private:
     const bool m_completed;
     const bool m_cancelled;
 
-    static segmented_byte_view make_readable_view(const std::deque<data_segment>& segments, std::uint64_t sequence_id)
+    static segmented_byte_view make_readable_view(const std::deque<data_segment>& segments)
     {
         std::vector<std::span<const std::byte>> readable_segments;
         readable_segments.reserve(segments.size());
@@ -39,13 +38,12 @@ private:
 
         return segmented_byte_view{
             std::move(readable_segments),
-            sequence_id,
             total_size
         };
     }
 
-    explicit read_result(const std::deque<data_segment>& segments, std::uint64_t sequence_id, bool completed, std::size_t& pending_read_size)
-        : m_buffer(make_readable_view(segments, sequence_id))
+    explicit read_result(const std::deque<data_segment>& segments, bool completed, std::size_t& pending_read_size)
+        : m_buffer(make_readable_view(segments))
         , m_completed(completed)
         , m_cancelled(false)
     {

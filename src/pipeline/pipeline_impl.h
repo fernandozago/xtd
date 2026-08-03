@@ -1,7 +1,6 @@
 #ifndef PIPELINE_PIPELINE_H
 #define PIPELINE_PIPELINE_H
 
-#include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -122,10 +121,6 @@ private:
     
     read_result read_at_least(const std::size_t min_size, std::stop_token stop_token)
     {
-        // this is shared across all instances of the pipeline class
-        // so it is safe to use it to generate unique sequence ids
-        static std::atomic<std::uint64_t> unique_read_id_generator{1};
-
         std::unique_lock lock{m_mutex};
                
         runtime_assert(!m_has_pending_read, 
@@ -148,7 +143,6 @@ private:
 
         return xtd::read_result (
             m_segments,
-            m_pending_read_sequence_id = unique_read_id_generator.fetch_add(1, std::memory_order_relaxed),
             m_writer_completed,
             m_pending_read_size
         );
