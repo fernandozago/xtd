@@ -3,7 +3,6 @@
 
 #include "pipeline_impl.h"
 
-
 namespace xtd {
 
     class pipe_writer {

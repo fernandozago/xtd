@@ -2,13 +2,9 @@
 #define CHANNEL_IMPL_H
 
 #include <condition_variable>
-#include <concepts>
-#include <cstddef>
 #include <expected>
 #include <mutex>
 #include <queue>
-#include <stop_token>
-#include <utility>
 
 #include "channel_enums.h"
 
@@ -148,8 +144,7 @@ namespace xtd
 
             if (strategy == block_strategy::WAIT)
             {
-                const auto result = internal_wait_to_read(lock, stop_token);
-                if (!result) {
+                if (const auto result = internal_wait_to_read(lock, stop_token); !result) {
                     return std::unexpected<channel_read_errors>(result.error());
                 }
             }
@@ -184,17 +179,16 @@ namespace xtd
         {
         }
 
-        ~channel()
-        {
-            complete_writer();
-        }
-
         channel(const channel&) = delete;
         channel& operator=(const channel&) = delete;
         channel(channel&&) = delete;
         channel& operator=(channel&&) = delete;
-    };
 
+        ~channel()
+        {
+            complete_writer();
+        }
+    };
 }
 
 #endif // CHANNEL_IMPL_H
