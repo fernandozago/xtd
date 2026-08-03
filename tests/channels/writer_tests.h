@@ -105,7 +105,7 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, channel_tests::Probe>();
-        auto& writer = channel.writer();
+        xtd::channel_writer writer(channel);
 
         SECTION("channel push copies an lvalue")
         {
@@ -137,7 +137,7 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, channel_tests::Probe>();
-        auto& writer = channel.writer();
+        xtd::channel_writer writer(channel);
 
         SECTION("push moves an rvalue")
         {
@@ -167,7 +167,7 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, channel_tests::Probe>();
-        auto& writer = channel.writer();
+        xtd::channel_writer writer(channel);
 
         SECTION("push constructs a value")
         {
@@ -197,8 +197,8 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         CHECK(writer.try_emplace(42));
 
@@ -214,7 +214,7 @@ namespace writer_tests {
         BoundedChannelMode)
     {
         auto channel = make_channel<TestType, channel_tests::Probe>(1);
-        auto& writer = channel.writer();
+        xtd::channel_writer writer(channel);
 
         REQUIRE(writer.emplace(1));
 
@@ -252,7 +252,7 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, channel_tests::Probe>();
-        auto& writer = channel.writer();
+        xtd::channel_writer writer(channel);
 
         writer.complete();
         writer.complete(); // Should be harmless, assuming completion is idempotent.
@@ -278,8 +278,8 @@ namespace writer_tests {
         BoundedChannelMode)
     {
         auto channel = make_channel<TestType, int>(1);
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(1));
 
@@ -308,8 +308,8 @@ namespace writer_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(42));
         writer.complete();
@@ -325,8 +325,8 @@ namespace writer_tests {
         BoundedChannelMode)
     {
         auto channel = make_channel<TestType, int>(1);
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         // Fill the bounded channel so the next push must wait.
         REQUIRE(writer.push(42));
@@ -385,8 +385,8 @@ namespace writer_tests {
         BoundedChannelMode)
     {
         auto channel = make_channel<TestType, int>(1);
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         // Fill the bounded channel.
         REQUIRE(writer.push(42));

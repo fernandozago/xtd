@@ -1,14 +1,10 @@
 #ifndef CHANNEL_WRITER_H
 #define CHANNEL_WRITER_H
 
-#include "channel_enums.h"
-#include <stop_token>
+#include "channel_impl.h"
 
 namespace xtd
 {
-    template<typename T>
-    class channel;
-
     template<typename T>
     class channel_writer
     {   

@@ -1,15 +1,10 @@
 #ifndef CHANNEL_READER_H
 #define CHANNEL_READER_H
 
-#include "channel_enums.h"
-#include <expected>
-#include <stop_token>
+#include "channel_impl.h"
 
 namespace xtd
 {
-    template<typename T>
-    class channel;
-
     template<typename T>
     class channel_reader
     {

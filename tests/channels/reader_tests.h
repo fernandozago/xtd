@@ -49,7 +49,7 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& reader = channel.reader();
+        xtd::channel_reader reader(channel);
 
         CHECK(reader.size() == 0);
 
@@ -64,8 +64,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(10));
         REQUIRE(writer.push(20));
@@ -105,8 +105,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(42));
 
@@ -122,8 +122,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, MoveOnly>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.emplace(42));
         REQUIRE(writer.emplace(43));
@@ -150,8 +150,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         CHECK(reader.size() == 0);
 
@@ -179,8 +179,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(10));
         REQUIRE(writer.push(20));
@@ -211,8 +211,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(42));
         writer.complete();
@@ -233,8 +233,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         writer.complete();
 
@@ -248,8 +248,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         std::latch started{1};
         std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
@@ -290,8 +290,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         std::latch started{1};
         std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
@@ -326,8 +326,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         std::latch started{1};
         std::promise<bool> result_promise;
@@ -361,8 +361,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         std::stop_source stop_source;
         REQUIRE(stop_source.request_stop());
@@ -386,8 +386,8 @@ namespace reader_tests {
         UnboundedChannelMode)
     {
         auto channel = make_channel<TestType, int>();
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         std::latch started{1};
         std::promise<std::expected<int, xtd::channel_read_errors>> result_promise;
@@ -429,8 +429,8 @@ namespace reader_tests {
         BoundedChannelMode)
     {
         auto channel = make_channel<BoundedChannelMode, int>(1);
-        auto& writer = channel.writer();
-        auto& reader = channel.reader();
+        xtd::channel_writer writer(channel);
+        xtd::channel_reader reader(channel);
 
         REQUIRE(writer.push(10));
         REQUIRE(reader.size() == 1);

@@ -53,7 +53,7 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
     // Consumer creates its own thread to read from the channel.
     // To make it simple, consumer must be in a stable location in memory.
     // So we use a vector of unique_ptr to manage the lifetime of the consumer objects.
-    xtd::channel_reader<int>& reader = channel.reader();
+    xtd::channel_reader<int> reader(channel);
     std::vector<std::unique_ptr<consumer>> consumers;
 
     if (!single_thread) {
@@ -68,7 +68,7 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
     }
 
     std::uint64_t total_messages_enqueued = 0;
-    xtd::channel_writer<int>& writer = channel.writer();
+    xtd::channel_writer<int> writer(channel);
     bench.run(name,
             [&reader, &writer, single_thread, &total_messages_enqueued, &total_messages_received]
             {
