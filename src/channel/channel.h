@@ -9,9 +9,9 @@
 #include <utility>
 #include <stop_token>
 
-#include "block_strategy.h"
-#include "channel_reader.h"
+#include "channel_enums.h"
 #include "channel_writer.h"
+#include "channel_reader.h"
 
 namespace xtd
 {
@@ -210,118 +210,6 @@ namespace xtd
         }
     };
 
-
-    template<typename T>
-    channel_writer<T>::channel_writer(channel<T>& channel) noexcept
-        : m_channel(channel)
-    {
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::push(const T& value)
-    {
-        return m_channel.emplace({}, block_strategy::WAIT, value);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::push(std::stop_token stop_token, const T& value)
-    {
-        return m_channel.emplace(stop_token, block_strategy::WAIT, value);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::push(T&& value)
-    {
-        return m_channel.emplace({}, block_strategy::WAIT, std::move(value));
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::push(std::stop_token stop_token, T&& value)
-    {
-        return m_channel.emplace(stop_token, block_strategy::WAIT, std::move(value));
-    }
-
-    template<typename T>
-    template<typename... Args>
-    [[nodiscard]]
-    inline bool channel_writer<T>::emplace(Args&&... args)
-    {
-        return m_channel.emplace({}, block_strategy::WAIT, std::forward<Args>(args)...);
-    }
-
-    template<typename T>
-    template<typename... Args>
-    [[nodiscard]]
-    inline bool channel_writer<T>::emplace(std::stop_token stop_token, Args&&... args)
-    {
-        return m_channel.emplace(stop_token, block_strategy::WAIT, std::forward<Args>(args)...);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::try_push(const T& value)
-    {
-        return m_channel.emplace({}, block_strategy::TRY, value);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_writer<T>::try_push(T&& value)
-    {
-        return m_channel.emplace({}, block_strategy::TRY, std::move(value));
-    }
-
-    template<typename T>
-    template<typename... Args>
-    [[nodiscard]]
-    inline bool channel_writer<T>::try_emplace(Args&&... args)
-    {
-        return m_channel.emplace({}, block_strategy::TRY, std::forward<Args>(args)...);
-    }
-
-    template<typename T>
-    inline void channel_writer<T>::complete()
-    {
-        m_channel.complete_writer();
-    }
-
-    template<typename T>
-    inline channel_reader<T>::channel_reader(channel<T>& channel) noexcept
-        : m_channel(channel)
-    {
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline std::expected<T, channel_read_errors> channel_reader<T>::try_read()
-    {
-        return m_channel.read({}, block_strategy::TRY);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline std::expected<T, channel_read_errors> channel_reader<T>::read(std::stop_token stopToken)
-    {
-        return m_channel.read(stopToken, block_strategy::WAIT);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline bool channel_reader<T>::wait_to_read(std::stop_token stopToken)
-    {
-        return m_channel.wait_to_read(stopToken);
-    }
-
-    template<typename T>
-    [[nodiscard]]
-    inline std::size_t channel_reader<T>::size() const
-    {
-        return m_channel.size();
-    }
-
 }
+
 #endif // CHANNEL_H
