@@ -189,8 +189,7 @@ private:
         argument_assert(consumed_offset <= examined_offset, 
             "consumed must be <= examined");
 
-        notifier notify_writer(m_space_available);
-        std::scoped_lock lock{m_mutex};
+        std::unique_lock lock{m_mutex};
 
         runtime_assert(!m_reader_completed, 
             "pipeline reader is completed");
@@ -235,8 +234,10 @@ private:
         m_pending_read_size = 0;
         m_has_pending_read = false;
 
-        if (was_paused && !m_writer_paused) {
-            notify_writer.arm();
+        const bool notify = (was_paused && !m_writer_paused);
+        lock.unlock();
+        if (notify) {
+            m_space_available.notify_one();
         }
     }
 
