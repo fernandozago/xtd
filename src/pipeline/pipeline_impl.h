@@ -59,33 +59,6 @@ private:
         }
     };
 
-    struct notifier
-    {
-        std::condition_variable_any& m_cv;
-        bool m_should_notify = false;
-
-        explicit notifier(std::condition_variable_any& cv, bool should_notify = false) noexcept
-            : m_cv(cv)
-            , m_should_notify(should_notify)
-        {
-        }
-
-        notifier(const notifier&) = delete;
-        notifier& operator=(const notifier&) = delete;
-
-        void arm() noexcept
-        {
-            m_should_notify = true;
-        }
-
-        ~notifier()
-        {
-            if (m_should_notify) {
-                m_cv.notify_one();
-            }
-        }
-    };
-
     // Larger/aligned objects first.
     xtd::fixed_buffer_pool m_data_segment_pool;
     std::deque<data_segment> m_segments{};
@@ -257,7 +230,7 @@ private:
         std::span<const std::byte> remaining{data, length};
 
         while (!remaining.empty()) {
-            notifier notify_data_available{m_data_available};
+            bool notify_data_available = false;
             std::unique_lock lock{m_mutex};
 
             runtime_assert(!is_any_completed(), 
@@ -281,12 +254,17 @@ private:
                 m_buffered_size += copy_size;
 
                 if (m_reader_waiting) {
-                    notify_data_available.arm();
+                    notify_data_available = true;
                 }
 
                 if (m_buffered_size == m_pause_writer_threshold) {
                     m_writer_paused = true;
                 }
+            }
+
+            lock.unlock();
+            if (notify_data_available) {
+                m_data_available.notify_one();
             }
         }
 
