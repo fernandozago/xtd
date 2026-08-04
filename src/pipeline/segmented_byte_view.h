@@ -139,7 +139,7 @@ private:
 
         std::size_t segment_begin = m_begin_offset;
 
-        for (const std::span<const std::byte> segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             const std::size_t segment_end = segment_begin + segment.size();
 
             if (segment_end <= slice_begin) {
@@ -289,7 +289,7 @@ public:
 
         std::size_t remaining = from_end.m_offset - 1;
         for (auto iterator = m_segments.rbegin(); iterator != m_segments.rend(); ++iterator) {
-            const std::span<const std::byte> segment = *iterator;
+            const std::span<const std::byte>& segment = *iterator;
 
             if (remaining < segment.size()) {
                 return segment[segment.size() - 1 - remaining];
@@ -317,7 +317,7 @@ public:
 
         std::size_t segment_begin = 0;
 
-        for (const std::span<const std::byte> segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             const std::size_t segment_end = segment_begin + segment.size();
 
             if (index < segment_end) {
@@ -336,7 +336,7 @@ public:
         const unsigned char target = std::to_integer<unsigned char>(value);
        
         std::size_t offset = m_begin_offset;
-        for (const auto segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             const void* found = std::memchr(segment.data(), target, segment.size());
             if (found != nullptr) {
                 return position{
@@ -368,7 +368,7 @@ public:
         }
 
         std::size_t segment_begin = m_begin_offset;
-        for (const std::span<const std::byte> segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             const auto found = std::ranges::find_first_of(segment, values);
 
             if (found != segment.end()) {
@@ -411,7 +411,7 @@ public:
 
         std::size_t segment_offset = 0;
         auto joined_segments = m_segments | std::views::join;
-        for (const std::span<const std::byte> segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             /*
             * Fast check: sequence contained entirely in this segment.
             */
@@ -481,12 +481,12 @@ public:
         }
         
         if (is_single_segment()) {
-            std::ranges::copy(m_segments.front().first(target_size), destination.begin());
+            std::ranges::copy(m_segments.front().subspan(0, target_size), destination.begin());
             return target_size;
         }
         
         std::size_t copied = 0;
-        for (const std::span<const std::byte> segment : m_segments) {
+        for (const std::span<const std::byte>& segment : m_segments) {
             if (copied == target_size) {
                 break;
             }
@@ -494,7 +494,7 @@ public:
             const std::size_t chunk_size = std::min(segment.size(), target_size - copied);
 
             std::ranges::copy(
-                segment.first(chunk_size),
+                segment.subspan(0, chunk_size),
                 destination.subspan(copied, chunk_size).begin()
             );
 
@@ -534,10 +534,8 @@ public:
         return copy_to(std::as_writable_bytes(std::span<T, 1>{&destination, 1})) == destination_size;
     }
 
-    std::span<const std::byte> as_span() const noexcept
+    std::span<const std::byte> first_segment() const noexcept
     {
-        argument_assert(is_single_segment(),
-            "buffer must be a single segment to convert to span");
         return m_segments.front();
     }
 

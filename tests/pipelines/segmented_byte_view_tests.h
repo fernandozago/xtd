@@ -425,6 +425,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_sequence(span<byte>)") {
     };
 
     const std::array cases = {
+        test_case{"a", 0},
         test_case{"ab", 0},
         test_case{"bc", 1},
         test_case{"cdef", 2},
@@ -460,6 +461,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_sequence(string_view)") {
     };
 
     const std::array cases = {
+        test_case{"a", 0},
         test_case{"ab", 0},
         test_case{"bc", 1},
         test_case{"cdef", 2},
@@ -632,7 +634,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "as_span returns contiguous bytes for a
 
     REQUIRE(sequence.is_single_segment());
 
-    const std::span<const std::byte>& span = sequence.as_span();
+    const std::span<const std::byte>& span = sequence.first_segment();
 
     REQUIRE(span.size() == sequence.size());
 
