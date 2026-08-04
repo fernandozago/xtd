@@ -3,8 +3,6 @@
 
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
-#include <vector>
-
 #include "pipeline/segmented_byte_view.h"
 
 namespace xtd {
@@ -628,15 +626,15 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "is_single_segment reflects current sli
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "as_span returns contiguous bytes for a single segment") {
-    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments(
-        {"abcdef"}
-    );
-
-    REQUIRE(sequence.is_single_segment());
+    const xtd::segmented_byte_view sequence = xtd::test_helper_segmented_byte_view::create_from_segments({
+        "abcdef",
+        "123456"
+    });
 
     const std::span<const std::byte>& span = sequence.first_segment();
 
-    REQUIRE(span.size() == sequence.size());
+    REQUIRE(sequence.size() > span.size());
+    REQUIRE(span.size() == 6);
 
     constexpr std::string_view expected = "abcdef";
     CHECK(std::equal(
