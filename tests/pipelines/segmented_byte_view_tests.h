@@ -403,6 +403,17 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
             CHECK(result == sequence.begin() + test.offset);
         }
     }
+
+    SECTION("span<byte>/single-byte-sequence-with-larger-needle-set") {
+        const xtd::segmented_byte_view single_byte_sequence =
+            xtd::test_helper_segmented_byte_view::create_from_segments({"a"});
+
+        const std::array values = {std::byte{'x'}, std::byte{'a'}, std::byte{'y'}};
+
+        const xtd::position result = single_byte_sequence.position_of_any(values);
+        CHECK(result);
+        CHECK(result == single_byte_sequence.begin());
+    }
 }
 
 TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_sequence(span<byte>)") {

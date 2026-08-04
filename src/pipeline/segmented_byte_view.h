@@ -333,6 +333,10 @@ public:
     [[nodiscard]]
     position position_of(const std::byte value) const
     {
+        if (m_size == 0) {
+            return position{};
+        }
+        
         const unsigned char target = std::to_integer<unsigned char>(value);
        
         std::size_t offset = m_begin_offset;
@@ -401,7 +405,7 @@ public:
     [[nodiscard]]
     position position_of_sequence(const std::span<const std::byte> sequence) const
     {
-        if (sequence.empty()) {
+        if (sequence.empty() || sequence.size() > m_size) {
             return position{};
         }
 
