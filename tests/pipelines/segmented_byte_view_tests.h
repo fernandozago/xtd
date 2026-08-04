@@ -372,6 +372,15 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
         }
     }
 
+    SECTION("string_view/single-byte-sequence-with-larger-needle-set") {
+        const xtd::segmented_byte_view single_byte_sequence =
+            xtd::test_helper_segmented_byte_view::create_from_segments({"a"});
+
+        const xtd::position result = single_byte_sequence.position_of_any(std::string_view{"xay"});
+        CHECK(result);
+        CHECK(result == single_byte_sequence.begin());
+    }
+
     SECTION("span<char>") {
         const std::array cases = {
             position_of_any_test_data<std::vector<char>>{{'-', 'a', '-'}, 0},
@@ -386,6 +395,17 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
             CHECK(result);
             CHECK(result == sequence.begin() + test.offset);
         }
+    }
+
+    SECTION("span<char>/single-byte-sequence-with-larger-needle-set") {
+        const xtd::segmented_byte_view single_byte_sequence =
+            xtd::test_helper_segmented_byte_view::create_from_segments({"a"});
+
+        const std::array values = {'x', 'a', 'y'};
+
+        const xtd::position result = single_byte_sequence.position_of_any(values);
+        CHECK(result);
+        CHECK(result == single_byte_sequence.begin());
     }
 
     SECTION("span<byte>") {
@@ -413,6 +433,15 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "position_of_any tests") {
         const xtd::position result = single_byte_sequence.position_of_any(values);
         CHECK(result);
         CHECK(result == single_byte_sequence.begin());
+    }
+
+    SECTION("empty lookups") {
+        const std::vector<std::byte> empty_bytes;
+        const std::vector<char> empty_chars;
+
+        CHECK_FALSE(sequence.position_of_any(std::span<const std::byte>{empty_bytes}));
+        CHECK_FALSE(sequence.position_of_any(std::span<const char>{empty_chars}));
+        CHECK_FALSE(sequence.position_of_any(std::string_view{}));
     }
 }
 
