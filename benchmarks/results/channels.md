@@ -10,16 +10,16 @@ Warning, results might be unstable:
 Recommendations
 * Use 'pyperf system tune' before benchmarking. See https://github.com/psf/pyperf
 
-|          ns/message |           message/s |    err% |     total | xtd::channel throughput
+|             ns/item |              item/s |    err% |     total | xtd::channel throughput
 |--------------------:|--------------------:|--------:|----------:|:------------------------
-|               13.72 |       72,890,272.54 |    1.0% |     13.66 | `single-thread / bounded_channel`
-|               13.90 |       71,927,118.92 |    0.7% |     13.72 | `single-thread / unbounded_channel`
-|              200.63 |        4,984,332.99 |    4.6% |     13.25 | `multi-thread / bounded_channel`
-|              198.87 |        5,028,514.06 |    3.9% |     13.91 | `multi-thread / unbounded_channel`
+|               15.26 |       65,523,000.05 |    0.5% |     13.72 | `single-thread / bounded_channel`
+|               15.49 |       64,566,641.45 |    0.2% |     13.74 | `single-thread / unbounded_channel`
+|              206.41 |        4,844,638.63 |    2.1% |     13.95 | `multi-thread / bounded_channel`
+|              198.22 |        5,044,871.90 |    2.9% |     14.15 | `multi-thread / unbounded_channel`
 
-| Total Messages Enqueued | xtd::channel throughput 
-|------------------------:|:-------------------------
-|           1,005,383,715 | `single-thread / bounded_channel`
-|             993,407,574 | `single-thread / unbounded_channel`
-|              66,566,245 | `multi-thread / bounded_channel`
-|              70,481,128 | `multi-thread / unbounded_channel`
+| Total Items Enqueued | xtd::channel throughput
+|---------------------:|:-----------------------
+|          910,942,684 | `single-thread / bounded_channel`
+|          898,599,494 | `single-thread / unbounded_channel`
+|           68,792,581 | `multi-thread / bounded_channel`
+|           72,255,847 | `multi-thread / unbounded_channel`

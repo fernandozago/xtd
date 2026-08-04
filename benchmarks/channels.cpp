@@ -15,7 +15,7 @@ static std::vector<std::string> results;
 
 class consumer {
 private:
-    std::size_t m_received_messages = 0;
+    std::size_t m_received_items = 0;
     xtd::channel_reader<int>& m_reader;
     std::latch& m_latch;
     std::jthread m_thread;
@@ -24,7 +24,7 @@ private:
     {
         m_latch.count_down();
         while (const auto value = m_reader.read()) {
-            ++m_received_messages;
+            ++m_received_items;
         }
     }
 
@@ -36,19 +36,19 @@ public:
     {
     }
         
-    std::size_t get_received_messages()
+    std::size_t get_received_items()
     {
         if (m_thread.joinable()) {
             m_thread.join();
         }
 
-        return m_received_messages;
+        return m_received_items;
     }
 };
 
 void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bool single_thread, xtd::channel<int>&& channel)
 {
-    std::size_t total_messages_received = 0;
+    std::size_t total_items_received = 0;
         
     // Consumer creates its own thread to read from the channel.
     // To make it simple, consumer must be in a stable location in memory.
@@ -67,28 +67,28 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
         started.wait();
     }
 
-    std::uint64_t total_messages_enqueued = 0;
+    std::uint64_t total_items_enqueued = 0;
     xtd::channel_writer<int> writer(channel);
     bench.run(name,
-            [&reader, &writer, single_thread, &total_messages_enqueued, &total_messages_received]
+            [&reader, &writer, single_thread, &total_items_enqueued, &total_items_received]
             {
                 ankerl::nanobench::doNotOptimizeAway(writer.push(0));
-                ++total_messages_enqueued;
+                ++total_items_enqueued;
 
                 if (single_thread)
                 {
                     ankerl::nanobench::doNotOptimizeAway(reader.read());
-                    ++total_messages_received;
+                    ++total_items_received;
                 }
             });
 
     writer.complete();
 
     // auto chrono_start = std::chrono::high_resolution_clock::now();
-    // std::println("Total messages enqueued: {}", total_messages_enqueued);
+    // std::println("Total items enqueued: {}", total_items_enqueued);
     if (!single_thread) {
         for (auto& consumer : consumers) {
-            total_messages_received += consumer->get_received_messages();
+            total_items_received += consumer->get_received_items();
         }
         // auto chrono_end = std::chrono::high_resolution_clock::now();
         // auto chrono_duration = std::chrono::duration_cast<std::chrono::microseconds>(chrono_end - chrono_start).count();
@@ -96,8 +96,8 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::string name, const bo
         // std::fflush(stdout);
     }
 
-    assert(total_messages_enqueued == total_messages_received);
-    results.push_back(std::format(std::locale("en_US.UTF-8"), "| {:>23L} | `{}`", total_messages_enqueued, name));
+    assert(total_items_enqueued == total_items_received);
+    results.push_back(std::format(std::locale("en_US.UTF-8"), "| {:>20L} | `{}`", total_items_enqueued, name));
     std::fflush(stdout);
 }
 
@@ -109,7 +109,7 @@ int main()
 
     bench
         .title("xtd::channel throughput")
-        .unit("message")
+        .unit("item")
         .epochs(25)
         .warmup(10)
         .minEpochTime(500ms)
@@ -135,8 +135,8 @@ int main()
     // bench.render(ankerl::nanobench::templates::json(), output);
 
     std::println();
-    std::println("| Total Messages Enqueued | xtd::channel throughput ");
-    std::println("|------------------------:|:-------------------------");
+    std::println("| Total Items Enqueued | xtd::channel throughput");
+    std::println("|---------------------:|:-----------------------");
     for (const std::string& result : results)
     {
         std::println("{}", result);
