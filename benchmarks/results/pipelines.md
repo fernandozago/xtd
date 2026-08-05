@@ -12,66 +12,16 @@ Recommendations
 
 |              μs/MB |                MB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              349.99 |            2,857.19 |    2.5% |      6.80 | `1 KB writes`
-arena_pool_resource usage:
-  buffer size:         4096
-  arena capacity:      32
-  arena bytes:         131072
-  total allocations:   5352093
-  total deallocations: 5352093
-  reused buffers:      5352061
-  failed allocations:  0
-  peak active:         32
-  active at shutdown:  0
-|              218.59 |            4,574.76 |    1.9% |      6.89 | `2 KB writes`
-arena_pool_resource usage:
-  buffer size:         4096
-  arena capacity:      32
-  arena bytes:         131072
-  total allocations:   8341480
-  total deallocations: 8341480
-  reused buffers:      8341448
-  failed allocations:  0
-  peak active:         32
-  active at shutdown:  0
-|              129.23 |            7,737.85 |    1.1% |      6.84 | `4 KB writes`
-arena_pool_resource usage:
-  buffer size:         4096
-  arena capacity:      32
-  arena bytes:         131072
-  total allocations:   13698533
-  total deallocations: 13698533
-  reused buffers:      13698501
-  failed allocations:  0
-  peak active:         32
-  active at shutdown:  0
-|               92.74 |           10,782.73 |    1.2% |      6.94 | `8 KB writes`
-arena_pool_resource usage:
-  buffer size:         4096
-  arena capacity:      32
-  arena bytes:         131072
-  total allocations:   19477426
-  total deallocations: 19477426
-  reused buffers:      19477394
-  failed allocations:  0
-  peak active:         32
-  active at shutdown:  0
-|               86.84 |           11,514.80 |    1.4% |      6.88 | `16 KB writes`
-arena_pool_resource usage:
-  buffer size:         4096
-  arena capacity:      32
-  arena bytes:         131072
-  total allocations:   20697984
-  total deallocations: 20697984
-  reused buffers:      20697952
-  failed allocations:  0
-  peak active:         32
-  active at shutdown:  0
+|              280.68 |            3,562.83 |    2.3% |      6.77 | `1 KB writes`
+|              175.81 |            5,687.97 |    0.7% |      6.90 | `2 KB writes`
+|              119.24 |            8,386.23 |    1.0% |      6.86 | `4 KB writes`
+|               90.60 |           11,036.95 |    2.0% |      7.02 | `8 KB writes`
+|               82.11 |           12,178.37 |    1.5% |      6.84 | `16 KB writes`
 
 |   Total Transferred | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|            18.86 GB | `1 KB writes`
-|            31.13 GB | `2 KB writes`
-|            52.26 GB | `4 KB writes`
-|            74.30 GB | `8 KB writes`
-|            78.96 GB | `16 KB writes`
+|            23.56 GB | `1 KB writes`
+|            38.47 GB | `2 KB writes`
+|            55.95 GB | `4 KB writes`
+|            76.89 GB | `8 KB writes`
+|            82.60 GB | `16 KB writes`

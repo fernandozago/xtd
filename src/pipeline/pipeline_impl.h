@@ -416,7 +416,7 @@ namespace xtd
         }
 
         explicit pipeline(const validated_options& options, validated_options_tag)
-            : m_allocator(make_allocator(allocator_kind::arena_pool_resource, options))
+            : m_allocator(make_allocator(allocator_kind::fixed_pool_resource, options))
             , m_pause_writer_threshold(options.pause_writer_threshold)
             , m_resume_writer_threshold(options.resume_writer_threshold)
             , m_buffer_size(options.buffer_size)
