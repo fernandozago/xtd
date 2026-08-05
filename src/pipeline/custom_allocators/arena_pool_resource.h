@@ -5,10 +5,8 @@
 
 #include <cassert>
 #include <cstddef>
-#include <limits>
 #include <memory_resource>
 #include <new>
-#include <stdexcept>
 
 #ifdef PRINT_STATS
 #include <print>
@@ -20,8 +18,7 @@ namespace xtd
 class arena_pool_resource final : public std::pmr::memory_resource
 {
 private:
-    static constexpr std::size_t buffer_alignment =
-        alignof(std::byte);
+    static constexpr std::size_t buffer_alignment = alignof(std::byte);
 
     const std::size_t m_segment_size;
     const std::size_t m_max_pool_size;
@@ -46,25 +43,8 @@ private:
     [[nodiscard]]
     static std::size_t calculate_total_size(const std::size_t buffer_size, const std::size_t max_pool_size)
     {
-        if (buffer_size == 0) {
-            throw std::invalid_argument{
-                "buffer size must be greater than zero"
-            };
-        }
-
-        if (max_pool_size == 0) {
-            throw std::invalid_argument{
-                "max pool size must be greater than zero"
-            };
-        }
-
-        if (max_pool_size >
-            std::numeric_limits<std::size_t>::max() / buffer_size) {
-            throw std::length_error{
-                "fixed pool size overflow"
-            };
-        }
-
+        assert(buffer_size > 0);
+        assert(max_pool_size > 0);
         return buffer_size * max_pool_size;
     }
 
@@ -72,34 +52,21 @@ private:
     std::byte* advance(std::byte* pointer) const noexcept
     {
         pointer += m_segment_size;
-
         if (pointer == m_end) {
             return m_storage;
         }
-
         return pointer;
     }
 
     [[nodiscard]]
-    void* do_allocate(
-        const std::size_t bytes,
-        const std::size_t alignment) override
+    void* do_allocate(const std::size_t bytes, const std::size_t alignment) override
     {
-        if (bytes != m_segment_size ||
-            alignment != buffer_alignment) {
-            throw std::bad_alloc{};
-        }
-
-        if (m_active_buffers == m_max_pool_size) {
-#ifdef PRINT_STATS
-            ++m_failed_allocations;
-#endif
-            throw std::bad_alloc{};
-        }
+        assert(bytes == m_segment_size);
+        assert(alignment == buffer_alignment);
+        assert(m_active_buffers != m_max_pool_size);
 
         std::byte* const buffer = m_head;
         m_head = advance(m_head);
-
         ++m_active_buffers;
 
 #ifdef PRINT_STATS
@@ -116,16 +83,9 @@ private:
         return buffer;
     }
 
-    void do_deallocate(
-        void* const pointer,
-        const std::size_t bytes,
-        const std::size_t alignment) noexcept override
+    void do_deallocate([[maybe_unused]] void* const pointer, [[maybe_unused]] const std::size_t bytes, [[maybe_unused]] const std::size_t alignment) noexcept override
     {
-        assert(pointer != nullptr);
-        assert(bytes == m_segment_size);
-        assert(alignment == buffer_alignment);
         assert(m_active_buffers > 0);
-
         m_tail = advance(m_tail);
         --m_active_buffers;
 
@@ -148,23 +108,14 @@ public:
     arena_pool_resource(arena_pool_resource&&) = delete;
     arena_pool_resource& operator=(arena_pool_resource&&) = delete;
 
-    explicit arena_pool_resource(
-        const std::size_t buffer_size,
-        const std::size_t max_pool_size)
+    explicit arena_pool_resource(const std::size_t buffer_size, const std::size_t max_pool_size)
         : m_segment_size{buffer_size}
         , m_max_pool_size{max_pool_size}
-        , m_total_size{
-              calculate_total_size(
-                  buffer_size,
-                  max_pool_size)
-          }
-        , m_storage{
-              static_cast<std::byte*>(
-                  ::operator new(m_total_size))
-          }
-          , m_end{m_storage + m_total_size}
-          , m_head{m_storage}
-          , m_tail{m_storage}
+        , m_total_size{calculate_total_size(buffer_size,max_pool_size)}
+        , m_storage{static_cast<std::byte*>(::operator new(m_total_size))}
+        , m_end{m_storage + m_total_size}
+        , m_head{m_storage}
+        , m_tail{m_storage}
     {
     }
 
@@ -206,38 +157,7 @@ public:
 #endif
 
         assert(m_active_buffers == 0);
-
         ::operator delete(m_storage);
-    }
-
-    [[nodiscard]]
-    std::size_t buffer_size() const noexcept
-    {
-        return m_segment_size;
-    }
-
-    [[nodiscard]]
-    std::size_t max_pool_size() const noexcept
-    {
-        return m_max_pool_size;
-    }
-
-    [[nodiscard]]
-    std::size_t active_buffers() const noexcept
-    {
-        return m_active_buffers;
-    }
-
-    [[nodiscard]]
-    std::size_t available_buffers() const noexcept
-    {
-        return m_max_pool_size - m_active_buffers;
-    }
-
-    [[nodiscard]]
-    std::size_t allocated_bytes() const noexcept
-    {
-        return m_total_size;
     }
 };
 

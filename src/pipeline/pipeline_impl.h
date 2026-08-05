@@ -19,10 +19,17 @@
 
 namespace xtd
 {
+    enum class allocator_kind {
+        fixed_pool_resource, /* Original -- Still best throughput */
+        arena_pool_resource, /* Experimental -- Using std::pmr::arena_pool_resource */
+        unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
+    };
+
     struct pipe_options {
         std::size_t buffer_size = 1024 * 4;
         std::size_t resume_writer_threshold = 1024 * 32;
         std::size_t pause_writer_threshold = 1024 * 128;
+        allocator_kind allocator = allocator_kind::fixed_pool_resource;
     };
 
     class pipeline
@@ -334,6 +341,7 @@ namespace xtd
             std::size_t pause_writer_threshold;
             std::size_t resume_writer_threshold;
             std::size_t max_pooled_segments;
+            allocator_kind allocator;
         };
 
         [[nodiscard]]
@@ -384,14 +392,9 @@ namespace xtd
                 .pause_writer_threshold = options.pause_writer_threshold,
                 .resume_writer_threshold = options.resume_writer_threshold,
                 .max_pooled_segments = max_pooled_segments,
+                .allocator = options.allocator,
             };
         }
-
-        enum class allocator_kind {
-            fixed_pool_resource, /* Original -- Still best throughput */
-            arena_pool_resource, /* Experimental -- Using std::pmr::arena_pool_resource */
-            unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
-        };
 
 
         [[nodiscard]]
@@ -416,7 +419,7 @@ namespace xtd
         }
 
         explicit pipeline(const validated_options& options, validated_options_tag)
-            : m_allocator(make_allocator(allocator_kind::fixed_pool_resource, options))
+            : m_allocator(make_allocator(options.allocator, options))
             , m_pause_writer_threshold(options.pause_writer_threshold)
             , m_resume_writer_threshold(options.resume_writer_threshold)
             , m_buffer_size(options.buffer_size)

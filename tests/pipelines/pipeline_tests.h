@@ -239,6 +239,59 @@ TEST_CASE("pipe_options: rejects zero buffer size")
 }
 
 
+static void verify_non_multiple_pause_threshold_roundtrip(const xtd::allocator_kind allocator)
+{
+    xtd::pipeline pipeline(xtd::pipe_options{
+        .buffer_size = 4,
+        .resume_writer_threshold = 8,
+        .pause_writer_threshold = 10,
+        .allocator = allocator,
+    });
+
+    const std::string message = "0123456789";
+
+    std::thread writer_thread([&pipeline, &message]() {
+        xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
+        CHECK(writer.write(message) == message.size());
+        writer.complete();
+    });
+
+    xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
+    std::string received;
+
+    while (const xtd::read_result result = reader.read()) {
+        const xtd::segmented_byte_view buffer = result.buffer();
+        received += buffer.to_string();
+        reader.advance(buffer.end());
+
+        if (result.completed()) {
+            break;
+        }
+    }
+
+    writer_thread.join();
+    CHECK(received == message);
+}
+
+
+TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size")
+{
+    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::fixed_pool_resource);
+}
+
+
+TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size with arena allocator")
+{
+    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::arena_pool_resource);
+}
+
+
+TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size with unsynchronized allocator")
+{
+    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::unsynchronized_pool_resource);
+}
+
+
 TEST_CASE("Writer: rejects null data when length is non-zero")
 {
     xtd::pipeline pipeline;
@@ -1711,6 +1764,105 @@ TEST_CASE("pipeline: equal pause and resume thresholds resume after a full segme
     CHECK(second.completed());
 
     reader.advance(second_buffer.end(), second_buffer.end());
+    reader.complete();
+}
+
+TEST_CASE("pipeline: paused writer resumes only after full segment is returned to pool")
+{
+    using namespace std::chrono_literals;
+
+    xtd::pipeline pipe(xtd::pipe_options{
+        .buffer_size = 64,
+        .resume_writer_threshold = 128,
+        .pause_writer_threshold = 128,
+        .allocator = xtd::allocator_kind::fixed_pool_resource,
+    });
+
+    xtd::pipe_writer writer = xtd::pipe_writer(pipe);
+    xtd::pipe_reader reader = xtd::pipe_reader(pipe);
+
+    const std::string payload(129, 'x');
+
+    auto write_future = std::async(std::launch::async, [&]() {
+        const std::size_t written = writer.write(payload);
+        writer.complete();
+        return written;
+    });
+
+    const xtd::read_result first = reader.read();
+    const xtd::segmented_byte_view first_buffer = first.buffer();
+    REQUIRE(first_buffer.size() == 128);
+
+    // Consume less than one full segment; writer must remain paused.
+    reader.advance(first_buffer.begin() + 63, first_buffer.begin() + 63);
+    CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
+
+    const xtd::read_result second = reader.read();
+    const xtd::segmented_byte_view second_buffer = second.buffer();
+    REQUIRE(second_buffer.size() == 65);
+
+    // Consume one more byte so the first segment can be released.
+    reader.advance(second_buffer.begin() + 1, second_buffer.begin() + 1);
+
+    REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
+    CHECK(write_future.get() == payload.size());
+
+    const xtd::read_result third = reader.read();
+    const xtd::segmented_byte_view third_buffer = third.buffer();
+    CHECK(third_buffer.size() == 65);
+    CHECK(third.completed());
+
+    reader.advance(third_buffer.end(), third_buffer.end());
+    reader.complete();
+}
+
+TEST_CASE("pipeline: non-multiple pause threshold resumes only after full segment is returned")
+{
+    using namespace std::chrono_literals;
+
+    xtd::pipeline pipe(xtd::pipe_options{
+        .buffer_size = 4,
+        .resume_writer_threshold = 10,
+        .pause_writer_threshold = 10,
+        .allocator = xtd::allocator_kind::fixed_pool_resource,
+    });
+
+    xtd::pipe_writer writer = xtd::pipe_writer(pipe);
+    xtd::pipe_reader reader = xtd::pipe_reader(pipe);
+
+    const std::string payload = "123456789";
+
+    auto write_future = std::async(std::launch::async, [&]() {
+        const std::size_t written = writer.write(payload);
+        writer.complete();
+        return written;
+    });
+
+    const xtd::read_result first = reader.read();
+    const xtd::segmented_byte_view first_buffer = first.buffer();
+    REQUIRE(first_buffer.size() == 8);
+    CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
+
+    // Consume less than one full segment; writer must remain blocked.
+    reader.advance(first_buffer.begin() + 3, first_buffer.begin() + 3);
+    CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
+
+    const xtd::read_result second = reader.read();
+    const xtd::segmented_byte_view second_buffer = second.buffer();
+    REQUIRE(second_buffer.size() == 5);
+
+    // Consume one more byte to release the first segment.
+    reader.advance(second_buffer.begin() + 1, second_buffer.begin() + 1);
+
+    REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
+    CHECK(write_future.get() == payload.size());
+
+    const xtd::read_result third = reader.read();
+    const xtd::segmented_byte_view third_buffer = third.buffer();
+    CHECK(third_buffer.size() == 5);
+    CHECK(third.completed());
+
+    reader.advance(third_buffer.end(), third_buffer.end());
     reader.complete();
 }
 

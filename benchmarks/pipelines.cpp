@@ -68,7 +68,10 @@ public:
     }
 };
 
-void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_size)
+void benchmark(
+    ankerl::nanobench::Bench& bench,
+    const std::size_t write_chunk_size,
+    const xtd::allocator_kind allocator)
 {
     assert(write_chunk_size > 0);
 
@@ -87,9 +90,15 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
             return static_cast<std::byte>(distribution(generator));
         });
 
+    const std::string allocator_name =
+        allocator == xtd::allocator_kind::fixed_pool_resource
+            ? "fixed_pool_resource"
+            : "arena_pool_resource";
 
-    // Create Pipeline
-    xtd::pipeline pipeline;
+    // Create pipeline with explicit allocator selection.
+    xtd::pipeline pipeline(xtd::pipe_options{
+        .allocator = allocator,
+    });
 
     // Start consumer thread before starting the benchmark
     std::latch latch(1);
@@ -98,7 +107,10 @@ void benchmark(ankerl::nanobench::Bench& bench, const std::size_t write_chunk_si
 
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     std::size_t total_bytes_written = 0;
-    std::string bench_name = std::format("{} KB writes", write_chunk_size / (double)bytes_per_kb);
+    std::string bench_name = std::format(
+        "{} / {} KB writes",
+        allocator_name,
+        write_chunk_size / static_cast<double>(bytes_per_kb));
     bench
         .batch(bytes_to_mb(write_chunk_size))
         .run(bench_name,
@@ -124,6 +136,7 @@ int main()
         4 * bytes_per_kb, // 4 KB
         8 * bytes_per_kb, // 8 KB
         16 * bytes_per_kb, // 16 KB
+        32 * bytes_per_kb, // 32 KB
     };
 
     ankerl::nanobench::Bench bench;
@@ -139,7 +152,8 @@ int main()
         .unit("MB");
 
     for (const std::size_t write_chunk_size : chunks) {
-        benchmark(bench, write_chunk_size);
+        benchmark(bench, write_chunk_size, xtd::allocator_kind::fixed_pool_resource);
+        benchmark(bench, write_chunk_size, xtd::allocator_kind::arena_pool_resource);
     }
 
     // Uncomment for detailed JSON output
