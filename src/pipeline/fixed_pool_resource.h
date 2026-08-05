@@ -105,6 +105,7 @@ public:
 
     ~fixed_pool_resource() override
     {
+        #if DEBUG
         try {
             std::println("fixed_pool_resource usage:");
             std::println("  max pool size:      {}", m_max_pool_size);
@@ -118,6 +119,7 @@ public:
         catch (...) {
             // Destructors must not allow logging failures to escape.
         }
+        #endif
 
         release();
     }
