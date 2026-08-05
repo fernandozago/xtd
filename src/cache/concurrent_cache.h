@@ -21,9 +21,6 @@ namespace xtd
 template<typename value_t>
 using cache_value = std::shared_ptr<const value_t>;
 
-template<std::copy_constructible Key>
-using cache_key = std::shared_ptr<const Key>;
-
 struct cache_entry_opts final
 {
     static constexpr std::chrono::nanoseconds max_supported_ttl = 
@@ -40,8 +37,7 @@ struct cache_entry_opts final
 };
 
 template<
-    std::copy_constructible key_t, 
-    typename value_t, 
+    std::copy_constructible key_t, typename value_t, 
     typename hash_t = std::hash<key_t>, 
     typename key_equal_t = std::equal_to<key_t>, 
     typename clock_t = std::chrono::steady_clock>
@@ -50,12 +46,12 @@ class concurrent_cache final
 private:
     using time_point = typename clock_t::time_point;
     using duration = typename clock_t::duration;
-    //using cache_value = xtd::cache_value<value_t>;
+    using cache_value = xtd::cache_value<value_t>;
     static constexpr time_point no_expiration_time = clock_t::time_point::min();
 
     struct entry final
     {
-        cache_value<value_t> value;
+        cache_value value;
         time_point expires_at{no_expiration_time};
 
         [[nodiscard]]
@@ -67,8 +63,8 @@ private:
 
     struct load_state final
     {
-        std::promise<cache_value<value_t>> promise;
-        std::shared_future<cache_value<value_t>> future;
+        std::promise<cache_value> promise;
+        std::shared_future<cache_value> future;
 
         load_state()
             : future{promise.get_future().share()}
@@ -113,14 +109,9 @@ private:
     [[nodiscard]]
     static time_point expiration_time(const cache_entry_opts& options)
     {
-        if (options.ttl == std::chrono::nanoseconds::zero()) {
-            return no_expiration_time;
-        }
-
-        const time_point now = clock_t::now();
-        const duration ttl = std::chrono::duration_cast<duration>(options.ttl);
-
-        return now + ttl;
+        return options.ttl == std::chrono::nanoseconds::zero()
+            ? no_expiration_time
+            : clock_t::now() + std::chrono::duration_cast<duration>(options.ttl);
     }
 
     static void remove_in_flight(shard& selected, const key_t& key, const std::shared_ptr<load_state>& expected_state)
@@ -153,7 +144,7 @@ public:
     concurrent_cache& operator=(concurrent_cache&&) = delete;
 
     [[nodiscard]]
-    cache_value<value_t> get(const key_t& key) const
+    cache_value get(const key_t& key) const
     {
         shard& selected = shard_for(key);
 
@@ -201,9 +192,9 @@ public:
     template<typename... Args>
     requires std::constructible_from<value_t, Args...>
     [[nodiscard]]
-    cache_value<value_t> insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
+    cache_value insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
     {
-        cache_value<value_t> new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
+        cache_value new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
         entry new_entry{new_value, expiration_time(options)};
 
         shard& selected = shard_for(key);
@@ -226,9 +217,9 @@ public:
     template<typename... Args>
     requires std::constructible_from<value_t, Args...>
     [[nodiscard]]
-    cache_value<value_t> insert_or_assign(key_t key, Args&&... args)
+    cache_value insert_or_assign(key_t key, Args&&... args)
     {
-        cache_value<value_t> new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
+        cache_value new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
         entry new_entry{new_value, no_expiration_time};
 
         shard& selected = shard_for(key);
@@ -275,7 +266,7 @@ public:
         } -> std::same_as<value_t>;
     }
     [[nodiscard]]
-    cache_value<value_t> get_or_create(const key_t& key, cache_entry_opts options, loader_t&& loader)
+    cache_value get_or_create(const key_t& key, cache_entry_opts options, loader_t&& loader)
     {
         shard& selected = shard_for(key);
         std::shared_ptr<load_state> state;
@@ -310,11 +301,11 @@ public:
             return state->future.get();
         }
 
-        cache_value<value_t> published;
+        cache_value published;
 
         try {
             value_t loaded_value = std::invoke(std::forward<loader_t>(loader), key);
-            cache_value<value_t> loaded = std::make_shared<const value_t>(std::move(loaded_value));
+            cache_value loaded = std::make_shared<const value_t>(std::move(loaded_value));
 
             {
                 // A concurrent insertion may have happened while the loader was running.
@@ -361,7 +352,7 @@ public:
         } -> std::same_as<value_t>;
     }
     [[nodiscard]]
-    cache_value<value_t> get_or_create(const key_t& key, loader_t&& loader)
+    cache_value get_or_create(const key_t& key, loader_t&& loader)
     {
         shard& selected = shard_for(key);
         std::shared_ptr<load_state> state;
@@ -396,11 +387,11 @@ public:
             return state->future.get();
         }
 
-        cache_value<value_t> published;
+        cache_value published;
 
         try {
             value_t loaded_value = std::invoke(std::forward<loader_t>(loader), key);
-            cache_value<value_t> loaded = std::make_shared<const value_t>(std::move(loaded_value));
+            cache_value loaded = std::make_shared<const value_t>(std::move(loaded_value));
 
             {
                 // A concurrent insertion may have happened while the loader was running.

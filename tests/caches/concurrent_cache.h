@@ -15,7 +15,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache can store 
     CHECK(cache.empty());
     CHECK_FALSE(cache.contains(1));
 
-    const xtd::cache_value<int> value = cache.get(1);
+    const xtd::cache_value value = cache.get(1);
     CHECK_FALSE(value);
 
     const xtd::cache_value value2 = cache.insert_or_assign(1, 1);
@@ -33,9 +33,9 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache get_or_cre
     CHECK(cache.empty());
     CHECK_FALSE(cache.contains(1));
     
-    int any_source = 10;
-    const xtd::cache_value result = cache.get_or_create(1, [&any_source](const int key) {
-        return any_source + key;
+    int external_data = 10;
+    const xtd::cache_value result = cache.get_or_create(1, [&external_data](const int key) {
+        return external_data + key;
     });
     CHECK(result);
     CHECK(*result == 11);
