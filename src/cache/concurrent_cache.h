@@ -10,7 +10,6 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <shared_mutex>
 #include <unordered_map>
 #include <utility>
@@ -39,27 +38,19 @@ template<
 class concurrent_cache
 {
 private:
-    [[nodiscard]]
-    static constexpr typename clock_t::time_point no_expiration_time() noexcept
-    {
-        return clock_t::time_point::min();
-    }
+    using time_point = typename clock_t::time_point;
+    using duration = typename clock_t::duration;
+    static constexpr time_point no_expiration_time = clock_t::time_point::min();
 
     struct entry final
     {
         cache_value<value_t> value;
-        typename clock_t::time_point expires_at{no_expiration_time()};
+        time_point expires_at{no_expiration_time};
 
         [[nodiscard]]
-        bool expired() const noexcept
+        bool expired(const time_point now = clock_t::now()) const noexcept
         {
-            return expired(clock_t::now());
-        }
-
-        [[nodiscard]]
-        bool expired(const typename clock_t::time_point now) const noexcept
-        {
-            return expires_at != no_expiration_time() && now >= expires_at;
+            return expires_at != no_expiration_time && now >= expires_at;
         }
     };
 
@@ -76,6 +67,7 @@ private:
 
     using values_map = std::unordered_map<key_t, entry, hash_t, key_equal_t>;
     using in_flight_map = std::unordered_map<key_t, std::shared_ptr<load_state>, hash_t, key_equal_t>;
+    using values_node = typename values_map::node_type;
 
     struct shard final
     {
@@ -108,15 +100,16 @@ private:
     }
 
     [[nodiscard]]
-    static typename clock_t::time_point expiration_time(const cache_entry_opts& options, const typename clock_t::time_point now)
+    static time_point expiration_time(const cache_entry_opts& options)
     {
-        const typename clock_t::duration ttl = std::chrono::duration_cast<typename clock_t::duration>(options.expire_after_write);
+        const time_point now = clock_t::now();
+        const duration ttl = std::chrono::duration_cast<duration>(options.expire_after_write);
 
         if (ttl <= clock_t::duration::zero()) {
-            return no_expiration_time();
+            return no_expiration_time;
         }
 
-        const typename clock_t::duration remaining = clock_t::time_point::max() - now;
+        const duration remaining = clock_t::time_point::max() - now;
 
         if (ttl >= remaining) {
             return clock_t::time_point::max();
@@ -173,7 +166,7 @@ public:
         }
 
         // Destroy the expired key and value after releasing the shard lock.
-        typename values_map::node_type expired_entry;
+        values_node expired_entry;
 
         {
             std::unique_lock lock{selected.mutex};
@@ -206,7 +199,7 @@ public:
     cache_value<value_t> insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
     {
         cache_value<value_t> new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
-        entry new_entry{new_value, expiration_time(options, clock_t::now())};
+        entry new_entry{new_value, expiration_time(options)};
 
         shard& selected = shard_for(key);
 
@@ -237,7 +230,7 @@ public:
     bool erase(const key_t& key)
     {
         shard& selected = shard_for(key);
-        typename values_map::node_type removed;
+        values_node removed;
 
         {
             std::unique_lock lock{selected.mutex};
@@ -268,7 +261,7 @@ public:
 
         {
             // Keep an expired entry alive until after releasing the shard lock.
-            typename values_map::node_type expired_entry;
+            values_node expired_entry;
 
             std::unique_lock lock{selected.mutex};
             const auto value_it = selected.values.find(key);
@@ -303,7 +296,7 @@ public:
 
             {
                 // A concurrent insertion may have happened while the loader was running.
-                typename values_map::node_type expired_entry;
+                values_node expired_entry;
 
                 std::unique_lock lock{selected.mutex};
                 const auto value_it = selected.values.find(key);
@@ -316,8 +309,7 @@ public:
                         expired_entry = selected.values.extract(value_it);
                     }
 
-                    const typename clock_t::time_point now = clock_t::now();
-                    auto [it, inserted] = selected.values.try_emplace(key, entry{loaded, expiration_time(options, now)});
+                    auto [it, inserted] = selected.values.try_emplace(key, entry{loaded, expiration_time(options)});
                     assert(inserted);
                     published = it->second.value;
                 }
@@ -355,11 +347,11 @@ public:
     [[nodiscard]]
     std::size_t purge_expired() const
     {
-        const typename clock_t::time_point now = clock_t::now();
+        const time_point now = clock_t::now();
         std::size_t result = 0;
 
         for (const auto& selected : m_shards) {
-            std::vector<typename values_map::node_type> removed;
+            std::vector<values_node> removed;
 
             {
                 std::unique_lock lock{selected->mutex};
