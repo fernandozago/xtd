@@ -12,30 +12,30 @@ Recommendations
 
 |              μs/MB |                MB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              289.81 |            3,450.48 |    0.5% |      6.88 | `fixed_pool_resource / 1 KB writes`
-|              324.10 |            3,085.45 |    0.7% |      6.83 | `arena_pool_resource / 1 KB writes`
-|              180.46 |            5,541.31 |    1.9% |      6.76 | `fixed_pool_resource / 2 KB writes`
-|              191.36 |            5,225.69 |    0.7% |      6.90 | `arena_pool_resource / 2 KB writes`
-|              136.44 |            7,329.25 |    3.5% |      6.76 | `fixed_pool_resource / 4 KB writes`
-|              133.99 |            7,463.43 |    1.6% |      6.95 | `arena_pool_resource / 4 KB writes`
-|               95.42 |           10,480.16 |    2.1% |      6.95 | `fixed_pool_resource / 8 KB writes`
-|               92.31 |           10,833.50 |    1.2% |      6.82 | `arena_pool_resource / 8 KB writes`
-|               87.18 |           11,470.50 |    1.3% |      6.87 | `fixed_pool_resource / 16 KB writes`
-|               84.94 |           11,773.23 |    1.1% |      6.88 | `arena_pool_resource / 16 KB writes`
-|               89.88 |           11,125.85 |    1.0% |      6.97 | `fixed_pool_resource / 32 KB writes`
-|               88.07 |           11,354.25 |    0.9% |      7.03 | `arena_pool_resource / 32 KB writes`
+|              297.83 |            3,357.59 |    2.0% |    111.82 | `fixed_pool_resource / 1 KB writes`
+|              340.02 |            2,941.02 |    1.5% |    111.10 | `arena_pool_resource / 1 KB writes`
+|              193.70 |            5,162.70 |    1.6% |    108.69 | `fixed_pool_resource / 2 KB writes`
+|              219.25 |            4,560.90 |    3.1% |    110.48 | `arena_pool_resource / 2 KB writes`
+|              132.69 |            7,536.17 |    2.6% |    110.36 | `fixed_pool_resource / 4 KB writes`
+|              139.18 |            7,185.17 |    1.5% |    111.93 | `arena_pool_resource / 4 KB writes`
+|               97.48 |           10,258.37 |    0.9% |    109.60 | `fixed_pool_resource / 8 KB writes`
+|               95.63 |           10,456.84 |    1.4% |    111.22 | `arena_pool_resource / 8 KB writes`
+|               89.47 |           11,177.12 |    0.7% |    109.43 | `fixed_pool_resource / 16 KB writes`
+|               89.96 |           11,116.19 |    1.1% |    109.66 | `arena_pool_resource / 16 KB writes`
+|               88.47 |           11,302.95 |    2.4% |    111.87 | `fixed_pool_resource / 32 KB writes`
+|               91.83 |           10,889.96 |    0.9% |    109.89 | `arena_pool_resource / 32 KB writes`
 
 |   Total Transferred | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|            23.33 GB | `fixed_pool_resource / 1 KB writes`
-|            20.65 GB | `arena_pool_resource / 1 KB writes`
-|            36.82 GB | `fixed_pool_resource / 2 KB writes`
-|            35.35 GB | `arena_pool_resource / 2 KB writes`
-|            48.68 GB | `fixed_pool_resource / 4 KB writes`
-|            51.19 GB | `arena_pool_resource / 4 KB writes`
-|            72.01 GB | `fixed_pool_resource / 8 KB writes`
-|            72.87 GB | `arena_pool_resource / 8 KB writes`
-|            78.29 GB | `fixed_pool_resource / 16 KB writes`
-|            81.35 GB | `arena_pool_resource / 16 KB writes`
-|            76.77 GB | `fixed_pool_resource / 32 KB writes`
-|            77.07 GB | `arena_pool_resource / 32 KB writes`
+|           369.14 GB | `fixed_pool_resource / 1 KB writes`
+|           318.83 GB | `arena_pool_resource / 1 KB writes`
+|           545.38 GB | `fixed_pool_resource / 2 KB writes`
+|           494.47 GB | `arena_pool_resource / 2 KB writes`
+|           817.96 GB | `fixed_pool_resource / 4 KB writes`
+|           795.04 GB | `arena_pool_resource / 4 KB writes`
+|          1108.84 GB | `fixed_pool_resource / 8 KB writes`
+|          1145.75 GB | `arena_pool_resource / 8 KB writes`
+|          1196.39 GB | `fixed_pool_resource / 16 KB writes`
+|          1190.68 GB | `arena_pool_resource / 16 KB writes`
+|          1227.85 GB | `fixed_pool_resource / 32 KB writes`
+|          1167.51 GB | `arena_pool_resource / 32 KB writes`

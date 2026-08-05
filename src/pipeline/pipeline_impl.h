@@ -20,8 +20,8 @@
 namespace xtd
 {
     enum class allocator_kind {
-        fixed_pool_resource, /* Original -- Still best throughput */
-        arena_pool_resource, /* Experimental -- Using std::pmr::arena_pool_resource */
+        fixed_pool_resource, /* Original -- Still best throughput -- xtd::fixed_pool_resource */
+        arena_pool_resource, /* Experimental -- Using xtd::arena_pool_resource */
         unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
     };
 
