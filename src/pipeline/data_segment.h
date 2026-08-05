@@ -5,9 +5,9 @@
 #include <cassert>
 #include <cstddef>
 #include <cstring>
+#include <memory_resource>
 #include <span>
 #include <stdexcept>
-#include "fixed_buffer_pool.h"
 
 namespace xtd
 {
@@ -15,18 +15,28 @@ namespace xtd
 struct data_segment
 {
 private:
-    fixed_buffer_pool::fixed_buffer_ptr m_buffer;
+    std::pmr::memory_resource& m_resource;
+    std::byte* m_buffer;
     std::span<std::byte> m_writable_span;
     std::span<const std::byte> m_readable_span;
     const std::size_t m_capacity;
 
 public:
-    explicit data_segment(fixed_buffer_pool& resource)
-        : m_buffer(resource.get_buffer())
-        , m_writable_span(m_buffer.get(), resource.buffer_size())
-        , m_readable_span(m_buffer.get(), std::size_t{0})
-        , m_capacity(resource.buffer_size())
+    static constexpr std::size_t buffer_alignment = alignof(std::byte);
+
+    explicit data_segment(const std::size_t buffer_size, std::pmr::memory_resource& resource)
+        : m_resource{resource}
+        , m_buffer{static_cast<std::byte*>(resource.allocate(buffer_size, buffer_alignment))}
+        , m_writable_span{m_buffer, buffer_size}
+        , m_readable_span{m_buffer, std::size_t{0}}
+        , m_capacity{buffer_size}
     {
+        assert(buffer_size > 0);
+    }
+
+    ~data_segment()
+    {
+        m_resource.deallocate(m_buffer, m_capacity, buffer_alignment);
     }
 
     data_segment(const data_segment&) = delete;
@@ -60,7 +70,7 @@ public:
     }
 
     [[nodiscard]]
-    const std::span<std::byte>& writable_bytes() noexcept
+    std::span<std::byte> writable_bytes() noexcept
     {
         return m_writable_span;
     }
@@ -68,7 +78,9 @@ public:
     void advance_read(const std::size_t size)
     {
         if (size > m_readable_span.size()) {
-            throw std::out_of_range("consume size exceeds readable size");
+            throw std::out_of_range{
+                "consume size exceeds readable size"
+            };
         }
 
         m_readable_span = m_readable_span.subspan(size);
@@ -79,7 +91,7 @@ public:
     {
         return m_writable_span.empty();
     }
-    
+
     [[nodiscard]]
     std::size_t copy_from(const std::byte* const source, const std::size_t size) noexcept
     {

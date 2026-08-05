@@ -3,86 +3,141 @@
 
 #include <cassert>
 #include <cstddef>
-#include <memory>
+#include <memory_resource>
+#include <new>
+#include <print>
 #include <vector>
 
 namespace xtd
 {
 
-    class fixed_buffer_pool
+class fixed_pool_resource final : public std::pmr::memory_resource
+{
+private:
+    static constexpr std::size_t buffer_alignment =
+        alignof(std::byte);
+
+    std::vector<void*> m_available_buffers;
+
+    const std::size_t m_max_pool_size;
+
+    std::size_t m_reused_buffers{0};
+    std::size_t m_discarded_buffers{0};
+    std::size_t m_created_buffers{0};
+
+    [[nodiscard]]
+    void* do_allocate(
+        const std::size_t bytes,
+        const std::size_t alignment) override
     {
-    private:
-        std::vector<std::byte*> m_available_buffers;
-        const std::size_t m_buffer_size;
-        const std::size_t m_max_pool_size;
+        assert(bytes > 0);
+        assert(alignment == buffer_alignment);
 
-        struct buffer_releaser
-        {
-            fixed_buffer_pool& pool;
-
-            void operator()(std::byte* buffer) const noexcept
-            {
-                assert(buffer != nullptr);
-
-                if (pool.m_available_buffers.size() < pool.m_max_pool_size) {
-                    pool.m_available_buffers.push_back(buffer);
-                }
-                else {
-                    delete[] buffer;
-                }
-            }
-        };
-
-    public:
-        using fixed_buffer_ptr = std::unique_ptr<std::byte[], buffer_releaser>;
-
-        fixed_buffer_pool(const fixed_buffer_pool&) = delete;
-        fixed_buffer_pool& operator=(const fixed_buffer_pool&) = delete;
-        fixed_buffer_pool(fixed_buffer_pool&&) = delete;
-        fixed_buffer_pool& operator=(fixed_buffer_pool&&) = delete;
-
-        explicit fixed_buffer_pool(
-            const std::size_t buffer_size,
-            const std::size_t max_pool_size)
-            : m_buffer_size{buffer_size}
-            , m_max_pool_size{max_pool_size}
-        {
-            assert(buffer_size > 0);
-            m_available_buffers.reserve(max_pool_size);
+        if (m_available_buffers.empty()) {
+            ++m_created_buffers;
+            return ::operator new(bytes);
         }
 
-        ~fixed_buffer_pool()
-        {
-            for (std::byte* buffer : m_available_buffers) {
-                delete[] buffer;
-            }
+        void* buffer = m_available_buffers.back();
+        m_available_buffers.pop_back();
+
+        ++m_reused_buffers;
+
+        return buffer;
+    }
+
+    void do_deallocate(
+        void* const pointer,
+        [[maybe_unused]] const std::size_t bytes,
+        const std::size_t alignment) noexcept override
+    {
+        assert(pointer != nullptr);
+        assert(bytes > 0);
+        assert(alignment == buffer_alignment);
+
+        if (m_available_buffers.size() < m_max_pool_size) {
+            m_available_buffers.push_back(pointer);
+            return;
         }
 
-        [[nodiscard]]
-        fixed_buffer_ptr get_buffer()
-        {
-            if (m_available_buffers.empty()) {
-                return fixed_buffer_ptr{new std::byte[m_buffer_size], buffer_releaser{*this}};
-            }
+        ++m_discarded_buffers;
 
-            std::byte* buffer = m_available_buffers.back();
-            m_available_buffers.pop_back();
+        ::operator delete(pointer);
+    }
 
-            return fixed_buffer_ptr{buffer, buffer_releaser{*this}};
+    [[nodiscard]]
+    bool do_is_equal(
+        const std::pmr::memory_resource& other) const noexcept override
+    {
+        return this == &other;
+    }
+
+public:
+    fixed_pool_resource(const fixed_pool_resource&) = delete;
+    fixed_pool_resource& operator=(const fixed_pool_resource&) = delete;
+
+    fixed_pool_resource(fixed_pool_resource&&) = delete;
+    fixed_pool_resource& operator=(fixed_pool_resource&&) = delete;
+
+    explicit fixed_pool_resource(
+        const std::size_t max_pool_size)
+        : m_max_pool_size{max_pool_size}
+    {
+        assert(max_pool_size > 0);
+
+        m_available_buffers.reserve(max_pool_size);
+    }
+
+    ~fixed_pool_resource() override
+    {
+        try {
+            std::println("fixed_pool_resource usage:");
+            std::println("  max pool size:      {}", m_max_pool_size);
+            std::println("  created buffers:    {}", m_created_buffers);
+            std::println("  retained buffers:   {}", m_available_buffers.size());
+            std::println("  reused buffers:     {}", m_reused_buffers);
+            std::println("  discarded buffers:  {}", m_discarded_buffers);
+        }
+        catch (...) {
+            // Destructors must not allow logging failures to escape.
         }
 
-        [[nodiscard]]
-        std::size_t buffer_size() const noexcept
-        {
-            return m_buffer_size;
+        release();
+    }
+
+    void release() noexcept
+    {
+        for (void* buffer : m_available_buffers) {
+            ::operator delete(buffer);
         }
 
-        [[nodiscard]]
-        std::size_t pool_size() const noexcept
-        {
-            return m_available_buffers.size();
-        }
-    };
+        m_available_buffers.clear();
+    }
+
+    [[nodiscard]]
+    std::size_t pool_size() const noexcept
+    {
+        return m_available_buffers.size();
+    }
+
+    [[nodiscard]]
+    std::size_t max_pool_size() const noexcept
+    {
+        return m_max_pool_size;
+    }
+
+    [[nodiscard]]
+    std::size_t reused_buffers() const noexcept
+    {
+        return m_reused_buffers;
+    }
+
+    [[nodiscard]]
+    std::size_t discarded_buffers() const noexcept
+    {
+        return m_discarded_buffers;
+    }
+};
 
 } // namespace xtd
 

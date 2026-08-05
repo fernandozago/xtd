@@ -11,8 +11,8 @@ struct FixedBufferPoolTests {};
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "starts empty with full writable capacity")
 {
-    xtd::fixed_buffer_pool pool(8, 0);
-    xtd::data_segment segment(pool);
+    xtd::fixed_pool_resource pool(1);
+    xtd::data_segment segment(8, pool);
 
     CHECK(segment.capacity() == 8);
     CHECK(segment.readable_size() == 0);
@@ -25,8 +25,8 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "starts empty with full writable capacity
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "copy_from appends readable bytes until capacity")
 {
-    xtd::fixed_buffer_pool pool(5, 0);
-    xtd::data_segment segment(pool);
+    xtd::fixed_pool_resource pool(1);
+    xtd::data_segment segment(5, pool);
     const std::array<std::byte, 7> source = {
         std::byte{'A'},
         std::byte{'B'},
@@ -64,8 +64,8 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "copy_from appends readable bytes until c
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "advance consumes readable bytes and rejects over-consume")
 {
-    xtd::fixed_buffer_pool pool(6, 0);
-    xtd::data_segment segment(pool);
+    xtd::fixed_pool_resource pool(1);
+    xtd::data_segment segment(6, pool);
     const std::array<std::byte, 4> source = {
         std::byte{'x'},
         std::byte{'y'},
@@ -90,34 +90,34 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "advance consumes readable bytes and reje
 
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "fixed_buffer_pool: empty") {
-    xtd::fixed_buffer_pool pool(1, 0);
+    xtd::fixed_pool_resource pool(1);
     CHECK(pool.pool_size() == 0);
 }
 
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "returns buffers to the pool on destruction")
 {
-    xtd::fixed_buffer_pool pool(1, 3);
+    xtd::fixed_pool_resource pool(3);
     CHECK(pool.pool_size() == 0);
 
     {
-        xtd::data_segment segment1(pool);
+        xtd::data_segment segment1(8, pool);
         CHECK(pool.pool_size() == 0);
     }
 
     CHECK(pool.pool_size() == 1);
 
     {
-        xtd::data_segment segment2(pool);
+        xtd::data_segment segment2(8, pool);
         CHECK(pool.pool_size() == 0); // Reuses the pooled buffer.
     }
 
     CHECK(pool.pool_size() == 1);
 
     {
-        xtd::data_segment segment1(pool);
-        xtd::data_segment segment2(pool);
-        xtd::data_segment segment3(pool);
+        xtd::data_segment segment1(8, pool);
+        xtd::data_segment segment2(8, pool);
+        xtd::data_segment segment3(8, pool);
 
         CHECK(pool.pool_size() == 0);
     }
