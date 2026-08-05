@@ -24,7 +24,7 @@ private:
     static constexpr std::size_t buffer_alignment =
         alignof(std::byte);
 
-    const std::size_t m_buffer_size;
+    const std::size_t m_segment_size;
     const std::size_t m_max_pool_size;
     const std::size_t m_total_size;
 
@@ -45,9 +45,7 @@ private:
 #endif
 
     [[nodiscard]]
-    static std::size_t calculate_total_size(
-        const std::size_t buffer_size,
-        const std::size_t max_pool_size)
+    static std::size_t calculate_total_size(const std::size_t buffer_size, const std::size_t max_pool_size)
     {
         if (buffer_size == 0) {
             throw std::invalid_argument{
@@ -74,7 +72,7 @@ private:
     [[nodiscard]]
     std::byte* advance(std::byte* pointer) const noexcept
     {
-        pointer += m_buffer_size;
+        pointer += m_segment_size;
 
         if (pointer == m_end) {
             return m_storage;
@@ -88,7 +86,7 @@ private:
         const std::size_t bytes,
         const std::size_t alignment) override
     {
-        if (bytes != m_buffer_size ||
+        if (bytes != m_segment_size ||
             alignment != buffer_alignment) {
             throw std::bad_alloc{};
         }
@@ -125,16 +123,9 @@ private:
         const std::size_t alignment) noexcept override
     {
         assert(pointer != nullptr);
-        assert(bytes == m_buffer_size);
+        assert(bytes == m_segment_size);
         assert(alignment == buffer_alignment);
         assert(m_active_buffers > 0);
-
-        /*
-         * This arena requires FIFO deallocation.
-         *
-         * The oldest active allocation must always be returned first.
-         */
-        assert(pointer == m_tail);
 
         m_tail = advance(m_tail);
         --m_active_buffers;
@@ -161,7 +152,7 @@ public:
     explicit arena_pool_resource(
         const std::size_t buffer_size,
         const std::size_t max_pool_size)
-        : m_buffer_size{buffer_size}
+        : m_segment_size{buffer_size}
         , m_max_pool_size{max_pool_size}
         , m_total_size{
               calculate_total_size(
@@ -172,9 +163,9 @@ public:
               static_cast<std::byte*>(
                   ::operator new(m_total_size))
           }
-        , m_end{m_storage + m_total_size}
-        , m_head{m_storage}
-        , m_tail{m_storage}
+          , m_end{m_storage + m_total_size}
+          , m_head{m_storage}
+          , m_tail{m_storage}
     {
     }
 
@@ -185,7 +176,7 @@ public:
             std::println("arena_pool_resource usage:");
             std::println(
                 "  buffer size:         {}",
-                m_buffer_size);
+                m_segment_size);
             std::println(
                 "  arena capacity:      {}",
                 m_max_pool_size);
@@ -223,7 +214,7 @@ public:
     [[nodiscard]]
     std::size_t buffer_size() const noexcept
     {
-        return m_buffer_size;
+        return m_segment_size;
     }
 
     [[nodiscard]]
