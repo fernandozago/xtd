@@ -18,7 +18,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache can store 
     const xtd::cache_value<int> value = cache.get(1);
     CHECK_FALSE(value);
 
-    const xtd::cache_value<int> value2 = cache.insert_or_assign(1, 1);
+    const xtd::cache_value value2 = cache.insert_or_assign(1, 1);
     CHECK(value2);
     CHECK(cache.size() == 1);
     CHECK_FALSE(cache.empty());
@@ -34,7 +34,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache get_or_cre
     CHECK_FALSE(cache.contains(1));
     
     int any_source = 10;
-    const auto result = cache.get_or_create(1, [&any_source](const int key) {
+    const xtd::cache_value result = cache.get_or_create(1, [&any_source](const int key) {
         return any_source + key;
     });
     CHECK(result);
@@ -53,7 +53,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "erased value remains valid while caller 
 
     xtd::concurrent_cache<std::size_t, tracked_value> cache;
 
-    const auto value = cache.insert_or_assign( 1, 10, std::string{"this should be still alive"});
+    const xtd::cache_value value = cache.insert_or_assign( 1, 10, std::string{"this should be still alive"});
 
     REQUIRE(value);
     REQUIRE(cache.contains(1));
@@ -85,7 +85,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache can store 
     CHECK_FALSE(cache.get(2));
 
     {
-        const xtd::cache_value<my_data> value = cache.insert_or_assign(1, 1, "test");
+        const xtd::cache_value value = cache.insert_or_assign(1, 1, "test");
         CHECK(value);
         CHECK(cache.size() == 1);
         CHECK_FALSE(cache.empty());
@@ -94,7 +94,7 @@ TEST_CASE_METHOD(ConcurrentCacheTests, "simple test: concurrent_cache can store 
     }
 
     {
-        const xtd::cache_value<my_data> value = cache.insert_or_assign(1, my_data{2, "test2"});
+        const xtd::cache_value value = cache.insert_or_assign(1, my_data{2, "test2"});
         CHECK(value);
         CHECK(cache.size() == 1);
         CHECK_FALSE(cache.empty());
