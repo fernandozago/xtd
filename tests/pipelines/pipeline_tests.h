@@ -2,9 +2,11 @@
 #define XTD_TESTS_PIPELINE_TESTS_H
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
+#include <array>
 #include <cstddef>
 #include <future>
 #include <print>
+#include <type_traits>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -14,6 +16,34 @@
 #include "pipeline/segmented_byte_view.h"
 
 namespace xtd_pipeline_tests {
+template <typename T>
+struct PipelineTests {};
+
+struct FixedAllocatorMode {};
+struct ArenaAllocatorMode {};
+struct UnsynchronizedAllocatorMode {};
+
+template <typename Mode>
+xtd::allocator_kind allocator_for_mode()
+{
+    if constexpr (std::is_same_v<Mode, FixedAllocatorMode>) {
+        return xtd::allocator_kind::fixed_pool_resource;
+    }
+    else if constexpr (std::is_same_v<Mode, ArenaAllocatorMode>) {
+        return xtd::allocator_kind::arena_pool_resource;
+    }
+    else {
+        static_assert(std::is_same_v<Mode, UnsynchronizedAllocatorMode>);
+        return xtd::allocator_kind::unsynchronized_pool_resource;
+    }
+}
+
+template <typename Mode>
+xtd::pipeline make_pipeline(xtd::pipe_options options = {})
+{
+    options.allocator = allocator_for_mode<Mode>();
+    return xtd::pipeline(options);
+}
 
 inline std::size_t readCurrentRssKb()
 {
@@ -38,7 +68,10 @@ inline std::size_t readCurrentRssKb()
     throw std::runtime_error("VmRSS not found in /proc/self/status");
 }
 
-TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: multiple c_str writes are parsed into complete lines", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const std::byte delimiter = std::byte{'\0'};
     const std::array<std::string, 3> expected = {
@@ -47,7 +80,7 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
         "three"
     };
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     
     std::thread t([&]()
     {
@@ -80,9 +113,12 @@ TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines")
 }
 
 
-TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: delayed character writes are parsed into complete lines", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     
     std::thread producer([&]()
     {
@@ -130,9 +166,12 @@ TEST_CASE("pipeline: delayed character writes are parsed into complete lines")
 }
 
 
-TEST_CASE("pipeline: isCompleted set only after all data is consumed")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: isCompleted set only after all data is consumed", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     std::thread t([&]()
     {
         xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
@@ -159,9 +198,12 @@ TEST_CASE("pipeline: isCompleted set only after all data is consumed")
 }
 
 
-TEST_CASE("pipeline: message spans multiple buffers when exceeding buffer_size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: message spans multiple buffers when exceeding buffer_size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,  // small buffer to force segmentation
     });
     
@@ -184,38 +226,10 @@ TEST_CASE("pipeline: message spans multiple buffers when exceeding buffer_size")
 }
 
 
-// TEST_CASE("read_result: skips empty data segments when building readable view")
-// {
-//     xtd::fixed_buffer_pool pool(8, 0);
-//     std::deque<xtd::data_segment> segments;
-//     segments.emplace_back(pool.buffer_size(), pool); // remains empty
-//     segments.emplace_back(pool.buffer_size(), pool); // remains empty
-//     segments.emplace_back(pool.buffer_size(), pool); // remains empty
-
-//     const std::array<std::byte, 4> payload = {
-//         std::byte{'t'},
-//         std::byte{'e'},
-//         std::byte{'s'},
-//         std::byte{'t'},
-//     };
-
-//     REQUIRE(segments[1].copy_from(payload.data(), payload.size()) == payload.size());
-//     REQUIRE(segments[0].readable_size() == 0);
-//     REQUIRE(segments[2].readable_size() == 0);
-
-//     std::size_t pending_read_size = 0;
-//     const xtd::read_result result(segments, false, pending_read_size);
-//     const xtd::segmented_byte_view buffer = result.buffer();
-
-//     CHECK(result.completed() == false);
-//     CHECK(buffer.size() == payload.size());
-//     CHECK(buffer.to_string() == "test");
-//     CHECK(buffer.segment_count() == 1);
-//     CHECK(pending_read_size == payload.size());
-// }
-
-
-TEST_CASE("pipe_options: rejects invalid thresholds")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipe_options: rejects invalid thresholds", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     CHECK_THROWS_AS(
         xtd::pipeline(xtd::pipe_options{
@@ -228,7 +242,10 @@ TEST_CASE("pipe_options: rejects invalid thresholds")
 }
 
 
-TEST_CASE("pipe_options: rejects zero buffer size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipe_options: rejects zero buffer size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     CHECK_THROWS_AS(
         xtd::pipeline(xtd::pipe_options{
@@ -239,14 +256,12 @@ TEST_CASE("pipe_options: rejects zero buffer size")
 }
 
 
-static void verify_non_multiple_pause_threshold_roundtrip(const xtd::allocator_kind allocator)
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipe_options: supports pause_writer_threshold not multiple of buffer_size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
-        .buffer_size = 4,
-        .resume_writer_threshold = 8,
-        .pause_writer_threshold = 10,
-        .allocator = allocator,
-    });
+    xtd::pipeline pipeline = make_pipeline<TestType>();
 
     const std::string message = "0123456789";
 
@@ -273,28 +288,12 @@ static void verify_non_multiple_pause_threshold_roundtrip(const xtd::allocator_k
     CHECK(received == message);
 }
 
-
-TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: rejects null data when length is non-zero", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::fixed_pool_resource);
-}
-
-
-TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size with arena allocator")
-{
-    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::arena_pool_resource);
-}
-
-
-TEST_CASE("pipe_options: supports pause_writer_threshold not multiple of buffer_size with unsynchronized allocator")
-{
-    verify_non_multiple_pause_threshold_roundtrip(xtd::allocator_kind::unsynchronized_pool_resource);
-}
-
-
-TEST_CASE("Writer: rejects null data when length is non-zero")
-{
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
 
     CHECK(writer.write(nullptr, 10) == 0);
@@ -305,9 +304,12 @@ TEST_CASE("Writer: rejects null data when length is non-zero")
 }
 
 
-TEST_CASE("Writer: write after complete throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write after complete throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
 
     writer.complete();
@@ -319,9 +321,12 @@ TEST_CASE("Writer: write after complete throws")
 }
 
 
-TEST_CASE("Reader: cancel read via std::stop_token")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: cancel read via std::stop_token", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
     std::stop_source stopSource;
@@ -330,9 +335,12 @@ TEST_CASE("Reader: cancel read via std::stop_token")
 }
 
 
-TEST_CASE("Writer: cancel write via std::stop_token")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: cancel write via std::stop_token", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
 
     std::stop_source stopSource;
@@ -341,9 +349,12 @@ TEST_CASE("Writer: cancel write via std::stop_token")
 }
 
 
-TEST_CASE("Writer: write after reader complete throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write after reader complete throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -356,11 +367,14 @@ TEST_CASE("Writer: write after reader complete throws")
 }
 
 
-TEST_CASE("Writer: templated write with std::array<T, N>")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: templated write with std::array<T, N>", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const std::array<uint32_t, 3> values = { 0xDEADBEEF, 0xCAFEBABE, 0x12345678 };
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     {
         xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
         CHECK(writer.write(values) == sizeof(values));
@@ -381,9 +395,12 @@ TEST_CASE("Writer: templated write with std::array<T, N>")
 }
 
 
-TEST_CASE("Reader: advance without pending read throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance without pending read throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
     xtd::position position{};
 
@@ -394,9 +411,12 @@ TEST_CASE("Reader: advance without pending read throws")
 }
 
 
-TEST_CASE("Reader: read twice without advance throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: read twice without advance throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -415,9 +435,12 @@ TEST_CASE("Reader: read twice without advance throws")
 }
 
 
-TEST_CASE("Reader: read_at_least returns buffered data")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: read_at_least returns buffered data", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -435,9 +458,12 @@ TEST_CASE("Reader: read_at_least returns buffered data")
 }
 
 
-TEST_CASE("Reader: advance rejects consumed greater than examined")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance rejects consumed greater than examined", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     CHECK(writer.write("abc") == 3);
     writer.complete();
@@ -457,9 +483,12 @@ TEST_CASE("Reader: advance rejects consumed greater than examined")
 }
 
 
-TEST_CASE("Reader: advance rejects examined offset beyond most recent read size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance rejects examined offset beyond most recent read size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -478,9 +507,12 @@ TEST_CASE("Reader: advance rejects examined offset beyond most recent read size"
     reader.complete();
 }
 
-TEST_CASE("Reader: stale positions are rejected after a segment is returned to the pool and reused")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: stale positions are rejected after a segment is returned to the pool and reused", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
     });
 
@@ -510,9 +542,12 @@ TEST_CASE("Reader: stale positions are rejected after a segment is returned to t
 }
 
 
-TEST_CASE("pipeline: Unconsumed data / examined behavior")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: Unconsumed data / examined behavior", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -544,9 +579,12 @@ TEST_CASE("pipeline: Unconsumed data / examined behavior")
 }
 
 
-TEST_CASE("pipeline: not examining everything allows immediate reread of same data")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: not examining everything allows immediate reread of same data", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     writer.write("abc");
 
@@ -567,11 +605,14 @@ TEST_CASE("pipeline: not examining everything allows immediate reread of same da
 }
 
 
-TEST_CASE("pipeline: examined-all without consuming waits for data change before next read")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: examined-all without consuming waits for data change before next read", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -611,9 +652,12 @@ TEST_CASE("pipeline: examined-all without consuming waits for data change before
 }
 
 
-TEST_CASE("pipeline: read does not block when data arrives between read and advance")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: read does not block when data arrives between read and advance", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     writer.write("abc");
     
@@ -648,7 +692,10 @@ TEST_CASE("pipeline: read does not block when data arrives between read and adva
 }
 
 
-TEST_CASE("pipeline: supports binary data containing null bytes")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: supports binary data containing null bytes", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const std::vector<std::byte> expected{
         std::byte{0x41}, // A
@@ -658,7 +705,7 @@ TEST_CASE("pipeline: supports binary data containing null bytes")
         std::byte{0x43}, // C
     };
     
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 2,
     });
     
@@ -684,7 +731,10 @@ TEST_CASE("pipeline: supports binary data containing null bytes")
 }
 
 
-TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct instances")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: serializes and deserializes non trivially copyable struct instances", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     struct Message {
         std::uint32_t id;
@@ -749,7 +799,7 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
 
     static_assert(!std::is_trivially_copyable_v<Message>);
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     std::vector<Message> expected;
     expected.reserve(10);
     
@@ -797,9 +847,12 @@ TEST_CASE("pipeline: serializes and deserializes non trivially copyable struct i
 }
 
 
-TEST_CASE("pipeline: completed read can still contain buffered data")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: completed read can still contain buffered data", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     writer.write("abc");
     writer.complete();
@@ -816,9 +869,12 @@ TEST_CASE("pipeline: completed read can still contain buffered data")
 }
 
 
-TEST_CASE("pipeline: writer complete wakes blocked reader")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: writer complete wakes blocked reader", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
 
     auto future = std::async(std::launch::async, [&]()
     {
@@ -842,9 +898,12 @@ TEST_CASE("pipeline: writer complete wakes blocked reader")
 }
 
 
-TEST_CASE("Reader: read after complete throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: read after complete throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
     reader.complete();
@@ -856,9 +915,12 @@ TEST_CASE("Reader: read after complete throws")
 }
 
 
-TEST_CASE("Reader: complete is idempotent")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: complete is idempotent", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
     reader.complete();
@@ -871,9 +933,12 @@ TEST_CASE("Reader: complete is idempotent")
 }
 
 
-TEST_CASE("Writer: complete after reader complete is valid")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: complete after reader complete is valid", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -889,9 +954,12 @@ TEST_CASE("Writer: complete after reader complete is valid")
 }
 
 
-TEST_CASE("Reader: advance after complete throws")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance after complete throws", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     writer.write("abc");
 
@@ -907,7 +975,10 @@ TEST_CASE("Reader: advance after complete throws")
     );
 }
 
-TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and completes")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path streams file contents and completes", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const std::string path = "/tmp/xtd_test_file.bin";
  
@@ -937,7 +1008,7 @@ TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and compl
         REQUIRE(static_cast<bool>(out));
         CHECK(written == fileSize);
     }
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     std::thread producer = xtd::pipe_utils::threaded_copy_file_from_path(path, writer); // start background file copying...
     const auto startedAt = std::chrono::steady_clock::now();
@@ -964,9 +1035,12 @@ TEST_CASE("Utility: threaded_copy_file_from_path streams file contents and compl
 }
 
 
-TEST_CASE("Utility: threaded_copy_file_from_path rejects invalid path")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path rejects invalid path", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     CHECK_THROWS_AS(
         xtd::pipe_utils::threaded_copy_file_from_path("./tests/bin/this_file_does_not_exist.txt", writer),
@@ -975,11 +1049,14 @@ TEST_CASE("Utility: threaded_copy_file_from_path rejects invalid path")
 }
 
 
-TEST_CASE("pipeline: examined-all without consuming should never unblock the writer to avoid unbounded growth of the buffer")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: examined-all without consuming should never unblock the writer to avoid unbounded growth of the buffer", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1012,11 +1089,14 @@ TEST_CASE("pipeline: examined-all without consuming should never unblock the wri
 }
 
 
-TEST_CASE("pipeline: reader advance() wakes blocked writer")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: reader advance() wakes blocked writer", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1050,11 +1130,14 @@ TEST_CASE("pipeline: reader advance() wakes blocked writer")
 }
 
 
-TEST_CASE("pipeline: reader complete wakes blocked writer")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: reader complete wakes blocked writer", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1082,9 +1165,12 @@ TEST_CASE("pipeline: reader complete wakes blocked writer")
 }
 
 
-TEST_CASE("Writer: null data with zero length is a no-op")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: null data with zero length is a no-op", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
 
@@ -1102,10 +1188,13 @@ TEST_CASE("Writer: null data with zero length is a no-op")
 }
 
 
-TEST_CASE("Writer: write before advance appends into the same segment when space is available")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write before advance appends into the same segment when space is available", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     // buffer_size > combined write length → both writes land in segment A
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4096,
     });
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
@@ -1138,10 +1227,13 @@ TEST_CASE("Writer: write before advance appends into the same segment when space
 }
 
 
-TEST_CASE("Writer: write before advance allocates a new segment when current segment is full")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write before advance allocates a new segment when current segment is full", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     // buffer_size == first write length → segment A is full; second write needs segment B
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
     });
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
@@ -1172,9 +1264,12 @@ TEST_CASE("Writer: write before advance allocates a new segment when current seg
 }
 
 
-TEST_CASE("Reader: with buffer_size 4, consuming first byte keeps remaining segments readable with fresh slices")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: with buffer_size 4, consuming first byte keeps remaining segments readable with fresh slices", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
     });
 
@@ -1212,9 +1307,12 @@ TEST_CASE("Reader: with buffer_size 4, consuming first byte keeps remaining segm
 }
 
 
-TEST_CASE("Utility: threaded_copy_file_from_path rejects zero chunk size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path rejects zero chunk size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
 
     CHECK_THROWS_AS(
@@ -1224,9 +1322,12 @@ TEST_CASE("Utility: threaded_copy_file_from_path rejects zero chunk size")
 }
 
 
-TEST_CASE("Utility: threaded_copy_from_socket rejects invalid socket descriptor")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_from_socket rejects invalid socket descriptor", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     CHECK_THROWS_AS(
         xtd::pipe_utils::threaded_copy_from_socket(-1, writer),
@@ -1235,9 +1336,12 @@ TEST_CASE("Utility: threaded_copy_from_socket rejects invalid socket descriptor"
 }
 
 
-TEST_CASE("Utility: threaded_copy_from_socket rejects zero chunk size")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_from_socket rejects zero chunk size", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
 
     CHECK_THROWS_AS(
@@ -1247,12 +1351,15 @@ TEST_CASE("Utility: threaded_copy_from_socket rejects zero chunk size")
 }
 
 
-TEST_CASE("Utility: threaded_copy_from_socket completes when recv fails with non-EINTR error")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_from_socket completes when recv fails with non-EINTR error", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     int pipeFds[2] = {-1, -1};
     REQUIRE(::pipe(pipeFds) == 0);
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     std::thread copier = xtd::pipe_utils::threaded_copy_from_socket(pipeFds[0], writer, 16);
@@ -1272,7 +1379,10 @@ TEST_CASE("Utility: threaded_copy_from_socket completes when recv fails with non
 }
 
 
-TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited records")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_from_socket copies split null-delimited records", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const std::byte delimiter = std::byte{0x00};
     const std::vector<std::string> lines{
@@ -1358,7 +1468,7 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
     std::vector<std::string> received;
 
     {
-        xtd::pipeline pipeline;  
+        xtd::pipeline pipeline = make_pipeline<TestType>();  
         xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
         std::thread copier = xtd::pipe_utils::threaded_copy_from_socket(connectionFd, writer, 3);
         
@@ -1391,7 +1501,10 @@ TEST_CASE("Utility: threaded_copy_from_socket copies split null-delimited record
 }
 
 
-TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Memory: process RSS remains bounded after repeated write/read cycles", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     auto runBatch = [](const std::size_t pipesCount)
     {
@@ -1403,7 +1516,7 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
 
         for (std::size_t pipeIndex = 0; pipeIndex < pipesCount; ++pipeIndex)
         {
-            xtd::pipeline pipeline(xtd::pipe_options{
+            xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
                 .buffer_size = 4096,
                 .resume_writer_threshold = bytesPerPipe,
                 .pause_writer_threshold = bytesPerPipe + payloadSize,
@@ -1451,12 +1564,15 @@ TEST_CASE("Memory: process RSS remains bounded after repeated write/read cycles"
 }
 
 
-TEST_CASE("pipeline: Feeds it self for 8GB of data")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: Feeds it self for 8GB of data", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     const auto startedAt = std::chrono::steady_clock::now();
 
     const std::size_t totalBytes = 8ULL * 1024 * 1024 * 1024;
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     writer.write(std::string(1024 * 16, 'A'));
 
@@ -1484,11 +1600,14 @@ TEST_CASE("pipeline: Feeds it self for 8GB of data")
 }
 
 
-TEST_CASE("pipeline: same-thread write-before-advance can block until advance with small thresholds")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: same-thread write-before-advance can block until advance with small thresholds", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1529,11 +1648,14 @@ TEST_CASE("pipeline: same-thread write-before-advance can block until advance wi
 }
 
 
-TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after advance")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: writer pauses exactly at pause threshold and resumes after advance", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipeline(xtd::pipe_options{
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1571,8 +1693,12 @@ TEST_CASE("pipeline: writer pauses exactly at pause threshold and resumes after 
     reader.complete();
 }
 
-TEST_CASE("deserialize windows strings with CRLF line endings") {
-    xtd::pipeline pipe;
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "deserialize windows strings with CRLF line endings", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
+{
+    xtd::pipeline pipe = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipe);
     xtd::pipe_reader reader = xtd::pipe_reader(pipe);
 
@@ -1605,9 +1731,12 @@ TEST_CASE("deserialize windows strings with CRLF line endings") {
 }
 
 
-TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline docs example B: delimiter parser across segmented buffers", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipe(xtd::pipe_options{.buffer_size = 3});
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{.buffer_size = 3});
     xtd::pipe_writer writer = xtd::pipe_writer(pipe);
     xtd::pipe_reader reader = xtd::pipe_reader(pipe);
 
@@ -1637,11 +1766,14 @@ TEST_CASE("pipeline docs example B: delimiter parser across segmented buffers")
 }
 
 
-TEST_CASE("pipeline docs example C: backpressure with producer thread")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline docs example C: backpressure with producer thread", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 4,
         .pause_writer_threshold = 8,
@@ -1676,9 +1808,12 @@ TEST_CASE("pipeline docs example C: backpressure with producer thread")
 }
 
 
-TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consumed=begin examined=end")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline docs convenience overload: advance(sequence) maps to consumed=begin examined=end", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipe;
+    xtd::pipeline pipe = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipe);
     xtd::pipe_reader reader = xtd::pipe_reader(pipe);
 
@@ -1704,9 +1839,12 @@ TEST_CASE("pipeline docs convenience overload: advance(sequence) maps to consume
 }
 
 
-TEST_CASE("pipeline docs reader complete invalidates pending read")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline docs reader complete invalidates pending read", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
-    xtd::pipeline pipe;
+    xtd::pipeline pipe = make_pipeline<TestType>();
     xtd::pipe_writer writer = xtd::pipe_writer(pipe);
     xtd::pipe_reader reader = xtd::pipe_reader(pipe);
 
@@ -1724,11 +1862,14 @@ TEST_CASE("pipeline docs reader complete invalidates pending read")
     CHECK_THROWS_AS(writer.write("z"), std::runtime_error);
 }
 
-TEST_CASE("pipeline: equal pause and resume thresholds resume after a full segment is released")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: equal pause and resume thresholds resume after a full segment is released", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 64,
         .resume_writer_threshold = 128,
         .pause_writer_threshold = 128,
@@ -1767,11 +1908,14 @@ TEST_CASE("pipeline: equal pause and resume thresholds resume after a full segme
     reader.complete();
 }
 
-TEST_CASE("pipeline: paused writer resumes only after full segment is returned to pool")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: paused writer resumes only after full segment is returned to pool", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 64,
         .resume_writer_threshold = 128,
         .pause_writer_threshold = 128,
@@ -1816,11 +1960,14 @@ TEST_CASE("pipeline: paused writer resumes only after full segment is returned t
     reader.complete();
 }
 
-TEST_CASE("pipeline: non-multiple pause threshold resumes only after full segment is returned")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: non-multiple pause threshold resumes only after full segment is returned", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 4,
         .resume_writer_threshold = 10,
         .pause_writer_threshold = 10,
@@ -1866,11 +2013,14 @@ TEST_CASE("pipeline: non-multiple pause threshold resumes only after full segmen
     reader.complete();
 }
 
-TEST_CASE("pipeline: full writer does not busy-spin with equal thresholds")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: full writer does not busy-spin with equal thresholds", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 64,
         .resume_writer_threshold = 128,
         .pause_writer_threshold = 128,
@@ -1950,11 +2100,14 @@ TEST_CASE("pipeline: full writer does not busy-spin with equal thresholds")
     CHECK(writer_cpu_time < 100ms);
 }
 
-TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: large write blocks mid-call when pause threshold is reached", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 64,
         .resume_writer_threshold = 64,
         .pause_writer_threshold = 128,
@@ -1995,11 +2148,14 @@ TEST_CASE("pipeline: large write blocks mid-call when pause threshold is reached
     reader.complete();
 }
 
-TEST_CASE("pipeline: equal pause and resume thresholds exercise writer repause path")
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: equal pause and resume thresholds exercise writer repause path", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
 {
     using namespace std::chrono_literals;
 
-    xtd::pipeline pipe(xtd::pipe_options{
+    xtd::pipeline pipe = make_pipeline<TestType>(xtd::pipe_options{
         .buffer_size = 64,
         .resume_writer_threshold = 128,
         .pause_writer_threshold = 128,
@@ -2130,6 +2286,7 @@ struct test_data_trivially_copyable
     }
 
     void print() const;
+    template <typename Mode>
     static void test(std::istream& source);
 };
 
@@ -2137,12 +2294,13 @@ static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable>);
 static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::nested_data>);
 static_assert(std::is_trivially_copyable_v<test_data_trivially_copyable::trivial_union>);
 
+template <typename Mode>
 inline void test_data_trivially_copyable::test(std::istream& source)
 {
     constexpr std::size_t expected_count = 1'000;
     std::vector<test_data_trivially_copyable> expected_values(expected_count);
 
-    xtd::pipeline pipeline;
+    xtd::pipeline pipeline = make_pipeline<Mode>();
     std::future<std::size_t> producer = std::async(std::launch::async,
         [&pipeline, &source, &expected_values] {
             std::size_t written_count = 0;
@@ -2300,17 +2458,25 @@ inline void test_data_trivially_copyable::print() const
     );
 }
 
-TEST_CASE("Use /dev/urandom as stream source to test trivially copyable struct serialization and deserialization") {
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Use /dev/urandom as stream source to test trivially copyable struct serialization and deserialization", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
+{
     std::ifstream random("/dev/urandom", std::ios::binary);
     REQUIRE(random.is_open());
-    test_data_trivially_copyable::test(random);   
+    test_data_trivially_copyable::test<TestType>(random);   
 }
 
 
-TEST_CASE("Use /dev/zero as stream source to test trivially copyable struct serialization and deserialization") {
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Use /dev/zero as stream source to test trivially copyable struct serialization and deserialization", "[pipeline]", 
+    FixedAllocatorMode, 
+    ArenaAllocatorMode, 
+    UnsynchronizedAllocatorMode)
+{
     std::ifstream zero("/dev/zero", std::ios::binary);
     REQUIRE(zero.is_open());
-    test_data_trivially_copyable::test(zero);
+    test_data_trivially_copyable::test<TestType>(zero);
 }
 
 } // namespace xtd_pipeline_tests
