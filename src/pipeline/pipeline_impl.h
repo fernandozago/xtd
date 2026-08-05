@@ -70,6 +70,7 @@ namespace xtd
 
         std::size_t m_buffer_size = 0;
         std::size_t m_buffered_size = 0;
+        std::size_t m_actual_buffered_size = 0;
         std::size_t m_examined_size = 0;
         std::size_t m_pending_read_size = 0;
 
@@ -103,8 +104,41 @@ namespace xtd
         // accommodate the largest expected message.
         bool should_resume_writer() const noexcept
         {
-            return m_buffered_size <= m_resume_writer_threshold
-                && m_buffered_size < m_pause_writer_threshold;
+            return m_buffer_size <= m_resume_writer_threshold
+                && m_actual_buffered_size < m_pause_writer_threshold;
+        }
+
+        [[nodiscard]]
+        bool has_writable_tail() const noexcept
+        {
+            return !m_segments.empty() && !m_segments.back().full();
+        }
+
+        [[nodiscard]]
+        std::size_t segment_allocation_capacity() const noexcept
+        {
+            return m_actual_buffered_size < m_pause_writer_threshold
+                ? m_pause_writer_threshold - m_actual_buffered_size
+                : 0;
+        }
+
+        [[nodiscard]]
+        std::size_t writer_available_capacity() const noexcept
+        {
+            if (has_writable_tail()) {
+                return m_segments.back().writable_size();
+            }
+
+            return segment_allocation_capacity() >= m_buffer_size
+                ? m_buffer_size
+                : 0;
+        }
+
+        [[nodiscard]]
+        bool should_pause_writer() const noexcept
+        {
+            return !has_writable_tail()
+                && segment_allocation_capacity() < m_buffer_size;
         }
 
         bool is_any_completed() const noexcept
@@ -177,6 +211,7 @@ namespace xtd
 
                 remaining_consumed -= readable_size;
                 m_buffered_size -= readable_size;
+                m_actual_buffered_size -= m_buffer_size;
             }
 
             m_examined_size = examined_offset - consumed_offset;
@@ -198,6 +233,7 @@ namespace xtd
         data_segment& get_segment() {
             if (m_segments.empty() || m_segments.back().full()) {
                 m_segments.emplace_back(m_buffer_size, *m_allocator);
+                m_actual_buffered_size += m_buffer_size;
             }
             return m_segments.back();
         }
@@ -226,7 +262,13 @@ namespace xtd
                         return copied;
                     }
 
-                    const std::size_t available_capacity = m_pause_writer_threshold - m_buffered_size;
+                    const std::size_t available_capacity = writer_available_capacity();
+
+                    if (available_capacity == 0) {
+                        m_writer_paused = true;
+                        break;
+                    }
+
                     const std::size_t requested_size = std::min(data.size(), available_capacity);
                     const std::size_t copy_size = get_segment().copy_from(data.data(), requested_size);
 
@@ -238,7 +280,7 @@ namespace xtd
                         notify_data_available = true;
                     }
 
-                    if (m_buffered_size == m_pause_writer_threshold) {
+                    if (should_pause_writer()) {
                         m_writer_paused = true;
                     }
                 }
@@ -271,6 +313,7 @@ namespace xtd
                 m_writer_paused = false;
                 m_pending_read_size = 0;
                 m_buffered_size = 0;
+                m_actual_buffered_size = 0;
                 m_examined_size = 0;
             }
 
@@ -352,18 +395,18 @@ namespace xtd
         {
             switch (kind) {
                 case allocator_kind::fixed_pool_resource:
-                    return std::make_unique<xtd::fixed_pool_resource>(options.max_pooled_segments + 1);
+                    return std::make_unique<xtd::fixed_pool_resource>(options.max_pooled_segments);
                 case allocator_kind::unsynchronized_pool_resource:
                     return std::make_unique<std::pmr::unsynchronized_pool_resource>(
                         std::pmr::pool_options{
-                            .max_blocks_per_chunk = options.max_pooled_segments + 1,
+                            .max_blocks_per_chunk = options.max_pooled_segments,
                             .largest_required_pool_block = options.buffer_size
                         }
                     );
                 case allocator_kind::synchronized_pool_resource:
                     return std::make_unique<std::pmr::synchronized_pool_resource>(
                         std::pmr::pool_options{
-                            .max_blocks_per_chunk = options.max_pooled_segments + 1,
+                            .max_blocks_per_chunk = options.max_pooled_segments,
                             .largest_required_pool_block = options.buffer_size
                         }
                     );

@@ -12,46 +12,56 @@ Recommendations
 
 |              μs/MB |                MB/s |    err% |     total | xtd::pipeline throughput
 |--------------------:|--------------------:|--------:|----------:|:-------------------------
-|              281.49 |            3,552.52 |    1.7% |      6.83 | `1 KB writes`
+|              284.42 |            3,515.99 |    1.1% |      6.88 | `1 KB writes`
 fixed_pool_resource usage:
-  max pool size:      33
-  created buffers:    33
-  retained buffers:   33
-  reused buffers:     6808814
-  discarded buffers:  0
-|              175.31 |            5,704.15 |    0.9% |      6.83 | `2 KB writes`
-fixed_pool_resource usage:
-  max pool size:      33
-  created buffers:    33
-  retained buffers:   33
-  reused buffers:     10209394
-  discarded buffers:  0
-|              108.97 |            9,176.51 |    1.6% |      6.83 | `4 KB writes`
-fixed_pool_resource usage:
-  max pool size:      33
+  max pool size:      32
   created buffers:    32
   retained buffers:   32
-  reused buffers:     16102498
+  reused buffers:     6761667
   discarded buffers:  0
-|               86.95 |           11,500.95 |    1.7% |      6.98 | `8 KB writes`
+  peak active:        32
+  peak total:         32
+|              176.23 |            5,674.45 |    1.2% |      6.82 | `2 KB writes`
 fixed_pool_resource usage:
-  max pool size:      33
+  max pool size:      32
   created buffers:    32
   retained buffers:   32
-  reused buffers:     20778612
+  reused buffers:     10202966
   discarded buffers:  0
-|               81.73 |           12,234.96 |    0.9% |      6.89 | `16 KB writes`
+  peak active:        32
+  peak total:         32
+|              121.06 |            8,260.63 |    1.8% |      6.90 | `4 KB writes`
 fixed_pool_resource usage:
-  max pool size:      33
+  max pool size:      32
   created buffers:    32
   retained buffers:   32
-  reused buffers:     21970724
+  reused buffers:     14540490
   discarded buffers:  0
+  peak active:        32
+  peak total:         32
+|               88.47 |           11,303.59 |    0.7% |      6.86 | `8 KB writes`
+fixed_pool_resource usage:
+  max pool size:      32
+  created buffers:    32
+  retained buffers:   32
+  reused buffers:     20011784
+  discarded buffers:  0
+  peak active:        32
+  peak total:         32
+|               81.86 |           12,215.24 |    0.9% |      6.89 | `16 KB writes`
+fixed_pool_resource usage:
+  max pool size:      32
+  created buffers:    32
+  retained buffers:   32
+  reused buffers:     21920964
+  discarded buffers:  0
+  peak active:        32
+  peak total:         32
 
 |   Total Transferred | xtd::pipeline throughput 
 |--------------------:|:-------------------------
-|            24.08 GB | `1 KB writes`
-|            38.25 GB | `2 KB writes`
-|            61.43 GB | `4 KB writes`
-|            79.26 GB | `8 KB writes`
-|            83.81 GB | `16 KB writes`
+|            23.71 GB | `1 KB writes`
+|            38.22 GB | `2 KB writes`
+|            55.47 GB | `4 KB writes`
+|            76.34 GB | `8 KB writes`
+|            83.62 GB | `16 KB writes`

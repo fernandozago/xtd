@@ -24,6 +24,10 @@ private:
     std::size_t m_reused_buffers{0};
     std::size_t m_discarded_buffers{0};
     std::size_t m_created_buffers{0};
+    std::size_t m_active_buffers{0};
+    std::size_t m_peak_active_buffers{0};
+    std::size_t m_current_total_buffers{0};
+    std::size_t m_peak_total_buffers{0};
 
     [[nodiscard]]
     void* do_allocate(
@@ -35,6 +39,10 @@ private:
 
         if (m_available_buffers.empty()) {
             ++m_created_buffers;
+            ++m_active_buffers;
+            ++m_current_total_buffers;
+            m_peak_active_buffers = std::max(m_peak_active_buffers, m_active_buffers);
+            m_peak_total_buffers = std::max(m_peak_total_buffers, m_current_total_buffers);
             return ::operator new(bytes);
         }
 
@@ -42,6 +50,8 @@ private:
         m_available_buffers.pop_back();
 
         ++m_reused_buffers;
+        ++m_active_buffers;
+        m_peak_active_buffers = std::max(m_peak_active_buffers, m_active_buffers);
 
         return buffer;
     }
@@ -54,6 +64,9 @@ private:
         assert(pointer != nullptr);
         assert(bytes > 0);
         assert(alignment == buffer_alignment);
+        assert(m_active_buffers > 0);
+
+        --m_active_buffers;
 
         if (m_available_buffers.size() < m_max_pool_size) {
             m_available_buffers.push_back(pointer);
@@ -61,6 +74,8 @@ private:
         }
 
         ++m_discarded_buffers;
+        assert(m_current_total_buffers > 0);
+        --m_current_total_buffers;
 
         ::operator delete(pointer);
     }
@@ -97,6 +112,8 @@ public:
             std::println("  retained buffers:   {}", m_available_buffers.size());
             std::println("  reused buffers:     {}", m_reused_buffers);
             std::println("  discarded buffers:  {}", m_discarded_buffers);
+            std::println("  peak active:        {}", m_peak_active_buffers);
+            std::println("  peak total:         {}", m_peak_total_buffers);
         }
         catch (...) {
             // Destructors must not allow logging failures to escape.

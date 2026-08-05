@@ -1671,7 +1671,7 @@ TEST_CASE("pipeline docs reader complete invalidates pending read")
     CHECK_THROWS_AS(writer.write("z"), std::runtime_error);
 }
 
-TEST_CASE("pipeline: equal pause and resume thresholds resume after capacity is released")
+TEST_CASE("pipeline: equal pause and resume thresholds resume after a full segment is released")
 {
     using namespace std::chrono_literals;
 
@@ -1698,8 +1698,8 @@ TEST_CASE("pipeline: equal pause and resume thresholds resume after capacity is 
     REQUIRE(first_buffer.size() == 128);
     CHECK(write_future.wait_for(50ms) == std::future_status::timeout);
 
-    // Release one byte of capacity.
-    reader.advance(first_buffer.begin() + 1, first_buffer.end());
+    // Release one full segment of actual capacity.
+    reader.advance(first_buffer.begin() + 64, first_buffer.end());
 
     REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
     CHECK(write_future.get() == payload.size());
@@ -1707,7 +1707,7 @@ TEST_CASE("pipeline: equal pause and resume thresholds resume after capacity is 
     const xtd::read_result second = reader.read();
     const xtd::segmented_byte_view second_buffer = second.buffer();
 
-    CHECK(second_buffer.size() == 128);
+    CHECK(second_buffer.size() == 65);
     CHECK(second.completed());
 
     reader.advance(second_buffer.end(), second_buffer.end());
