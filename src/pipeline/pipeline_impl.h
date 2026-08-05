@@ -29,6 +29,8 @@ namespace xtd
     private:
         friend class pipe_writer;
         friend class pipe_reader;
+        using memory_resource_ptr = std::unique_ptr<std::pmr::memory_resource>;
+
         struct data_available_predicate
         {
             const pipeline& m_pipeline;
@@ -58,7 +60,7 @@ namespace xtd
         // Larger/aligned objects first.
         //xtd::fixed_buffer_pool m_data_segment_pool;
         //std::pmr::unsynchronized_pool_resource m_allocator;
-        std::unique_ptr<std::pmr::memory_resource> m_allocator;
+        memory_resource_ptr m_allocator;
         std::deque<data_segment> m_segments{};
 
         mutable std::mutex m_mutex{};
@@ -387,31 +389,27 @@ namespace xtd
 
         enum class allocator_kind {
             fixed_pool_resource,
-            unsynchronized_pool_resource,
-            synchronized_pool_resource,
+            unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
         };
 
-        std::unique_ptr<std::pmr::memory_resource> make_allocator(const allocator_kind kind, const validated_options& options)
+
+        [[nodiscard]]
+        memory_resource_ptr make_allocator(const allocator_kind kind, const validated_options& options)
         {
             switch (kind) {
                 case allocator_kind::fixed_pool_resource:
-                    return std::make_unique<xtd::fixed_pool_resource>(options.max_pooled_segments);
-                case allocator_kind::unsynchronized_pool_resource:
-                    return std::make_unique<std::pmr::unsynchronized_pool_resource>(
-                        std::pmr::pool_options{
-                            .max_blocks_per_chunk = options.max_pooled_segments,
-                            .largest_required_pool_block = options.buffer_size
-                        }
-                    );
-                case allocator_kind::synchronized_pool_resource:
-                    return std::make_unique<std::pmr::synchronized_pool_resource>(
-                        std::pmr::pool_options{
-                            .max_blocks_per_chunk = options.max_pooled_segments,
-                            .largest_required_pool_block = options.buffer_size
-                        }
-                    );
+                    return std::make_unique<xtd::fixed_pool_resource>(options.buffer_size, options.max_pooled_segments);
+                
+                case allocator_kind::unsynchronized_pool_resource: {
+                    const std::pmr::pool_options pool_options{
+                        .max_blocks_per_chunk = options.max_pooled_segments,
+                        .largest_required_pool_block = options.buffer_size
+                    };
+                    return std::make_unique<std::pmr::unsynchronized_pool_resource>(pool_options);
+                }
+
                 default:
-                    throw std::invalid_argument("unsupported allocator kind");
+                    throw std::invalid_argument{"unsupported allocator kind"};
             }
         }
 

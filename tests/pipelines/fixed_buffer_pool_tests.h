@@ -11,7 +11,7 @@ struct FixedBufferPoolTests {};
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "starts empty with full writable capacity")
 {
-    xtd::fixed_pool_resource pool(1);
+    xtd::fixed_pool_resource pool(8, 1);
     xtd::data_segment segment(8, pool);
 
     CHECK(segment.capacity() == 8);
@@ -25,7 +25,7 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "starts empty with full writable capacity
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "copy_from appends readable bytes until capacity")
 {
-    xtd::fixed_pool_resource pool(1);
+    xtd::fixed_pool_resource pool(5, 1);
     xtd::data_segment segment(5, pool);
     const std::array<std::byte, 7> source = {
         std::byte{'A'},
@@ -64,7 +64,7 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "copy_from appends readable bytes until c
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "advance consumes readable bytes and rejects over-consume")
 {
-    xtd::fixed_pool_resource pool(1);
+    xtd::fixed_pool_resource pool(6, 1);
     xtd::data_segment segment(6, pool);
     const std::array<std::byte, 4> source = {
         std::byte{'x'},
@@ -90,14 +90,14 @@ TEST_CASE_METHOD(FixedBufferPoolTests, "advance consumes readable bytes and reje
 
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "fixed_buffer_pool: empty") {
-    xtd::fixed_pool_resource pool(1);
+    xtd::fixed_pool_resource pool(8, 1);
     CHECK(pool.pool_size() == 0);
 }
 
 
 TEST_CASE_METHOD(FixedBufferPoolTests, "returns buffers to the pool on destruction")
 {
-    xtd::fixed_pool_resource pool(3);
+    xtd::fixed_pool_resource pool(8, 3);
     CHECK(pool.pool_size() == 0);
 
     {
