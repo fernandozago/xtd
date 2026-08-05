@@ -1,9 +1,8 @@
 #ifndef PIPELINE_ARENA_POOL_RESOURCE_H
 #define PIPELINE_ARENA_POOL_RESOURCE_H
 
-#define PRINT_STATS
+//#define PRINT_STATS
 
-#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <limits>

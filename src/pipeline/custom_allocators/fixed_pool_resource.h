@@ -1,13 +1,14 @@
 #ifndef PIPELINE_FIXED_BUFFER_POOL_H
 #define PIPELINE_FIXED_BUFFER_POOL_H
 
-#define PRINT_STATS
+//#define PRINT_STATS
 
 #include <cassert>
 #include <cstddef>
 #include <memory_resource>
 #include <new>
 #include <vector>
+
 #ifdef PRINT_STATS
 #include <print>
 #endif
