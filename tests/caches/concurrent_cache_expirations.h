@@ -44,12 +44,12 @@ struct ConcurrentCacheExpirationTests {};
 template<typename key_t, typename value_t>
 using concurrent_cache_expirations_test = xtd::concurrent_cache<key_t, value_t, std::hash<key_t>, std::equal_to<key_t>, manual_clock>;
 
-TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts insert_or_assign keeps value alive when ttl is zero")
+TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "insert_or_assign without options keeps value alive")
 {
     manual_clock::reset();
 
     concurrent_cache_expirations_test<int, int> cache;
-    const auto inserted = cache.insert_or_assign(10, {}, 20);
+    const auto inserted = cache.insert_or_assign(10, 20);
 
     REQUIRE(inserted);
 
@@ -68,8 +68,7 @@ TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts insert_or_ass
     manual_clock::reset();
 
     concurrent_cache_expirations_test<std::size_t, std::size_t> cache;
-    xtd::cache_entry_opts options{};
-    options.expire_after_write = 5ms;
+    const xtd::cache_entry_opts options{5ms};
 
     const auto inserted = cache.insert_or_assign(10, options, 20);
 
@@ -86,38 +85,33 @@ TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts insert_or_ass
     CHECK(cache.empty());
 }
 
-TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts insert_or_assign treats zero and negative ttl as no expiration")
+TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts allows non-negative ttl")
+{
+    CHECK_NOTHROW(xtd::cache_entry_opts{0ms});
+    CHECK_NOTHROW(xtd::cache_entry_opts{1ms});
+}
+
+TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts supports ttl values up to configured maximum")
+{
+    CHECK_NOTHROW(xtd::cache_entry_opts{xtd::cache_entry_opts::max_supported_ttl});
+}
+
+TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts with zero ttl means never expire")
 {
     manual_clock::reset();
 
-    concurrent_cache_expirations_test<std::size_t, std::size_t> cache;
+    concurrent_cache_expirations_test<int, int> cache;
+    const xtd::cache_entry_opts options{0ms};
 
-    SECTION("zero ttl") {
-        xtd::cache_entry_opts options{};
-        options.expire_after_write = 0ms;
+    const auto inserted = cache.insert_or_assign(10, options, 20);
+    REQUIRE(inserted);
 
-        const auto inserted = cache.insert_or_assign(1, options, 10);
+    manual_clock::advance(24h);
 
-        REQUIRE(inserted);
-        manual_clock::advance(1h);
-        const auto current = cache.get(1);
-        REQUIRE(current);
-        CHECK(current == inserted);
-        CHECK(*current == 10);
-        CHECK(cache.contains(1));
-    }
-
-    SECTION("negative ttl") {
-        const auto inserted = cache.insert_or_assign(2, {-1ms}, 20);
-
-        REQUIRE(inserted);
-        manual_clock::advance(1h);
-        const auto current = cache.get(2);
-        REQUIRE(current);
-        CHECK(current == inserted);
-        CHECK(*current == 20);
-        CHECK(cache.contains(2));
-    }
+    const auto current = cache.get(10);
+    REQUIRE(current);
+    CHECK(current == inserted);
+    CHECK(*current == 20);
 }
 
 TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts get_or_create reuses cached value before expiration and reloads after expiration")
@@ -125,8 +119,7 @@ TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts get_or_create
     manual_clock::reset();
 
     concurrent_cache_expirations_test<std::size_t, std::size_t> cache;
-    xtd::cache_entry_opts options{};
-    options.expire_after_write = 3ms;
+    const xtd::cache_entry_opts options{3ms};
 
     std::atomic_size_t loader_calls{0};
 
@@ -162,15 +155,12 @@ TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts purge_expired
     concurrent_cache_expirations_test<std::size_t, std::size_t> cache;
     manual_clock::reset();
 
-    xtd::cache_entry_opts short_ttl{};
-    short_ttl.expire_after_write = 2ms;
-
-    xtd::cache_entry_opts long_ttl{};
-    long_ttl.expire_after_write = 10ms;
+    const xtd::cache_entry_opts short_ttl{2ms};
+    const xtd::cache_entry_opts long_ttl{10ms};
 
     REQUIRE(cache.insert_or_assign(1, short_ttl, 100));
     REQUIRE(cache.insert_or_assign(2, long_ttl, 200));
-    REQUIRE(cache.insert_or_assign(3, xtd::cache_entry_opts{}, 300));
+    REQUIRE(cache.insert_or_assign(3, 300));
 
     manual_clock::advance(3ms);
 
@@ -192,14 +182,12 @@ TEST_CASE_METHOD(ConcurrentCacheExpirationTests, "cache_entry_opts get_or_create
 
     cache_type cache;
 
-    xtd::cache_entry_opts initial_options{};
-    initial_options.expire_after_write = 1ms;
+    const xtd::cache_entry_opts initial_options{1ms};
     REQUIRE(cache.insert_or_assign(key, initial_options, 100));
 
     manual_clock::advance(2ms);
 
-    xtd::cache_entry_opts reload_options{};
-    reload_options.expire_after_write = 10ms;
+    const xtd::cache_entry_opts reload_options{10ms};
 
     std::atomic_size_t loader_calls{0};
     std::barrier start{thread_count};

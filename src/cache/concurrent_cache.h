@@ -26,7 +26,17 @@ using cache_key = std::shared_ptr<const Key>;
 
 struct cache_entry_opts final
 {
-    std::chrono::nanoseconds expire_after_write{};
+    static constexpr std::chrono::nanoseconds max_supported_ttl = 
+        std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::hours{24LL * 365LL * 292LL});
+
+    explicit cache_entry_opts(const std::chrono::nanoseconds ttl_value)
+        : ttl{ttl_value}
+    {
+        assert(ttl >= std::chrono::nanoseconds::zero());
+        assert(ttl <= max_supported_ttl);
+    }
+
+    std::chrono::nanoseconds ttl;
 };
 
 template<
@@ -35,11 +45,12 @@ template<
     typename hash_t = std::hash<key_t>, 
     typename key_equal_t = std::equal_to<key_t>, 
     typename clock_t = std::chrono::steady_clock>
-class concurrent_cache
+class concurrent_cache final
 {
 private:
     using time_point = typename clock_t::time_point;
     using duration = typename clock_t::duration;
+    //using cache_value = xtd::cache_value<value_t>;
     static constexpr time_point no_expiration_time = clock_t::time_point::min();
 
     struct entry final
@@ -102,18 +113,12 @@ private:
     [[nodiscard]]
     static time_point expiration_time(const cache_entry_opts& options)
     {
-        const time_point now = clock_t::now();
-        const duration ttl = std::chrono::duration_cast<duration>(options.expire_after_write);
-
-        if (ttl <= clock_t::duration::zero()) {
+        if (options.ttl == std::chrono::nanoseconds::zero()) {
             return no_expiration_time;
         }
 
-        const duration remaining = clock_t::time_point::max() - now;
-
-        if (ttl >= remaining) {
-            return clock_t::time_point::max();
-        }
+        const time_point now = clock_t::now();
+        const duration ttl = std::chrono::duration_cast<duration>(options.ttl);
 
         return now + ttl;
     }
@@ -223,7 +228,24 @@ public:
     [[nodiscard]]
     cache_value<value_t> insert_or_assign(key_t key, Args&&... args)
     {
-        return insert_or_assign(std::move(key), cache_entry_opts{}, std::forward<Args>(args)...);
+        cache_value<value_t> new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
+        entry new_entry{new_value, no_expiration_time};
+
+        shard& selected = shard_for(key);
+
+        // Keep the replaced entry alive until after releasing the shard lock.
+        std::optional<entry> old_entry;
+
+        {
+            std::unique_lock lock{selected.mutex};
+            auto [it, inserted] = selected.values.try_emplace(std::move(key), std::move(new_entry));
+
+            if (!inserted) {
+                old_entry.emplace(std::exchange(it->second, std::move(new_entry)));
+            }
+        }
+
+        return new_value;
     }
 
     [[nodiscard]]
@@ -341,7 +363,81 @@ public:
     [[nodiscard]]
     cache_value<value_t> get_or_create(const key_t& key, loader_t&& loader)
     {
-        return get_or_create(key, cache_entry_opts{}, std::forward<loader_t>(loader));
+        shard& selected = shard_for(key);
+        std::shared_ptr<load_state> state;
+        bool owns_load = false;
+
+        {
+            // Keep an expired entry alive until after releasing the shard lock.
+            values_node expired_entry;
+
+            std::unique_lock lock{selected.mutex};
+            const auto value_it = selected.values.find(key);
+
+            if (value_it != selected.values.end()) {
+                if (!value_it->second.expired()) {
+                    return value_it->second.value;
+                }
+
+                expired_entry = selected.values.extract(value_it);
+            }
+
+            if (const auto load_it = selected.in_flight.find(key); load_it != selected.in_flight.end()) {
+                state = load_it->second;
+            }
+            else {
+                state = std::make_shared<load_state>();
+                selected.in_flight.emplace(key, state);
+                owns_load = true;
+            }
+        }
+
+        if (!owns_load) {
+            return state->future.get();
+        }
+
+        cache_value<value_t> published;
+
+        try {
+            value_t loaded_value = std::invoke(std::forward<loader_t>(loader), key);
+            cache_value<value_t> loaded = std::make_shared<const value_t>(std::move(loaded_value));
+
+            {
+                // A concurrent insertion may have happened while the loader was running.
+                values_node expired_entry;
+
+                std::unique_lock lock{selected.mutex};
+                const auto value_it = selected.values.find(key);
+
+                if (value_it != selected.values.end() && !value_it->second.expired()) {
+                    published = value_it->second.value;
+                }
+                else {
+                    if (value_it != selected.values.end()) {
+                        expired_entry = selected.values.extract(value_it);
+                    }
+
+                    auto [it, inserted] = selected.values.try_emplace(key, entry{loaded, no_expiration_time});
+                    assert(inserted);
+                    published = it->second.value;
+                }
+
+                const auto load_it = selected.in_flight.find(key);
+
+                if (load_it != selected.in_flight.end() && load_it->second == state) {
+                    selected.in_flight.erase(load_it);
+                }
+            }
+        }
+        catch (...) {
+            const std::exception_ptr error = std::current_exception();
+            state->promise.set_exception(error);
+            remove_in_flight(selected, key, state);
+            std::rethrow_exception(error);
+        }
+
+        state->promise.set_value(published);
+        return published;
     }
 
     [[nodiscard]]
