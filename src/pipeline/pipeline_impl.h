@@ -12,9 +12,10 @@
 #include <stop_token>
 
 #include "data_segment.h"
-#include "pipeline/fixed_pool_resource.h"
 #include "position.h"
 #include "read_result.h"
+#include "custom_allocators/fixed_pool_resource.h"
+#include "custom_allocators/arena_pool_resource.h"
 
 namespace xtd
 {
@@ -388,7 +389,8 @@ namespace xtd
         }
 
         enum class allocator_kind {
-            fixed_pool_resource,
+            fixed_pool_resource, /* Original -- Still best throughput */
+            arena_pool_resource, /* Experimental -- Using std::pmr::arena_pool_resource */
             unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
         };
 
@@ -399,14 +401,15 @@ namespace xtd
             switch (kind) {
                 case allocator_kind::fixed_pool_resource:
                     return std::make_unique<xtd::fixed_pool_resource>(options.buffer_size, options.max_pooled_segments);
+
+                case allocator_kind::arena_pool_resource:
+                    return std::make_unique<xtd::arena_pool_resource>(options.buffer_size, options.max_pooled_segments);
                 
-                case allocator_kind::unsynchronized_pool_resource: {
-                    const std::pmr::pool_options pool_options{
+                case allocator_kind::unsynchronized_pool_resource:
+                    return std::make_unique<std::pmr::unsynchronized_pool_resource>(std::pmr::pool_options{
                         .max_blocks_per_chunk = options.max_pooled_segments,
                         .largest_required_pool_block = options.buffer_size
-                    };
-                    return std::make_unique<std::pmr::unsynchronized_pool_resource>(pool_options);
-                }
+                    });
 
                 default:
                     throw std::invalid_argument{"unsupported allocator kind"};

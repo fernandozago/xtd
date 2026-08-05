@@ -2,7 +2,7 @@
 #define XTD_TESTS_FIXED_BUFFER_POOL_TESTS_H
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
-#include "pipeline/fixed_pool_resource.h"
+#include "pipeline/custom_allocators/fixed_pool_resource.h"
 #include "pipeline/data_segment.h"
 
 namespace xtd_fixed_buffer_pool_tests {
