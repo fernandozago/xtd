@@ -12,7 +12,7 @@
 #include <stop_token>
 
 #include "data_segment.h"
-#include "pipeline/fixed_buffer_pool.h"
+#include "pipeline/fixed_pool_resource.h"
 #include "position.h"
 #include "read_result.h"
 
