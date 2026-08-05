@@ -1,5 +1,7 @@
 #ifndef XTD_TESTS_PIPELINE_TESTS_H
 #define XTD_TESTS_PIPELINE_TESTS_H
+#define XTD_ALLOW_EXPERIMENTAL
+
 #include "../third_party/catch2/catch_amalgamated.hpp"
 
 #include <array>
@@ -14,6 +16,7 @@
 #include "pipeline/pipeline.h"
 #include "pipeline/pipe_utils.h"
 #include "pipeline/segmented_byte_view.h"
+
 
 namespace xtd_pipeline_tests {
 template <typename T>

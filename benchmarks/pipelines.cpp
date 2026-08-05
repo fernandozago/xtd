@@ -1,6 +1,7 @@
 //#define ANKERL_NANOBENCH_LOG_ENABLED
-#include "pipeline/pipe_reader.h"
 #define ANKERL_NANOBENCH_IMPLEMENT
+#define XTD_ALLOW_EXPERIMENTAL
+
 #include "third_party/nanobench.h"
 
 #include <format>

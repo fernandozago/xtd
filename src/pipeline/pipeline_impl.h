@@ -15,14 +15,25 @@
 #include "position.h"
 #include "read_result.h"
 #include "custom_allocators/fixed_pool_resource.h"
+#ifdef XTD_ALLOW_EXPERIMENTAL
 #include "custom_allocators/arena_pool_resource.h"
+#endif
 
 namespace xtd
 {
     enum class allocator_kind {
-        fixed_pool_resource, /* Original -- Still best throughput -- xtd::fixed_pool_resource */
-        arena_pool_resource, /* Experimental -- Using xtd::arena_pool_resource */
-        unsynchronized_pool_resource, /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
+        /* Default -- Still best throughput -- xtd::fixed_pool_resource */
+        fixed_pool_resource, 
+
+        #ifdef XTD_ALLOW_EXPERIMENTAL
+        arena_pool_resource,
+        unsynchronized_pool_resource,
+        #else
+        /* Experimental -- Using xtd::arena_pool_resource */
+        arena_pool_resource [[deprecated("arena_pool_resource support is experimental.")]],
+        /* Experimental -- Using std::pmr::unsynchronized_pool_resource */
+        unsynchronized_pool_resource [[deprecated("unsynchronized_pool_resource support is experimental.")]],
+        #endif
     };
 
     struct pipe_options {
@@ -398,8 +409,9 @@ namespace xtd
 
 
         [[nodiscard]]
-        memory_resource_ptr make_allocator(const allocator_kind kind, const validated_options& options)
+        memory_resource_ptr make_allocator([[maybe_unused]] const allocator_kind kind, const validated_options& options)
         {
+            #ifdef XTD_ALLOW_EXPERIMENTAL
             switch (kind) {
                 case allocator_kind::fixed_pool_resource:
                     return std::make_unique<xtd::fixed_pool_resource>(options.buffer_size, options.max_pooled_segments);
@@ -412,10 +424,13 @@ namespace xtd
                         .max_blocks_per_chunk = options.max_pooled_segments,
                         .largest_required_pool_block = options.buffer_size
                     });
-
-                default:
+                    
+                    default:
                     throw std::invalid_argument{"unsupported allocator kind"};
-            }
+                }
+            #else
+            return std::make_unique<xtd::fixed_pool_resource>(options.buffer_size, options.max_pooled_segments);
+            #endif
         }
 
         explicit pipeline(const validated_options& options, validated_options_tag)
