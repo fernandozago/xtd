@@ -12,7 +12,7 @@ Recommendations
 
 |            ns/items |             items/s |    err% |     total | xtd::concurrent_cache throughput
 |--------------------:|--------------------:|--------:|----------:|:---------------------------------
-|               36.36 |       27,501,353.04 |    3.1% |     11.63 | `insert_or_assign`
-|               57.00 |       17,544,313.67 |    1.0% |      9.11 | `get_or_create(ttl: 0ms)`
-|              503.23 |        1,987,153.60 |    0.5% |     11.50 | `get_or_create(ttl: 1ms)`
-|               51.35 |       19,475,716.60 |    1.0% |     11.56 | `get / pre-populated-cache`
+|               33.38 |       29,959,723.95 |    0.7% |     11.64 | `insert_or_assign`
+|               56.95 |       17,559,574.18 |    0.6% |      9.24 | `get_or_create(ttl: 0ms)`
+|              497.32 |        2,010,779.39 |    0.3% |     11.33 | `get_or_create(ttl: 1ms)`
+|               50.52 |       19,795,398.05 |    0.3% |     11.53 | `get / pre-populated-cache`
