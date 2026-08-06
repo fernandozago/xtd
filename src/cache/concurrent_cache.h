@@ -51,12 +51,12 @@ class concurrent_cache final
 private:
     using time_point = typename clock_t::time_point;
     using duration = typename clock_t::duration;
-    using cache_value = xtd::cache_value<value_t>;
+    using cache_value_t = xtd::cache_value<value_t>;
     static constexpr time_point no_expiration_time = clock_t::time_point::min();
 
     struct entry final
     {
-        cache_value value;
+        cache_value_t value;
         time_point expires_at{no_expiration_time};
 
         [[nodiscard]]
@@ -66,33 +66,31 @@ private:
         }
     };
 
-    struct load_state final
+    struct factory_state final
     {
-        std::promise<cache_value> promise;
-        std::shared_future<cache_value> future;
+        std::promise<cache_value_t> promise;
+        std::shared_future<cache_value_t> future;
 
-        load_state()
+        factory_state()
             : future{promise.get_future().share()}
         {
         }
     };
 
-    using values_map = std::unordered_map<key_t, entry, hash_t, key_equal_t>;
-    using in_flight_map = std::unordered_map<key_t, std::shared_ptr<load_state>, hash_t, key_equal_t>;
-    using values_node = typename values_map::node_type;
-
-    struct shard final
+    
+    using value_node_t = typename std::unordered_map<key_t, entry, hash_t, key_equal_t>::node_type;
+    struct shard_t final
     {
-        shard(const hash_t& hash, const key_equal_t& key_equal)
-            : values{0, hash, key_equal}
-            , in_flight{0, hash, key_equal}
+        shard_t(const hash_t& hash, const key_equal_t& key_equal)
+        : values{0, hash, key_equal}
+        , in_flight{0, hash, key_equal}
         {
         }
-
+        
         mutable std::shared_mutex mutex;
-
-        values_map values;
-        in_flight_map in_flight;
+        
+        std::unordered_map<key_t, entry, hash_t, key_equal_t> values;
+        std::unordered_map<key_t, std::shared_ptr<factory_state>, hash_t, key_equal_t> in_flight;
     };
 
     [[no_unique_address]]
@@ -101,10 +99,10 @@ private:
     [[no_unique_address]]
     key_equal_t m_key_equal;
 
-    std::vector<std::unique_ptr<shard>> m_shards;
+    std::vector<std::unique_ptr<shard_t>> m_shards;
 
     [[nodiscard]]
-    shard& shard_for(const key_t& key) const
+    shard_t& shard_for(const key_t& key) const
     {
         return *m_shards[
             static_cast<std::size_t>(m_hash(key)) % m_shards.size()
@@ -119,7 +117,7 @@ private:
             : clock_t::now() + std::chrono::duration_cast<duration>(options.m_ttl);
     }
 
-    static void remove_in_flight(shard& selected, const key_t& key, const std::shared_ptr<load_state>& expected_state)
+    static void remove_in_flight(shard_t& selected, const key_t& key, const std::shared_ptr<factory_state>& expected_state)
     {
         std::unique_lock lock{selected.mutex};
         const auto it = selected.in_flight.find(key);
@@ -129,6 +127,35 @@ private:
         }
     }
 
+    enum class lookup_status
+    {
+        missing,
+        expired,
+        found
+    };
+
+    struct lookup_result
+    {
+        lookup_status status;
+        cache_value_t value;
+    };
+
+
+    [[nodiscard]]
+    lookup_result internal_fast_get(const key_t& key, shard_t& selected) const
+    {
+        std::shared_lock lock{selected.mutex};
+
+        const auto it = selected.values.find(key);
+        if (it == selected.values.end()) {
+            return {lookup_status::missing, nullptr};
+        }
+        if (it->second.expired()) {
+            return {lookup_status::expired, nullptr};
+        }
+
+        return {lookup_status::found, it->second.value};
+    }
 public:
     explicit concurrent_cache(std::size_t shard_count = 16, hash_t hash = {}, key_equal_t key_equal = {})
         : m_hash{std::move(hash)}
@@ -138,7 +165,7 @@ public:
         m_shards.reserve(shard_count);
 
         for (std::size_t i = 0; i < shard_count; ++i) {
-            m_shards.push_back(std::make_unique<shard>(m_hash, m_key_equal));
+            m_shards.push_back(std::make_unique<shard_t>(m_hash, m_key_equal));
         }
     }
 
@@ -149,80 +176,62 @@ public:
     concurrent_cache& operator=(concurrent_cache&&) = delete;
 
     [[nodiscard]]
-    cache_value get(const key_t& key) const
+    cache_value_t get(const key_t& key) const
     {
-        shard& selected = shard_for(key);
+        shard_t& shard = shard_for(key);
+        
+        // Fast path: valid cached values only require shared access.
+        if (const auto lookup = internal_fast_get(key, shard); lookup.status == lookup_status::found) {
+            return lookup.value;
+        } else if (lookup.status == lookup_status::expired) {
+            value_node_t expired_entry; // Optimization: Avoid calling <value_node_t> deconstruction while holding the shard lock.
+            std::unique_lock lock{shard.mutex};
+            const auto it = shard.values.find(key);
 
-        {
-            std::shared_lock lock{selected.mutex};
-            const auto it = selected.values.find(key);
-
-            if (it == selected.values.end()) {
-                return {};
-            }
-
-            if (!it->second.expired()) {
-                return it->second.value;
+            if (it != shard.values.end() && !it->second.expired()) {
+                expired_entry = shard.values.extract(it);   
             }
         }
 
-        // Destroy the expired key and value after releasing the shard lock.
-        values_node expired_entry;
-
-        {
-            std::unique_lock lock{selected.mutex};
-            const auto it = selected.values.find(key);
-
-            if (it == selected.values.end()) {
-                return {};
-            }
-
-            // The entry may have been replaced while changing locks.
-            if (!it->second.expired()) {
-                return it->second.value;
-            }
-
-            expired_entry = selected.values.extract(it);
-        }
-
-        return {};
+        return nullptr;
     }
 
     [[nodiscard]]
     bool contains(const key_t& key) const
     {
-        return static_cast<bool>(get(key));
+        shard_t& shard = shard_for(key);
+        std::shared_lock lock{shard.mutex};
+        const auto it = shard.values.find(key);
+        return (it != shard.values.end() && !it->second.expired());
     }
 
     template<typename... Args>
     requires std::constructible_from<value_t, Args...>
     [[nodiscard]]
-    cache_value insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
+    cache_value_t insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
     {
-        cache_value new_value = std::make_shared<const value_t>(std::forward<Args>(args)...);
-        entry new_entry{new_value, expiration_time(options)};
+        shard_t& shard = shard_for(key);
+        // Optimization: Avoid calling <entry> deconstruction while holding the shard lock.
+        std::optional<entry> old_entry; 
+        
+        entry new_entry {
+            std::make_shared<const value_t>(std::forward<Args>(args)...), 
+            expiration_time(options)
+        };
+        std::unique_lock lock{shard.mutex};
+        auto [it, inserted] = shard.values.try_emplace(std::move(key), std::move(new_entry));
 
-        shard& selected = shard_for(key);
-
-        // Keep the replaced entry alive until after releasing the shard lock.
-        std::optional<entry> old_entry;
-
-        {
-            std::unique_lock lock{selected.mutex};
-            auto [it, inserted] = selected.values.try_emplace(std::move(key), std::move(new_entry));
-
-            if (!inserted) {
-                old_entry.emplace(std::exchange(it->second, std::move(new_entry)));
-            }
+        if (!inserted) {
+            old_entry.emplace(std::exchange(it->second, std::move(new_entry)));
         }
 
-        return new_value;
+        return it->second.value;
     }
 
     template<typename... Args>
     requires std::constructible_from<value_t, Args...>
     [[nodiscard]]
-    cache_value insert_or_assign(key_t key, Args&&... args)
+    cache_value_t insert_or_assign(key_t key, Args&&... args)
     {
         return insert_or_assign(std::move(key), cache_entry_opts{}, std::forward<Args>(args)...);
     }
@@ -230,102 +239,120 @@ public:
     [[nodiscard]]
     bool erase(const key_t& key)
     {
-        shard& selected = shard_for(key);
-        values_node removed;
+        shard_t& shard = shard_for(key);
 
-        {
-            std::unique_lock lock{selected.mutex};
-            const auto it = selected.values.find(key);
+        // Optimization: Avoid calling <value_node_t> deconstruction while holding the shard lock
+        value_node_t to_be_removed;
 
-            if (it == selected.values.end()) {
-                return false;
-            }
-
-            removed = selected.values.extract(it);
+        std::unique_lock lock{shard.mutex};
+        const auto it = shard.values.find(key);
+        if (it == shard.values.end()) {
+            return false;
         }
-
+        to_be_removed = shard.values.extract(it);
         return true;
     }
 
-    template<typename loader_t>
-    requires requires(loader_t&& loader, const key_t& key) {
+    template<typename factory_t>
+    requires requires(factory_t&& factory, const key_t& key) {
         {
-            std::invoke(std::forward<loader_t>(loader), key)
+            std::invoke(std::forward<factory_t>(factory), key)
         } -> std::same_as<value_t>;
     }
+
     [[nodiscard]]
-    cache_value get_or_create(const key_t& key, cache_entry_opts options, loader_t&& loader)
+    cache_value_t get_or_create(const key_t& key, cache_entry_opts options, factory_t&& factory)
     {
-        shard& selected = shard_for(key);
-        std::shared_ptr<load_state> state;
-        bool owns_load = false;
+        shard_t& shard = shard_for(key);
+
+        // Fast path.
+        if (const auto lookup = internal_fast_get(key, shard);
+            lookup.status == lookup_status::found) {
+            return lookup.value;
+        }
+
+        std::shared_ptr<factory_state> state;
 
         {
-            // Keep an expired entry alive until after releasing the shard lock.
-            values_node expired_entry;
+            // Destroy the extracted node after releasing the shard lock.
+            value_node_t expired_entry;
 
-            std::unique_lock lock{selected.mutex};
-            const auto value_it = selected.values.find(key);
+            std::unique_lock lock{shard.mutex};
 
-            if (value_it != selected.values.end()) {
+            // Mandatory recheck after transitioning from shared to exclusive access.
+            const auto value_it = shard.values.find(key);
+
+            if (value_it != shard.values.end()) {
                 if (!value_it->second.expired()) {
                     return value_it->second.value;
                 }
 
-                expired_entry = selected.values.extract(value_it);
+                expired_entry = shard.values.extract(value_it);
             }
 
-            if (const auto load_it = selected.in_flight.find(key); load_it != selected.in_flight.end()) {
-                state = load_it->second;
+            if (const auto factory_it = shard.in_flight.find(key);
+                factory_it != shard.in_flight.end()) {
+                auto existing_state = factory_it->second;
+
+                // The factory owner needs this mutex to publish its result.
+                lock.unlock();
+                return existing_state->future.get();
             }
-            else {
-                state = std::make_shared<load_state>();
-                selected.in_flight.emplace(key, state);
-                owns_load = true;
-            }
+
+            state = std::make_shared<factory_state>();
+            shard.in_flight.emplace(key, state);
         }
 
-        if (!owns_load) {
-            return state->future.get();
-        }
-
-        cache_value published;
+        // Reaching here means this thread owns the factory execution.
+        cache_value_t published;
 
         try {
-            value_t loaded_value = std::invoke(std::forward<loader_t>(loader), key);
-            cache_value loaded = std::make_shared<const value_t>(std::move(loaded_value));
+            cache_value_t new_value = std::make_shared<const value_t>(
+                std::invoke(std::forward<factory_t>(factory), key)
+            );
 
-            {
-                // A concurrent insertion may have happened while the loader was running.
-                values_node expired_entry;
+            value_node_t expired_entry;
 
-                std::unique_lock lock{selected.mutex};
-                const auto value_it = selected.values.find(key);
+            std::unique_lock lock{shard.mutex};
 
-                if (value_it != selected.values.end() && !value_it->second.expired()) {
-                    published = value_it->second.value;
-                }
-                else {
-                    if (value_it != selected.values.end()) {
-                        expired_entry = selected.values.extract(value_it);
-                    }
+            const auto value_it = shard.values.find(key);
 
-                    auto [it, inserted] = selected.values.try_emplace(key, entry{loaded, expiration_time(options)});
-                    assert(inserted);
-                    published = it->second.value;
+            // Another operation may have published a value while the
+            // factory was executing.
+            if (value_it != shard.values.end() &&
+                !value_it->second.expired()) {
+                published = value_it->second.value;
+            }
+            else {
+                if (value_it != shard.values.end()) {
+                    expired_entry = shard.values.extract(value_it);
                 }
 
-                const auto load_it = selected.in_flight.find(key);
+                auto [inserted_it, inserted] =
+                    shard.values.try_emplace(
+                        key,
+                        entry{
+                            std::move(new_value),
+                            expiration_time(options)
+                        });
 
-                if (load_it != selected.in_flight.end() && load_it->second == state) {
-                    selected.in_flight.erase(load_it);
-                }
+                assert(inserted);
+                published = inserted_it->second.value;
+            }
+
+            const auto factory_it = shard.in_flight.find(key);
+
+            if (factory_it != shard.in_flight.end() &&
+                factory_it->second == state) {
+                shard.in_flight.erase(factory_it);
             }
         }
         catch (...) {
             const std::exception_ptr error = std::current_exception();
+
             state->promise.set_exception(error);
-            remove_in_flight(selected, key, state);
+            remove_in_flight(shard, key, state);
+
             std::rethrow_exception(error);
         }
 
@@ -333,16 +360,16 @@ public:
         return published;
     }
 
-    template<typename loader_t>
-    requires requires(loader_t&& loader, const key_t& key) {
+    template<typename factory_t>
+    requires requires(factory_t&& factory, const key_t& key) {
         {
-            std::invoke(std::forward<loader_t>(loader), key)
+            std::invoke(std::forward<factory_t>(factory), key)
         } -> std::same_as<value_t>;
     }
     [[nodiscard]]
-    cache_value get_or_create(const key_t& key, loader_t&& loader)
+    cache_value_t get_or_create(const key_t& key, factory_t&& factory)
     {
-        return get_or_create(key, cache_entry_opts{}, std::forward<loader_t>(loader));
+        return get_or_create(key, cache_entry_opts{}, std::forward<factory_t>(factory));
     }
 
     [[nodiscard]]
@@ -352,7 +379,7 @@ public:
         std::size_t result = 0;
 
         for (const auto& selected : m_shards) {
-            std::vector<values_node> removed;
+            std::vector<value_node_t> removed;
 
             {
                 std::unique_lock lock{selected->mutex};
