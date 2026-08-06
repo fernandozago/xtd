@@ -270,9 +270,10 @@ public:
             lookup.status == lookup_status::found) {
             return lookup.value;
         }
+        
+        // Element does not exists or has expired. We need to execute the factory to create a new value.
 
         std::shared_ptr<factory_state> state;
-
         {
             // Destroy the extracted node after releasing the shard lock.
             value_node_t expired_entry;
@@ -319,8 +320,7 @@ public:
 
             // Another operation may have published a value while the
             // factory was executing.
-            if (value_it != shard.values.end() &&
-                !value_it->second.expired()) {
+            if (value_it != shard.values.end() && !value_it->second.expired()) {
                 published = value_it->second.value;
             }
             else {
