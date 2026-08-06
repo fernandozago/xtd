@@ -27,18 +27,18 @@ struct cache_entry_opts final
         std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::hours{24LL * 365LL * 292LL});
 
     cache_entry_opts()
-        : ttl{std::chrono::nanoseconds::zero()}
+        : m_ttl{std::chrono::nanoseconds::zero()}
     {
     }
 
-    explicit cache_entry_opts(const std::chrono::nanoseconds ttl_value)
-        : ttl{ttl_value}
+    cache_entry_opts(const std::chrono::nanoseconds ttl)
+        : m_ttl{ttl}
     {
-        assert(ttl >= std::chrono::nanoseconds::zero());
-        assert(ttl <= max_supported_ttl);
+        assert(m_ttl >= std::chrono::nanoseconds::zero());
+        assert(m_ttl <= max_supported_ttl);
     }
 
-    std::chrono::nanoseconds ttl;
+    std::chrono::nanoseconds m_ttl;
 };
 
 template<
@@ -114,9 +114,9 @@ private:
     [[nodiscard]]
     static time_point expiration_time(const cache_entry_opts& options)
     {
-        return options.ttl == std::chrono::nanoseconds::zero()
+        return options.m_ttl == std::chrono::nanoseconds::zero()
             ? no_expiration_time
-            : clock_t::now() + std::chrono::duration_cast<duration>(options.ttl);
+            : clock_t::now() + std::chrono::duration_cast<duration>(options.m_ttl);
     }
 
     static void remove_in_flight(shard& selected, const key_t& key, const std::shared_ptr<load_state>& expected_state)

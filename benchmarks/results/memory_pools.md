@@ -12,9 +12,9 @@ Recommendations
 
 |               ms/GB |                GB/s |    err% |     total | xtd custom allocator throughput
 |--------------------:|--------------------:|--------:|----------:|:--------------------------------
-|                1.02 |              976.07 |    0.3% |      9.94 | `fixed_pool_resource / allocate+deallocate(1)`
-|                0.80 |            1,254.10 |    0.2% |      9.93 | `arena_pool_resource / allocate+deallocate(1)`
-|                5.80 |              172.49 |    0.4% |      9.79 | `unsynchronized_pool_resource / allocate+deallocate(1)`
-|                1.46 |              687.24 |    0.3% |      9.94 | `fixed_pool_resource / deque-fifo-burst(32)`
-|                1.40 |              713.05 |    0.2% |      9.94 | `arena_pool_resource / deque-fifo-burst(32)`
-|                6.60 |              151.62 |    0.4% |      9.92 | `unsynchronized_pool_resource / deque-fifo-burst(32)`
+|                1.09 |              914.82 |    0.8% |      9.81 | `fixed_pool_resource / allocate+deallocate(1)`
+|                0.83 |            1,207.93 |    0.3% |      9.91 | `arena_pool_resource / allocate+deallocate(1)`
+|                6.11 |              163.73 |    0.4% |      9.81 | `unsynchronized_pool_resource / allocate+deallocate(1)`
+|                1.52 |              659.29 |    0.2% |      9.89 | `fixed_pool_resource / deque-fifo-burst(32)`
+|                1.44 |              694.37 |    0.2% |      9.93 | `arena_pool_resource / deque-fifo-burst(32)`
+|                6.74 |              148.36 |    0.2% |      9.90 | `unsynchronized_pool_resource / deque-fifo-burst(32)`
