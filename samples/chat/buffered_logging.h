@@ -21,7 +21,7 @@ class buffered_logging final
 public:
 	static buffered_logging& instance()
 	{
-		static buffered_logging logger;
+		static buffered_logging logger("xtd-chat.log");
 		return logger;
 	}
 
@@ -69,31 +69,27 @@ private:
 		std::format_to(std::back_inserter(message), "[{}.{:03}] ", timestamp, milliseconds);
 	}
 
-	static std::jthread create_worker_thread(xtd::pipeline& pipeline)
+	static std::jthread create_worker_thread(xtd::pipeline& pipeline, const std::string& file_name)
 	{
-		return std::jthread{[&pipeline](std::stop_token stop_token) {
+		return std::jthread{[&pipeline, file_name](std::stop_token stop_token) {
 			process_logs(
 				xtd::pipe_reader(pipeline), 
-				(std::filesystem::read_symlink("/proc/self/exe").parent_path() / "xtd-chat.log").string(),
+				(std::filesystem::read_symlink("/proc/self/exe").parent_path() / file_name).string(),
 				stop_token
 			);
 		}};
 	}
 
-	buffered_logging()
+	buffered_logging(std::string file_name)
 		: m_pipeline()
 		, m_writer(m_pipeline)
-		, m_worker(create_worker_thread(m_pipeline))
+		, m_worker(create_worker_thread(m_pipeline, file_name))
 	{}
 
 	~buffered_logging()
 	{
 		if (!m_closed.exchange(true)) {
 			m_writer.complete();
-		}
-
-		if (m_worker.joinable()) {
-			m_worker.join();
 		}
 	}
 
@@ -120,10 +116,10 @@ private:
 		catch (const std::exception& ex) {
 			local_logln(log_file, std::format("error occurred while processing logs: {}", ex.what()));
 		}
-
 		
-		local_logln(log_file, "log processing thread exiting");
 		reader.complete();
+
+		local_logln(log_file, "log processing thread exiting");
 		log_file.flush();
 	}
 
