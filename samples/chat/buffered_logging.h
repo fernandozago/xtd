@@ -51,7 +51,7 @@ private:
 	std::jthread m_worker;
 	std::atomic_bool m_closed{false};
 
-	static std::string get_current_time() {
+	static std::tuple<std::string, int> get_current_time() {
 		const auto now_tp = std::chrono::system_clock::now();
 		const std::time_t now = std::chrono::system_clock::to_time_t(now_tp);
 
@@ -61,20 +61,12 @@ private:
 		char timestamp[20]{};
 		static_cast<void>(std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local_time));
 		const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp.time_since_epoch()) % 1000;
-		return std::format("[{}.{:03}] ", timestamp, milliseconds.count());
+		return {timestamp, static_cast<int>(milliseconds.count())};
 	}
 
 	static void get_current_time(std::string& message) {
-		const auto now_tp = std::chrono::system_clock::now();
-		const std::time_t now = std::chrono::system_clock::to_time_t(now_tp);
-
-		std::tm local_time{};
-		static_cast<void>(::localtime_r(&now, &local_time));
-
-		char timestamp[20]{};
-		static_cast<void>(std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local_time));
-		const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp.time_since_epoch()) % 1000;
-		std::format_to(std::back_inserter(message), "[{}.{:03}] ", timestamp, milliseconds.count());
+		const auto [timestamp, milliseconds] = get_current_time();
+		std::format_to(std::back_inserter(message), "[{}.{:03}] ", timestamp, milliseconds);
 	}
 
 	static std::jthread create_worker_thread(xtd::pipeline& pipeline)
@@ -108,7 +100,7 @@ private:
 	static void process_logs(xtd::pipe_reader reader, const std::string file_path, std::stop_token stop_token)
 	{
 		std::ofstream log_file{file_path, std::ios::binary | std::ios::trunc};
-		write_to_sinks(log_file, buffered_logging::get_current_time() + "buffered_logging: log processing thread started\n");
+		local_logln(log_file, "log processing thread started");
 		try {
 			while (const xtd::read_result result = reader.read(stop_token))
 			{
@@ -126,12 +118,19 @@ private:
 			}
 		}
 		catch (const std::exception& ex) {
-			write_to_sinks(log_file, buffered_logging::get_current_time() + std::format("buffered_logging: error occurred while processing logs: {}\n", ex.what()));
+			local_logln(log_file, std::format("error occurred while processing logs: {}", ex.what()));
 		}
 
-		write_to_sinks(log_file, buffered_logging::get_current_time() + "buffered_logging: log processing thread exiting\n");
+		
+		local_logln(log_file, "log processing thread exiting");
 		reader.complete();
 		log_file.flush();
+	}
+
+	static void local_logln(std::ofstream& file, std::string_view message)
+	{
+		const auto& [timestamp, milliseconds] = get_current_time();
+		write_to_sinks(file, std::format("[{}.{:03}] <buffered_logging>: {}\n", timestamp, milliseconds, message));
 	}
 
 	static void write_to_sinks(std::ofstream& file, const std::string_view& message, bool simulate_delay = false)
