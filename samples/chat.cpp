@@ -1,4 +1,5 @@
 #include "chat/server.h"
+#include "chat/buffered_logging.h"
 
 /*
  Simple chat server
@@ -32,14 +33,14 @@ int main(int argc, char** argv)
             server server(static_cast<std::uint16_t>(port));
             server.run();
         }
-        println_locked("Server stopped");
+        logln("Server stopped");
         
 
         return 0;
     }
     catch (const std::exception& ex)
     {
-        println_locked("error: {}", ex.what());
+        logln("error: {}", ex.what());
         return 1;
     }
 }

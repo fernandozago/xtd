@@ -11,6 +11,7 @@
 #include <execution>
 
 #include "connection_handler.h"
+#include "buffered_logging.h"
 
 const constinit int EPOLL_MAX_LISTEN_BACKLOG = 16;
 const constinit int EPOLL_MAX_EVENTS = 256;
@@ -45,29 +46,34 @@ public:
     server& operator=(const server&) = delete;
 
     void run() {
-        println_locked("Server is listening on port: {}", m_port);
-        println_locked("Press Enter to stop the server.");
+        logln("Server is listening on port: {}", m_port);
+        logln("Press Enter to stop the server.");
 
         std::array<epoll_event, EPOLL_MAX_EVENTS> events{};
         while(true) {
             const int count = retry([&] {
                 return ::epoll_wait(m_epollFd, events.data(), events.size(), -1);
             });
-            if (count < 0) throw_system_error("epoll_wait failed");
+            if (count < 0) {
+                throw_system_error("epoll_wait failed");
+            }
+
+            logln("epoll_wait returned {} events", count);
 
             for (int i = 0; i < count; ++i) {
                 const auto& event = events[i];
-                const int fd = event.data.fd;
 
-                if (fd == m_listenFd) {
+                logln("processing event for fd {}: events = {}", event.data.fd, event.events);
+
+                if (event.data.fd == m_listenFd) {
                     handle_incoming_connections();
-                } else if (fd == STDIN_FILENO) {
+                } else if (event.data.fd == STDIN_FILENO) {
                     if (enter_pressed()) {
                         broadcast("[📣: I'm shutting down... Bye! 👋]\n");
                         return;
                     }
                 } else {
-                    process_client_event(fd, event.events);
+                    process_client_event(event);
                 }
             }
         }
@@ -132,11 +138,13 @@ private:
     }
 
     [[noreturn]] static void throw_system_error(const std::string& message, int error = errno) {
+        logln("system error: {} (errno: {})", message, error);
         throw std::system_error(error, std::generic_category(), message);
     }
 
-    static bool would_block() { 
-        return errno == EAGAIN || errno == EWOULDBLOCK; 
+    [[noreturn]] static void throw_runtime_error(const std::string& message) {
+        logln("runtime error: {}", message);
+        throw std::runtime_error(message);
     }
 
     int create_listen_socket() const {
@@ -173,6 +181,7 @@ private:
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
             throw_system_error("failed to add descriptor to epoll");
         }
+        logln("added fd {} to epoll with flags: {}", fd, flags);
     }
 
     void handle_incoming_connections() {
@@ -180,17 +189,18 @@ private:
             const int fd = retry([&] {
                 return ::accept4(m_listenFd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
             });
+            logln("accept4 returned fd: {}", fd);
 
             if (fd < 0) {
-                if (would_block()) return;
+                if (errno == EAGAIN || errno == EWOULDBLOCK) return;
                 throw_system_error("failed to accept connection");
             }
 
             try {
                 start_connection_handler(fd);
-                println_locked("accepted client fd: {}", fd);
+                logln("accepted client fd: {}", fd);
             } catch (const std::exception& ex) {
-                println_locked("failed to start connection: {}", ex.what());
+                logln("failed to start connection: {}", ex.what());
             }
         }
     }
@@ -204,7 +214,7 @@ private:
         {
             std::scoped_lock lock(m_clients_mutex);
             if (!m_clients.emplace(fd, client).second)
-                throw std::runtime_error("connection is already registered");
+                throw_runtime_error("connection is already registered");
         }
         catch (...)
         {
@@ -224,19 +234,20 @@ private:
         }
     }
 
-    void process_client_event(int fd, std::uint32_t events)
+    void process_client_event(const epoll_event& event)
     {
-        auto client = find_client(fd);
+        auto client = find_client(event.data.fd);
         if (!client) return;
 
         try {
-            const bool alive = !(events & EPOLLIN) || receive_data(*client);
-            if (alive && !(events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) return;
+            const bool alive = !(event.events & EPOLLIN) || receive_data(*client);
+            if (alive && !(event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) return;
         }
         catch (const std::exception& ex) {
-            println_locked("client fd {} error: {}", fd, ex.what());
+            logln("client fd {} error: {}", event.data.fd, ex.what());
         }
-        disconnect_client(fd);
+        
+        disconnect_client(event.data.fd);
     }
 
     client_ptr find_client(int fd) {
@@ -254,11 +265,14 @@ private:
                 return ::recv(fd, m_epoll_buffer.data(), m_epoll_buffer.size(), 0);
             });
 
+            
             if (size > 0) {
+                logln("recv returned {} bytes for client fd {}", size, fd);
                 client.m_connection->receive_data(reinterpret_cast<std::byte*>(m_epoll_buffer.data()), static_cast<std::size_t>(size));
             } else if (size == 0) {
                 return false;
-            } else if (would_block()) {
+            } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                logln("client fd {} would block on receive, waiting for writable", fd);
                 return true;
             } else {
                 throw_system_error("failed to receive from client");
@@ -288,7 +302,7 @@ private:
             if (sent > 0) {
                 message.remove_prefix(static_cast<std::size_t>(sent));
             }
-            else if (sent < 0 && would_block()) {
+            else if (sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 if (!wait_writable(fd)) return false;
             }
             else {
@@ -342,7 +356,7 @@ private:
         }
 
         if (client.m_connection) {
-            println_locked("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
+            logln("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
             client.m_connection->close();
         }
     }
@@ -351,11 +365,14 @@ private:
         const ssize_t size = retry([&] {
             return ::read(STDIN_FILENO, m_epoll_buffer.data(), m_epoll_buffer.size());
         });
-        if (size < 0) throw_system_error("failed to read stdin");
+        if (size < 0)  {
+            throw_system_error("failed to read stdin");
+        }
         return size > 0 && std::find(m_epoll_buffer.begin(), m_epoll_buffer.begin() + size, '\n') != m_epoll_buffer.begin() + size;
     }
 
     void cleanup() noexcept {
+        logln("server is shutting down, cleaning up resources...");
         decltype(m_clients) clients;
         {
             std::scoped_lock lock(m_clients_mutex);
@@ -363,6 +380,7 @@ private:
         }
 
         for (auto& [fd, client] : clients) {
+            logln("closing client fd {} (AKA: `{}`)", fd, client->m_connection ? client->m_connection->name() : "unknown");
             if (m_epollFd >= 0)  {
                 ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
             }
