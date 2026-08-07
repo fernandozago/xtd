@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <poll.h>
+#include <string>
 #include <string_view>
 #include <sys/epoll.h>
 #include <sys/socket.h>
@@ -63,7 +64,7 @@ public:
             for (int i = 0; i < count; ++i) {
                 const auto& event = events[i];
 
-                logln("processing event for fd {}: events = {}", event.data.fd, event.events);
+                logln("processing event for fd {}: events = {} ({})", event.data.fd, event.events, epoll_events_to_string(event.events));
 
                 if (event.data.fd == m_listenFd) {
                     handle_incoming_connections();
@@ -137,6 +138,51 @@ private:
         return result;
     }
 
+    static std::string epoll_events_to_string(std::uint32_t events)
+    {
+        struct event_flag {
+            std::uint32_t mask;
+            const char* name;
+        };
+
+        constexpr std::array<event_flag, 8> flags{{
+            {EPOLLIN, "EPOLLIN"},
+            {EPOLLOUT, "EPOLLOUT"},
+            {EPOLLERR, "EPOLLERR"},
+            {EPOLLHUP, "EPOLLHUP"},
+            {EPOLLRDHUP, "EPOLLRDHUP"},
+            {EPOLLPRI, "EPOLLPRI"},
+            {EPOLLET, "EPOLLET"},
+            {EPOLLONESHOT, "EPOLLONESHOT"},
+        }};
+
+        std::string result;
+        std::uint32_t remaining = events;
+
+        for (const event_flag& flag : flags)
+        {
+            if ((events & flag.mask) == 0) {
+                continue;
+            }
+
+            if (!result.empty()) {
+                result += '|';
+            }
+
+            result += flag.name;
+            remaining &= ~flag.mask;
+        }
+
+        if (remaining != 0 || result.empty()) {
+            if (!result.empty()) {
+                result += '|';
+            }
+            result += std::format("0x{:X}", remaining);
+        }
+
+        return result;
+    }
+
     [[noreturn]] static void throw_system_error(const std::string& message, int error = errno) {
         logln("system error: {} (errno: {})", message, error);
         throw std::system_error(error, std::generic_category(), message);
@@ -181,7 +227,7 @@ private:
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
             throw_system_error("failed to add descriptor to epoll");
         }
-        logln("added fd {} to epoll with flags: {}", fd, flags);
+        logln("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
     }
 
     void handle_incoming_connections() {
@@ -265,10 +311,9 @@ private:
                 return ::recv(fd, m_epoll_buffer.data(), m_epoll_buffer.size(), 0);
             });
 
-            
             if (size > 0) {
-                logln("recv returned {} bytes for client fd {}", size, fd);
                 client.m_connection->receive_data(reinterpret_cast<std::byte*>(m_epoll_buffer.data()), static_cast<std::size_t>(size));
+                logln("recv returned {} bytes for client fd {}", size, fd);
             } else if (size == 0) {
                 return false;
             } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -291,13 +336,10 @@ private:
         while (!message.empty())
         {
             const ssize_t sent = retry([&] {
-                return ::send(
-                    fd,
-                    message.data(),
-                    message.size(),
-                    MSG_NOSIGNAL
-                );
+                return ::send(fd, message.data(), message.size(), MSG_NOSIGNAL);
             });
+
+            logln("sent {} bytes for client fd {}", sent, fd);
 
             if (sent > 0) {
                 message.remove_prefix(static_cast<std::size_t>(sent));
@@ -315,19 +357,13 @@ private:
 
     static bool wait_writable(int fd) noexcept
     {
-        pollfd event{
-            .fd = fd,
-            .events = POLLOUT,
-            .revents = 0
-        };
+        pollfd event{.fd = fd, .events = POLLOUT, .revents = 0};
 
         const int result = retry([&] {
             return ::poll(&event, 1, EPOLL_MAX_SEND_TIMEOUT_MS);
         });
 
-        return result > 0 &&
-            (event.revents & POLLOUT) &&
-            !(event.revents & (POLLERR | POLLHUP | POLLNVAL));
+        return result > 0 && (event.revents & POLLOUT) && !(event.revents & (POLLERR | POLLHUP | POLLNVAL));
     }
 
     void disconnect_client(int fd)

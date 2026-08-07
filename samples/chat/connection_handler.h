@@ -8,7 +8,6 @@
 #include "commands_parser.h"
 #include "buffered_logging.h"
 #include "pipeline/pipeline.h"
-#include "../utils/utils.h"
 
 /*
 Accepts any server type implementing:
@@ -31,11 +30,6 @@ inline constexpr std::string_view MOTD = R"(
 [🌸 Be kind, have fun, and enjoy your stay]
 [ℹ️: Send `/help` for more information]
 )""\n";
-
-inline static bool start_with_ingnore_case(const std::string_view& prefix, const std::string_view& str) {
-    if (str.size() < prefix.size()) return false;
-    return is_equal_ignore_case(str.substr(0, prefix.size()), prefix);
-}
 
 template<class TServer>
 class connection_handler
@@ -151,22 +145,22 @@ private:
         switch (cmd_type)
         {
             case command_type::message:
-                m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
                 logln("client fd {} (AKA: `{}`) sent message: {}", m_unique_id, m_name, argument);
+                m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
                 break;
 
             case command_type::name:
             {
                 logln("client fd {} (AKA: `{}`) requested name change to: {}", m_unique_id, m_name, argument);
                 if (argument.empty() || argument.size() > 32) {
-                    m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
                     logln("client fd {} (AKA: `{}`) name change request failed: invalid name length", m_unique_id, m_name);
+                    m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
                     break;
                 }
 
                 std::string old_name = std::exchange(m_name, std::move(argument));
-                m_server.broadcast(std::format("[📣: `{}` is now known as `{}`]\n", old_name, m_name));
                 logln("client fd {} (AKA: `{}`) changed name to: {}", m_unique_id, old_name, m_name);
+                m_server.broadcast(std::format("[📣: `{}` is now known as `{}`]\n", old_name, m_name));
                 break;
             }
 

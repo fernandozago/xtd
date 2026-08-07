@@ -29,14 +29,20 @@ public:
 	buffered_logging& operator=(const buffered_logging&) = delete;
 
 	template <typename... Args>
-	void println(std::format_string<Args...> format, Args&&... args)
+	void writeln(std::format_string<Args...> format, Args&&... args)
 	{
-		write_line(std::format(format, std::forward<Args>(args)...) + "\n");
-	}
+		if (m_closed.load(std::memory_order_relaxed)) {
+			return;
+		}
 
-	void println(std::string_view message)
-	{
-		write_line(std::string(message) + "\n");
+		std::string final;
+		final.reserve(128);
+
+		get_current_time(final);
+		std::format_to(std::back_inserter(final), format, std::forward<Args>(args)...);
+		final.push_back('\n');
+
+		assert(m_writer.write(final) == final.size());
 	}
 
 private:
@@ -45,12 +51,28 @@ private:
 	std::jthread m_worker;
 	std::atomic_bool m_closed{false};
 
+	static void get_current_time(std::string& message) {
+		const auto now_tp = std::chrono::system_clock::now();
+		const std::time_t now = std::chrono::system_clock::to_time_t(now_tp);
+
+		std::tm local_time{};
+		static_cast<void>(::localtime_r(&now, &local_time));
+
+		char timestamp[20]{};
+		static_cast<void>(std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local_time));
+		const auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(now_tp.time_since_epoch()) % 1000;
+		std::format_to(std::back_inserter(message), "[{}.{:03}] ", timestamp, milliseconds.count());
+	}
+
 	static std::jthread create_worker_thread(xtd::pipeline& pipeline)
 	{
-		return std::jthread([&pipeline](std::stop_token stop_token) {
-			const std::string file_path = (std::filesystem::read_symlink("/proc/self/exe").parent_path() / "xtd-chat.log").string();
-			process_logs(xtd::pipe_reader(pipeline), file_path, stop_token);
-		});
+		return std::jthread{[&pipeline](std::stop_token stop_token) {
+			process_logs(
+				xtd::pipe_reader(pipeline), 
+				(std::filesystem::read_symlink("/proc/self/exe").parent_path() / "xtd-chat.log").string(),
+				stop_token
+			);
+		}};
 	}
 
 	buffered_logging()
@@ -70,57 +92,47 @@ private:
 		}
 	}
 
-	void write_line(std::string message)
+	static void process_logs(xtd::pipe_reader reader, const std::string file_path, std::stop_token stop_token)
 	{
-		if (!m_closed.load()) {
-			assert(m_writer.write(message) == message.size());
-		}
-	}
-
-	static void process_logs(xtd::pipe_reader reader, const std::string& file_path, std::stop_token stop_token)
-	{
-		::unlink(file_path.c_str());
 		std::ofstream log_file{file_path, std::ios::binary | std::ios::trunc};
+		write_to_sinks(log_file, "buffered_logging: log processing thread started\n");
 		try {
 			while (const xtd::read_result result = reader.read(stop_token))
 			{
 				xtd::segmented_byte_view buffer = result.buffer();
-
-				while (const auto position = buffer.position_of('\n')) {
-					const xtd::segmented_byte_view line = buffer.slice(position + 1);
-					write_to_sinks(log_file, line);
-					buffer.slice_in_place(position + 1, buffer.end());
+				for (const std::span<const std::byte> segment : buffer.segments()) {
+					if (!segment.empty()) {
+						write_to_sinks(log_file, std::string_view{reinterpret_cast<const char*>(segment.data()), segment.size()});
+					}
 				}
 				
-				reader.advance(buffer.begin(), buffer.end());
+				reader.advance(buffer.end());
 				if (result.completed() || stop_token.stop_requested()) {
 					break;
 				}
 			}
 		}
-		catch (...) {
+		catch (const std::exception& ex) {
+			write_to_sinks(log_file, std::format("buffered_logging: error occurred while processing logs: {}\n", ex.what()));
 		}
 
+		write_to_sinks(log_file, "buffered_logging: log processing thread exiting\n");
 		reader.complete();
 		log_file.flush();
 	}
 
-	static void write_to_sinks(std::ofstream& file, const xtd::segmented_byte_view& buffer)
+	static void write_to_sinks(std::ofstream& file, const std::string_view& message, bool simulate_delay = false)
 	{
-		const std::time_t now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-		std::tm local_time{};
-		static_cast<void>(::localtime_r(&now, &local_time));
-
-		char timestamp[20]{};
-		static_cast<void>(std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%d %H:%M:%S", &local_time));
-
-		const std::string formatted = std::format("[{}] {}", timestamp, buffer.to_string());
-		
-		static_cast<void>(::write(STDOUT_FILENO, formatted.data(), formatted.size()));
-
 		if (file) {
-			file.write(formatted.data(), static_cast<std::streamsize>(formatted.size()));
+			file.write(message.data(), static_cast<std::streamsize>(message.size()));
 			file.flush();
+		}
+		
+		static_cast<void>(::write(STDOUT_FILENO, message.data(), message.size()));
+		
+		// Simulate a small delay to mimic real-world logging scenarios and avoid overwhelming the sinks
+		if (simulate_delay) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(500));
 		}
 	}
 };
@@ -128,10 +140,10 @@ private:
 template <typename... Args>
 inline void logln(std::format_string<Args...> format, Args&&... args)
 {
-	buffered_logging::instance().println(format, std::forward<Args>(args)...);
+	buffered_logging::instance().writeln(format, std::forward<Args>(args)...);
 }
 
 inline void logln(std::string_view message)
 {
-	buffered_logging::instance().println(message);
+	buffered_logging::instance().writeln("{}", message);
 }
