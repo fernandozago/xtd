@@ -185,6 +185,7 @@ public:
             return lookup.value;
         } else if (lookup.status == lookup_status::expired) {
             value_node_t expired_entry; // Optimization: Avoid calling <value_node_t> deconstruction while holding the shard lock.
+            // Upgrade to exclusive access to remove the expired entry.
             std::unique_lock lock{shard.mutex};
             const auto it = shard.values.find(key);
 
@@ -211,18 +212,18 @@ public:
     cache_value_t insert_or_assign(key_t key, cache_entry_opts options, Args&&... args)
     {
         shard_t& shard = shard_for(key);
-        // Optimization: Avoid calling <entry> deconstruction while holding the shard lock.
-        std::optional<entry> old_entry; 
-        
         entry new_entry {
             std::make_shared<const value_t>(std::forward<Args>(args)...), 
             expiration_time(options)
         };
+        
+        // Optimization: Avoid calling <entry> deconstruction while holding the shard lock.
+        std::optional<entry> expired_entry; 
         std::unique_lock lock{shard.mutex};
         auto [it, inserted] = shard.values.try_emplace(std::move(key), std::move(new_entry));
 
         if (!inserted) {
-            old_entry.emplace(std::exchange(it->second, std::move(new_entry)));
+            expired_entry.emplace(std::exchange(it->second, std::move(new_entry)));
         }
 
         return it->second.value;
@@ -240,10 +241,9 @@ public:
     bool erase(const key_t& key)
     {
         shard_t& shard = shard_for(key);
-
+        
         // Optimization: Avoid calling <value_node_t> deconstruction while holding the shard lock
         value_node_t to_be_removed;
-
         std::unique_lock lock{shard.mutex};
         const auto it = shard.values.find(key);
         if (it == shard.values.end()) {
@@ -271,28 +271,23 @@ public:
             return lookup.value;
         }
         
-        // Element does not exists or has expired. We need to execute the factory to create a new value.
+        // Element does not exists or has expired. 
+        // We need to execute the factory to create a new value.
 
         std::shared_ptr<factory_state> state;
-        {
-            // Destroy the extracted node after releasing the shard lock.
-            value_node_t expired_entry;
-
+        {           
+            // Upgrade to exclusive access to insert the new entry.
             std::unique_lock lock{shard.mutex};
 
             // Mandatory recheck after transitioning from shared to exclusive access.
-            const auto value_it = shard.values.find(key);
-
-            if (value_it != shard.values.end()) {
-                if (!value_it->second.expired()) {
-                    return value_it->second.value;
-                }
-
-                expired_entry = shard.values.extract(value_it);
+            if (const auto value_it = shard.values.find(key);
+                value_it != shard.values.end() && !value_it->second.expired()) {
+                return value_it->second.value;
             }
 
-            if (const auto factory_it = shard.in_flight.find(key);
-                factory_it != shard.in_flight.end()) {
+            // Check if another thread is already executing the factory for this key.
+            // Stampede protection: If another thread is already executing the factory for this key, we will wait for it to complete and return its result.
+            if (const auto factory_it = shard.in_flight.find(key); factory_it != shard.in_flight.end()) {
                 auto existing_state = factory_it->second;
 
                 // The factory owner needs this mutex to publish its result.
@@ -300,52 +295,39 @@ public:
                 return existing_state->future.get();
             }
 
+            // Reaching here means this thread owns the factory execution.
             state = std::make_shared<factory_state>();
             shard.in_flight.emplace(key, state);
         }
 
-        // Reaching here means this thread owns the factory execution.
         cache_value_t published;
 
         try {
-            cache_value_t new_value = std::make_shared<const value_t>(
-                std::invoke(std::forward<factory_t>(factory), key)
-            );
+            entry new_entry = {
+                std::make_shared<const value_t>(std::invoke(std::forward<factory_t>(factory), key)),
+                expiration_time(options)
+            };
 
-            value_node_t expired_entry;
+            // Optimization: Avoid calling <entry> deconstruction while holding the shard lock.
+            std::optional<entry> expired_entry;
 
+            //Upgrade to a exclusive lock
             std::unique_lock lock{shard.mutex};
-
-            const auto value_it = shard.values.find(key);
-
-            // Another operation may have published a value while the
-            // factory was executing.
-            if (value_it != shard.values.end() && !value_it->second.expired()) {
+            
+            // Mandatory recheck after transitioning from shared to exclusive access.
+            if (const auto value_it = shard.values.find(key); 
+                value_it != shard.values.end() && !value_it->second.expired()) {
                 published = value_it->second.value;
             }
             else {
-                if (value_it != shard.values.end()) {
-                    expired_entry = shard.values.extract(value_it);
+                auto [it, inserted] = shard.values.try_emplace(key, std::move(new_entry));
+                if (!inserted) {
+                    expired_entry.emplace(std::exchange(it->second, std::move(new_entry)));
                 }
-
-                auto [inserted_it, inserted] =
-                    shard.values.try_emplace(
-                        key,
-                        entry{
-                            std::move(new_value),
-                            expiration_time(options)
-                        });
-
-                assert(inserted);
-                published = inserted_it->second.value;
+                published = it->second.value;
             }
 
-            const auto factory_it = shard.in_flight.find(key);
-
-            if (factory_it != shard.in_flight.end() &&
-                factory_it->second == state) {
-                shard.in_flight.erase(factory_it);
-            }
+            shard.in_flight.erase(key);
         }
         catch (...) {
             const std::exception_ptr error = std::current_exception();
