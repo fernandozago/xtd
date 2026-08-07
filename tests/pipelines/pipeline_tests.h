@@ -1038,6 +1038,105 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path 
 }
 
 
+TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: pipeline can write random text to a slow disk sink without blocking the writer", "[pipeline]",
+    FixedAllocatorMode,
+    ArenaAllocatorMode,
+    UnsynchronizedAllocatorMode)
+{
+    using namespace std::chrono_literals;
+
+    const std::string path = "/tmp/xtd_pipeline_slow_disk_sink.txt";
+    std::remove(path.c_str());
+    constexpr std::size_t payloadSize = 128 * 1024;
+    constexpr std::size_t bufferSize = 4096;
+    constexpr auto simulatedDiskDelay = 10ms;
+
+    const auto makeRandomText = []()
+    {
+        constexpr char alphabet[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789     ";
+        std::string text;
+        text.resize(payloadSize);
+
+        std::uint32_t seed = 0x51A7C0DEu;
+        for (std::size_t i = 0; i < text.size(); ++i)
+        {
+            seed = seed * 1664525u + 1013904223u;
+
+            if ((i + 1) % 79 == 0) {
+                text[i] = '\n';
+            }
+            else {
+                text[i] = alphabet[seed % (sizeof(alphabet) - 1)];
+            }
+        }
+
+        return text;
+    };
+
+    const std::string expected = makeRandomText();
+
+    xtd::pipeline pipeline = make_pipeline<TestType>(xtd::pipe_options{
+        .buffer_size = bufferSize,
+        .resume_writer_threshold = payloadSize,
+        .pause_writer_threshold = payloadSize + bufferSize,
+    });
+
+    auto diskWriter = std::async(std::launch::async, [&]()
+    {
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        REQUIRE(static_cast<bool>(out));
+
+        std::size_t copied = 0;
+        xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
+        while (const xtd::read_result result = reader.read())
+        {
+            const xtd::segmented_byte_view buffer = result.buffer();
+            for (const std::span<const std::byte> segment : buffer.segments())
+            {
+                REQUIRE(segment.size() <= bufferSize);
+                out.write(
+                    reinterpret_cast<const char*>(segment.data()),
+                    static_cast<std::streamsize>(segment.size())
+                );
+                REQUIRE(static_cast<bool>(out));
+                copied += segment.size();
+            }
+
+            std::this_thread::sleep_for(simulatedDiskDelay);
+
+            reader.advance(buffer.end());
+            if (result.completed()) break;
+        }
+
+        reader.complete();
+        return copied;
+    });
+
+    auto producer = std::async(std::launch::async, [&]()
+    {
+        xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
+        const std::size_t written = writer.write(expected);
+        writer.complete();
+        return written;
+    });
+
+    REQUIRE(producer.wait_for(100ms) == std::future_status::ready);
+    CHECK(diskWriter.wait_for(0ms) == std::future_status::timeout);
+    CHECK(producer.get() == expected.size());
+    CHECK(diskWriter.get() == expected.size());
+
+    std::ifstream in(path, std::ios::binary);
+    REQUIRE(static_cast<bool>(in));
+
+    const std::string actual{
+        std::istreambuf_iterator<char>(in),
+        std::istreambuf_iterator<char>()};
+
+    CHECK(actual == expected);
+    std::remove(path.c_str());
+}
+
+
 TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path rejects invalid path", "[pipeline]", 
     FixedAllocatorMode, 
     ArenaAllocatorMode, 
