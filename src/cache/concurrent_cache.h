@@ -280,8 +280,7 @@ public:
             std::unique_lock lock{shard.mutex};
 
             // Mandatory recheck after transitioning from shared to exclusive access.
-            if (const auto value_it = shard.values.find(key);
-                value_it != shard.values.end() && !value_it->second.expired()) {
+            if (const auto value_it = shard.values.find(key); value_it != shard.values.end() && !value_it->second.expired()) {
                 return value_it->second.value;
             }
 
@@ -315,8 +314,7 @@ public:
             std::unique_lock lock{shard.mutex};
             
             // Mandatory recheck after transitioning from shared to exclusive access.
-            if (const auto value_it = shard.values.find(key); 
-                value_it != shard.values.end() && !value_it->second.expired()) {
+            if (const auto value_it = shard.values.find(key); value_it != shard.values.end() && !value_it->second.expired()) {
                 published = value_it->second.value;
             }
             else {
