@@ -13,7 +13,6 @@
 
 #include <unistd.h>
 
-#include "pipeline/pipe_reader.h"
 #include "pipeline/pipeline.h"
 
 class buffered_logging final
@@ -21,7 +20,7 @@ class buffered_logging final
 public:
 	static buffered_logging& instance()
 	{
-		static buffered_logging logger("xtd-chat.log");
+		static buffered_logging logger;
 		return logger;
 	}
 
@@ -38,7 +37,7 @@ public:
 		std::string final;
 		final.reserve(128);
 
-		get_current_time(final);
+		write_current_time(final);
 		std::format_to(std::back_inserter(final), format, std::forward<Args>(args)...);
 		final.push_back('\n');
 
@@ -64,26 +63,15 @@ private:
 		return {timestamp, static_cast<int>(milliseconds.count())};
 	}
 
-	static void get_current_time(std::string& message) {
+	static void write_current_time(std::string& message) {
 		const auto [timestamp, milliseconds] = get_current_time();
 		std::format_to(std::back_inserter(message), "[{}.{:03}] ", timestamp, milliseconds);
 	}
 
-	static std::jthread create_worker_thread(xtd::pipeline& pipeline, const std::string& file_name)
-	{
-		return std::jthread{[&pipeline, file_name](std::stop_token stop_token) {
-			process_logs(
-				xtd::pipe_reader(pipeline), 
-				(std::filesystem::read_symlink("/proc/self/exe").parent_path() / file_name).string(),
-				stop_token
-			);
-		}};
-	}
-
-	buffered_logging(std::string file_name)
-		: m_pipeline()
-		, m_writer(m_pipeline)
-		, m_worker(create_worker_thread(m_pipeline, file_name))
+	buffered_logging()
+		: m_pipeline{}
+		, m_writer{m_pipeline}
+		, m_worker{buffered_logging::process_logs, xtd::pipe_reader{m_pipeline}}
 	{}
 
 	~buffered_logging()
@@ -93,9 +81,9 @@ private:
 		}
 	}
 
-	static void process_logs(xtd::pipe_reader reader, const std::string file_path, std::stop_token stop_token)
+	static void process_logs(std::stop_token stop_token, xtd::pipe_reader reader)
 	{
-		std::ofstream log_file{file_path, std::ios::binary | std::ios::trunc};
+		std::ofstream log_file{(std::filesystem::read_symlink("/proc/self/exe").string() + ".log"), std::ios::binary | std::ios::trunc};
 		local_logln(log_file, "log processing thread started");
 		try {
 			while (const xtd::read_result result = reader.read(stop_token))
