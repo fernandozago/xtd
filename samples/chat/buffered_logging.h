@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <print>
 #include <stop_token>
 #include <string>
 #include <string_view>
@@ -129,7 +130,7 @@ private:
 		write_to_sinks(file, std::format("[{}.{:03}] <buffered_logging>: {}\n", timestamp, milliseconds, message));
 	}
 
-	static void write_to_sinks(std::ofstream& file, const std::string_view& message, bool simulate_delay = false)
+	static void write_to_sinks(std::ofstream& file, const std::string_view message, bool simulate_delay = false)
 	{
 		if (file) {
 			file.write(message.data(), static_cast<std::streamsize>(message.size()));

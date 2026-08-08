@@ -111,7 +111,7 @@ private:
                         if (line_bytes[xtd::from_end(1)] == std::byte('\r')) {
                             line_bytes = line_bytes.slice(newLine - 1);
                         }
-    
+
                         process_command(line_bytes);
                     }
 
@@ -140,6 +140,8 @@ private:
 
     void process_command(const xtd::segmented_byte_view& line_bytes)
     {
+        if (line_bytes.empty()) return;
+
         const auto [cmd_type, argument] = commands_parser::parse_command(line_bytes);
 
         switch (cmd_type)

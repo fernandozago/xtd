@@ -38,16 +38,16 @@ private:
         #undef X
     });
 
-    inline static const std::string_view whitespace = " \t\n\r\f\v";
+    inline static const std::string_view whitespaces = " \t\n\r\f\v";
 
     static std::string_view trim(std::string_view value)
     {
-        const auto first = value.find_first_not_of(whitespace);
+        const auto first = value.find_first_not_of(whitespaces);
         if (first == std::string_view::npos) {
             return {};
         }
 
-        const auto last = value.find_last_not_of(whitespace);
+        const auto last = value.find_last_not_of(whitespaces);
         return value.substr(first, last - first + 1);
     }
 
@@ -64,10 +64,11 @@ private:
         );
     }
 
-    static command_type parse_command_type(std::string_view command)
+    static command_type parse_command_type(const xtd::segmented_byte_view& command_bytes)
     {
+        std::string command = command_bytes.to_string();
         const auto it = std::ranges::find_if(command_definitions, 
-            [command](const command_definition& definition) {
+            [&command](const command_definition& definition) {
                 return is_equal_ignore_case(command, definition.name);
             });
 
@@ -77,21 +78,20 @@ private:
 public:
     static std::tuple<command_type, std::string> parse_command(const xtd::segmented_byte_view& line_bytes)
     {
-        assert(!line_bytes.empty());
-
         if (line_bytes[0] == std::byte('/')) {
-            const xtd::position separator = line_bytes.position_of_any(whitespace);
+            const xtd::position separator = line_bytes.position_of_any(whitespaces);
+
             return {
                 parse_command_type(line_bytes.slice(1, separator 
                     ? separator 
-                    : line_bytes.end()).to_string()),
+                    : line_bytes.end())),
 
                 std::string{separator 
                     ? trim(line_bytes.slice(separator + 1, line_bytes.end()).to_string()) 
-                    : std::string{}}
+                    : ""}
             };
         }
         
-        return {command_type::message, std::string{line_bytes.to_string()}};
+        return {command_type::message, line_bytes.to_string()};
     }
 };
