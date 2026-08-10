@@ -2,12 +2,13 @@
 
 A header-only C++23 concurrency library in the `xtd` namespace.
 
-`xtd` currently provides two complementary primitives:
+`xtd` currently provides three complementary primitives:
 
 | Primitive | Purpose | Documentation |
 |---|---|---|
 | `xtd::channel<T>` | Thread-safe, message-oriented producer/consumer communication | [Channel API reference](src/channel/channel.md) |
 | `xtd::pipeline` | Byte-oriented streaming, incremental parsing, and backpressure | [Pipeline API reference](src/pipeline/pipeline.md) |
+| `xtd::concurrent_cache<K, V>` | Thread-safe key/value cache with TTL and stampede protection | [Concurrent Cache API reference](src/cache/concurrent_cache.md) |
 
 ## Features
 
@@ -45,6 +46,20 @@ See the complete [Channel API reference](src/channel/channel.md).
 * File and socket ingestion helpers through `xtd::pipe_utils`.
 
 See the complete [Pipeline API reference](src/pipeline/pipeline.md).
+
+### Concurrent Cache
+
+* Sharded `std::shared_mutex` design for scalable concurrent access.
+* Values stored as `std::shared_ptr<const T>` — callers retain ownership past eviction.
+* Optional per-entry TTL with a pluggable clock.
+* Lazy expiration on access plus explicit `purge_expired()` sweep.
+* Stampede protection in `get_or_create`: only one thread runs the factory per miss.
+* Factory exceptions propagated to all waiting threads.
+* In-place construction via variadic `insert_or_assign`.
+* Configurable shard count for tuning contention versus memory.
+* Custom hash, equality, and clock template parameters.
+
+See the complete [Concurrent Cache API reference](src/cache/concurrent_cache.md).
 
 # Contributing
 
@@ -127,7 +142,7 @@ Benchmark results are machine- and configuration-dependent. Review the machine s
 
 ## Tests and CI
 
-Channel and pipeline tests are available under [`tests`](tests).
+Channel, pipeline, and concurrent cache tests are available under [`tests`](tests).
 
 Run all tests with:
 
