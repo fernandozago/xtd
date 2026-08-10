@@ -319,7 +319,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write after complete throws", 
 
     CHECK_THROWS_AS(
         writer.write("x"),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -365,7 +365,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: write after reader complete th
 
     CHECK_THROWS_AS(
         writer.write("x"),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -409,7 +409,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance without pending read t
 
     CHECK_THROWS_AS(
         reader.advance(position, position),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -431,7 +431,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: read twice without advance thr
 
     CHECK_THROWS_AS(
         static_cast<void>(reader.read()),
-        std::runtime_error
+        std::logic_error
     );
 
     reader.advance(buffer.end(), buffer.end());
@@ -503,7 +503,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance rejects examined offse
 
     CHECK_THROWS_AS(
         reader.advance(buffer.begin(), buffer.end() + 1),
-        std::invalid_argument
+        std::out_of_range
     );
 
     reader.advance(buffer.begin(), buffer.end());
@@ -913,7 +913,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: read after complete throws", "
 
     CHECK_THROWS_AS(
         static_cast<void>(reader.read()),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -931,7 +931,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: complete is idempotent", "[pip
 
     CHECK_THROWS_AS(
         static_cast<void>(reader.read()),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -949,10 +949,10 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Writer: complete after reader complete
     writer.complete();
     writer.complete();
 
-    CHECK_THROWS_AS(writer.write("x"), std::runtime_error);
+    CHECK_THROWS_AS(writer.write("x"), std::logic_error);
     CHECK_THROWS_AS(
         static_cast<void>(reader.read()),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -974,7 +974,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Reader: advance after complete throws"
 
     CHECK_THROWS_AS(
         reader.advance(buffer.begin(), buffer.end()),
-        std::runtime_error
+        std::logic_error
     );
 }
 
@@ -1146,7 +1146,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "Utility: threaded_copy_file_from_path 
     xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
     CHECK_THROWS_AS(
         xtd::pipe_utils::threaded_copy_file_from_path("./tests/bin/this_file_does_not_exist.txt", writer),
-        std::runtime_error
+        std::ios_base::failure
     );
 }
 
@@ -1187,7 +1187,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: examined-all without consumi
     reader.complete();
 
     REQUIRE(producer.wait_for(1s) == std::future_status::ready);
-    CHECK_THROWS_AS(producer.get(), std::runtime_error);
+    CHECK_THROWS_AS(producer.get(), std::logic_error);
 }
 
 
@@ -1252,7 +1252,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: reader complete wakes blocke
         
         CHECK_THROWS_AS(
             writer.write("abcd"),
-            std::runtime_error
+            std::logic_error
         );
     });
     
@@ -1959,9 +1959,9 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline docs reader complete invalida
     // Completing the reader clears pending-read state and invalidates this read context.
     reader.complete();
 
-    CHECK_THROWS_AS(reader.advance(seq.begin(), seq.end()), std::runtime_error);
-    CHECK_THROWS_AS(static_cast<void>(reader.read()), std::runtime_error);
-    CHECK_THROWS_AS(writer.write("z"), std::runtime_error);
+    CHECK_THROWS_AS(reader.advance(seq.begin(), seq.end()), std::logic_error);
+    CHECK_THROWS_AS(static_cast<void>(reader.read()), std::logic_error);
+    CHECK_THROWS_AS(writer.write("z"), std::logic_error);
 }
 
 TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: equal pause and resume thresholds resume after a full segment is released", "[pipeline]", 
@@ -2139,7 +2139,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: full writer does not busy-sp
             try {
                 static_cast<void>(writer.write(payload, stop_token));
             }
-            catch (const std::runtime_error&) {
+            catch (const std::logic_error&) {
                 // reader.complete() is used to release the writer below.
             }
         }
@@ -2287,7 +2287,7 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: equal pause and resume thres
     reader.complete();
 
     REQUIRE(write_future.wait_for(1s) == std::future_status::ready);
-    CHECK_THROWS_AS(write_future.get(), std::runtime_error);
+    CHECK_THROWS_AS(write_future.get(), std::logic_error);
 }
 
 struct test_data_trivially_copyable

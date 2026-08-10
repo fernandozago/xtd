@@ -705,7 +705,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "as_string_view rejects multi-segment v
 
     CHECK_THROWS_AS(
         static_cast<void>(sequence.as_string_view()),
-        std::invalid_argument
+        std::logic_error
     );
 }
 
@@ -981,7 +981,7 @@ TEST_CASE_METHOD(SegmentedByteViewTests, "copy_to(T&) rejects an undersized view
 
     CHECK_THROWS_AS(
         static_cast<void>(sequence.copy_to(destination)),
-        std::invalid_argument
+        std::out_of_range
     );
 
     CHECK(destination == 0xAABBCCDD);

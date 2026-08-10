@@ -31,7 +31,7 @@ struct pipe_utils
         {
             std::ifstream probe(path, std::ios::binary);
             if (!probe) {
-                throw std::runtime_error("failed to open file");
+                throw std::ios_base::failure("failed to open file");
             }
         }
 

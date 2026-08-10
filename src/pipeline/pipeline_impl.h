@@ -101,18 +101,6 @@ namespace xtd
         bool m_reader_completed = false;
         bool m_writer_paused = false;
 
-        static void runtime_assert(bool condition, const char* message) {
-            if (!condition) {
-                throw std::runtime_error(message);
-            }
-        }
-
-        static void argument_assert(bool condition, const char* message) {
-            if (!condition) {
-                throw std::invalid_argument(message);
-            }
-        }
-
         // Writer backpressure is based only on the total amount of unconsumed buffered data.
         //
         // `m_examined_size` must not affect writer resumption. Examined bytes are still
@@ -170,11 +158,14 @@ namespace xtd
         {
             std::unique_lock lock{m_mutex};
                 
-            runtime_assert(!m_has_pending_read, 
-                "advance(consumed, examined) must be called before the next read");
+            if (m_has_pending_read) {
+                throw std::logic_error(
+                    "advance(consumed, examined) must be called before the next read");
+            }
                 
-            runtime_assert(!m_reader_completed, 
-                "pipeline reader is completed");
+            if (m_reader_completed) {
+                throw std::logic_error("pipeline reader is completed");
+            }
 
             if (!m_writer_completed) {
                 m_reader_waiting = true;
@@ -200,19 +191,24 @@ namespace xtd
             const std::size_t consumed_offset = consumed.sequence_offset();
             const std::size_t examined_offset = examined.sequence_offset();
 
-            argument_assert(consumed_offset <= examined_offset, 
-                "consumed must be <= examined");
+            if (consumed_offset > examined_offset) {
+                throw std::invalid_argument("consumed must be <= examined");
+            }
 
             std::unique_lock lock{m_mutex};
 
-            runtime_assert(!m_reader_completed, 
-                "pipeline reader is completed");
+            if (m_reader_completed) {
+                throw std::logic_error("pipeline reader is completed");
+            }
 
-            runtime_assert(m_has_pending_read, 
-                "advance called without a pending read");
+            if (!m_has_pending_read) {
+                throw std::logic_error("advance called without a pending read");
+            }
 
-            argument_assert( examined_offset <= m_pending_read_size,
-                "examined exceeds the most recent read buffer length");
+            if (examined_offset > m_pending_read_size) {
+                throw std::out_of_range(
+                    "examined exceeds the most recent read buffer length");
+            }
 
             const bool was_paused = m_writer_paused;
             std::size_t remaining_consumed = consumed_offset;
@@ -270,13 +266,16 @@ namespace xtd
                 bool notify_data_available = false;
 
                 std::unique_lock lock{m_mutex};
-                runtime_assert(!is_any_completed(), "pipeline is completed");
+                if (is_any_completed()) {
+                    throw std::logic_error("pipeline is completed");
+                }
                 m_space_available.wait(lock, stop_token, space_available_predicate{*this});
 
                 
                 while (!data.empty() && !m_writer_paused) {
-                    runtime_assert(!is_any_completed(),
-                        "pipeline is completed");
+                    if (is_any_completed()) {
+                        throw std::logic_error("pipeline is completed");
+                    }
         
                     if (stop_token.stop_requested()) {
                         return copied;
@@ -358,14 +357,18 @@ namespace xtd
         [[nodiscard]]
         static validated_options validate_options(const pipe_options& options)
         {
-            argument_assert(options.buffer_size > 0,
-                "buffer_size must be > 0");
+            if (options.buffer_size == 0) {
+                throw std::invalid_argument("buffer_size must be > 0");
+            }
 
-            argument_assert(options.pause_writer_threshold > 0,
-                "pause_writer_threshold must be > 0");
+            if (options.pause_writer_threshold == 0) {
+                throw std::invalid_argument("pause_writer_threshold must be > 0");
+            }
 
-            argument_assert(options.resume_writer_threshold <= options.pause_writer_threshold,
-                "resume_writer_threshold must be <= pause_writer_threshold");
+            if (options.resume_writer_threshold > options.pause_writer_threshold) {
+                throw std::invalid_argument(
+                    "resume_writer_threshold must be <= pause_writer_threshold");
+            }
 
             const std::size_t max_pooled_segments =
                 options.pause_writer_threshold / options.buffer_size

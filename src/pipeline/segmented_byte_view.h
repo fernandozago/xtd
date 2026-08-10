@@ -41,20 +41,6 @@ private:
     std::size_t m_begin_offset;
     std::size_t m_size;
 
-    static void argument_assert(bool condition, const char* message)
-    {
-        if (!condition) {
-            throw std::invalid_argument(message);
-        }
-    }
-
-    static void range_assert(bool condition, const char* message)
-    {
-        if (!condition) {
-            throw std::out_of_range(message);
-        }
-    }
-
     [[nodiscard]]
     std::size_t end_offset() const noexcept
     {
@@ -63,23 +49,28 @@ private:
 
     void validate_slice_range(const std::size_t slice_begin, const std::size_t slice_end) const
     {
-        range_assert(slice_begin <= slice_end,
-            "slice begin must be <= slice end");
+        if (slice_begin > slice_end) {
+            throw std::out_of_range("slice begin must be <= slice end");
+        }
 
-        range_assert(slice_begin >= m_begin_offset && slice_begin <= end_offset(),
-            "slice begin is out of range");
+        if (!(slice_begin >= m_begin_offset && slice_begin <= end_offset())) {
+            throw std::out_of_range("slice begin is out of range");
+        }
 
-        range_assert(slice_end >= m_begin_offset && slice_end <= end_offset(),
-            "slice end is out of range");
+        if (!(slice_end >= m_begin_offset && slice_end <= end_offset())) {
+            throw std::out_of_range("slice end is out of range");
+        }
     }
 
     void validate_relative_slice(const std::size_t begin_offset, const std::size_t size) const
     {
-        range_assert(begin_offset <= m_size,
-            "slice begin offset is out of range");
+        if (begin_offset > m_size) {
+            throw std::out_of_range("slice begin offset is out of range");
+        }
 
-        range_assert(size <= m_size - begin_offset,
-            "slice size is out of range");
+        if (size > m_size - begin_offset) {
+            throw std::out_of_range("slice size is out of range");
+        }
     }
 
     [[nodiscard]]
@@ -103,8 +94,9 @@ private:
     [[nodiscard]]
     slice_range resolve_slice_range(const std::size_t begin_offset, const position& end) const
     {
-        range_assert(begin_offset <= m_size,
-            "slice begin offset is out of range");
+        if (begin_offset > m_size) {
+            throw std::out_of_range("slice begin offset is out of range");
+        }
 
         return {
             m_begin_offset + begin_offset, 
@@ -284,8 +276,9 @@ public:
 
     const std::byte& operator[](const xtd::from_end& from_end) const
     {
-        range_assert(from_end.m_offset > 0 && from_end.m_offset <= m_size,
-            "from_end offset is out of range");
+        if (!(from_end.m_offset > 0 && from_end.m_offset <= m_size)) {
+            throw std::out_of_range("from_end offset is out of range");
+        }
 
         std::size_t remaining = from_end.m_offset - 1;
         for (auto iterator = m_segments.rbegin(); iterator != m_segments.rend(); ++iterator) {
@@ -305,15 +298,18 @@ public:
     {
         const std::size_t absolute_offset = pos.sequence_offset();
 
-        range_assert(absolute_offset >= m_begin_offset && absolute_offset < end_offset(),
-            "position is out of range");
+        if (!(absolute_offset >= m_begin_offset && absolute_offset < end_offset())) {
+            throw std::out_of_range("position is out of range");
+        }
 
         return (*this)[absolute_offset - m_begin_offset];
     }
 
     const std::byte& operator[](const std::size_t index) const
     {
-        range_assert(index < m_size, "index is out of range");
+        if (index >= m_size) {
+            throw std::out_of_range("index is out of range");
+        }
 
         std::size_t segment_begin = 0;
 
@@ -512,8 +508,10 @@ public:
     [[nodiscard]]
     std::size_t copy_to(std::byte* destination, const std::size_t destination_size) const
     {
-        argument_assert(destination != nullptr || destination_size == 0,
-            "destination must not be null when destination_size > 0");
+        if (!(destination != nullptr || destination_size == 0)) {
+            throw std::invalid_argument(
+                "destination must not be null when destination_size > 0");
+        }
 
         return copy_to(std::span<std::byte>{ destination, destination_size});
     }
@@ -532,8 +530,10 @@ public:
     bool copy_to(T& destination) const
     {
         const std::size_t destination_size = sizeof(T);
-        argument_assert(destination_size <= m_size,
-            "buffer size is smaller than the size of the destination type");
+        if (destination_size > m_size) {
+            throw std::out_of_range(
+                "buffer size is smaller than the size of the destination type");
+        }
 
         return copy_to(std::as_writable_bytes(std::span<T, 1>{&destination, 1})) == destination_size;
     }
@@ -547,8 +547,10 @@ public:
 
     std::string_view as_string_view() const
     {
-        argument_assert(is_single_segment(),
-            "buffer must be a single segment to convert to string_view");
+        if (!is_single_segment()) {
+            throw std::logic_error(
+                "buffer must be a single segment to convert to string_view");
+        }
         return std::string_view{reinterpret_cast<const char*>(m_segments.front().data()), m_size};
     }
 
