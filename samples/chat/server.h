@@ -47,8 +47,8 @@ public:
     server& operator=(const server&) = delete;
 
     void run() {
-        logln("Server is listening on port: {}", m_port);
-        logln("Press Enter to stop the server.");
+        LOGLN("Server is listening on port: {}", m_port);
+        LOGLN("Press Enter to stop the server.");
 
         std::array<epoll_event, EPOLL_MAX_EVENTS> events{};
         while(true) {
@@ -59,12 +59,12 @@ public:
                 throw_system_error("epoll_wait failed");
             }
 
-            logln("epoll_wait returned {} events", count);
+            LOGLN("epoll_wait returned {} events", count);
 
             for (int i = 0; i < count; ++i) {
                 const auto& event = events[i];
 
-                logln("processing event for fd {}: events = {} ({})", event.data.fd, event.events, epoll_events_to_string(event.events));
+                LOGLN("processing event for fd {}: events = {} ({})", event.data.fd, event.events, epoll_events_to_string(event.events));
 
                 if (event.data.fd == m_listenFd) {
                     handle_incoming_connections();
@@ -184,12 +184,12 @@ private:
     }
 
     [[noreturn]] static void throw_system_error(const std::string& message, int error = errno) {
-        logln("system error: {} (errno: {})", message, error);
+        LOGLN("system error: {} (errno: {})", message, error);
         throw std::system_error(error, std::generic_category(), message);
     }
 
     [[noreturn]] static void throw_runtime_error(const std::string& message) {
-        logln("runtime error: {}", message);
+        LOGLN("runtime error: {}", message);
         throw std::runtime_error(message);
     }
 
@@ -227,7 +227,7 @@ private:
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
             throw_system_error("failed to add descriptor to epoll");
         }
-        logln("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
+        LOGLN("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
     }
 
     void handle_incoming_connections() {
@@ -235,7 +235,7 @@ private:
             const int fd = retry([&] {
                 return ::accept4(m_listenFd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
             });
-            logln("accept4 returned fd: {}", fd);
+            LOGLN("accept4 returned fd: {}", fd);
 
             if (fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) return;
@@ -244,9 +244,9 @@ private:
 
             try {
                 start_connection_handler(fd);
-                logln("accepted client fd: {}", fd);
+                LOGLN("accepted client fd: {}", fd);
             } catch (const std::exception& ex) {
-                logln("failed to start connection: {}", ex.what());
+                LOGLN("failed to start connection: {}", ex.what());
             }
         }
     }
@@ -290,7 +290,7 @@ private:
             if (alive && !(event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) return;
         }
         catch (const std::exception& ex) {
-            logln("client fd {} error: {}", event.data.fd, ex.what());
+            LOGLN("client fd {} error: {}", event.data.fd, ex.what());
         }
         
         disconnect_client(event.data.fd);
@@ -313,11 +313,11 @@ private:
 
             if (size > 0) {
                 client.m_connection->receive_data(reinterpret_cast<std::byte*>(m_epoll_buffer.data()), static_cast<std::size_t>(size));
-                logln("recv returned {} bytes for client fd {}", size, fd);
+                LOGLN("recv returned {} bytes for client fd {}", size, fd);
             } else if (size == 0) {
                 return false;
             } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                logln("client fd {} would block on receive, waiting for writable", fd);
+                LOGLN("client fd {} would block on receive, waiting for writable", fd);
                 return true;
             } else {
                 throw_system_error("failed to receive from client");
@@ -339,7 +339,7 @@ private:
                 return ::send(fd, message.data(), message.size(), MSG_NOSIGNAL);
             });
 
-            logln("sent {} bytes for client fd {}", sent, fd);
+            LOGLN("sent {} bytes for client fd {}", sent, fd);
 
             if (sent > 0) {
                 message.remove_prefix(static_cast<std::size_t>(sent));
@@ -392,7 +392,7 @@ private:
         }
 
         if (client.m_connection) {
-            logln("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
+            LOGLN("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
             client.m_connection->close();
         }
     }
@@ -408,7 +408,7 @@ private:
     }
 
     void cleanup() noexcept {
-        logln("server is shutting down, cleaning up resources...");
+        LOGLN("server is shutting down, cleaning up resources...");
         decltype(m_clients) clients;
         {
             std::scoped_lock lock(m_clients_mutex);
@@ -416,7 +416,7 @@ private:
         }
 
         for (auto& [fd, client] : clients) {
-            logln("closing client fd {} (AKA: `{}`)", fd, client->m_connection ? client->m_connection->name() : "unknown");
+            LOGLN("closing client fd {} (AKA: `{}`)", fd, client->m_connection ? client->m_connection->name() : "unknown");
             if (m_epollFd >= 0)  {
                 ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
             }

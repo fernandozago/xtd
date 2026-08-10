@@ -23,6 +23,8 @@ int main(int argc, char** argv)
 {
     try
     {
+        LOGLN("Starting chat server...");
+
         const int port = std::stoi(argc > 1 ? argv[1] : "9090");
 
         if (port < 1 || port > 65535) {
@@ -33,14 +35,14 @@ int main(int argc, char** argv)
             server server(static_cast<std::uint16_t>(port));
             server.run();
         }
-        logln("Server stopped");
-        
+
+        LOGLN("Server stopped");
 
         return 0;
     }
     catch (const std::exception& ex)
     {
-        logln("error: {}", ex.what());
+        LOGLN("error: {}", ex.what());
         return 1;
     }
 }
