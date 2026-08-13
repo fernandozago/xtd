@@ -3,7 +3,6 @@
 
 #include <array>
 #include <chrono>
-#include <cstdio>
 #include <format>
 #include <string>
 #include <string_view>
@@ -13,83 +12,48 @@
 namespace otel_serializer {
 
 static constexpr std::array<std::string_view, 6> severity_texts {
-    "TRACE", "DEBUG", "INFO",
-    "WARN", "ERROR", "FATAL"
+    "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
 
-static constexpr int to_otel_severity(log_level level) {
-    switch (level) {
-        case log_level::trace:       return 1;
-        case log_level::debug:       return 5;
-        case log_level::information: return 9;
-        case log_level::warning:     return 13;
-        case log_level::error:       return 17;
-        case log_level::critical:    return 21;
-        default:                     return 0;
-    }
-}
+static std::string escape_json(std::string_view value)
+{
+    std::string result;
+    result.reserve(value.size());
 
-static std::string escape_json(std::string_view value) {
-    std::string escaped;
-    escaped.reserve(value.size());
-
-    for (char c : value) {
+    for (const char c : value) {
         switch (c) {
-            case '"':  escaped += "\\\""; break;
-            case '\\': escaped += "\\\\"; break;
-            case '\b': escaped += "\\b";  break;
-            case '\f': escaped += "\\f";  break;
-            case '\n': escaped += "\\n";  break;
-            case '\r': escaped += "\\r";  break;
-            case '\t': escaped += "\\t";  break;
+            case '"':  result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\b': result += "\\b";  break;
+            case '\f': result += "\\f";  break;
+            case '\n': result += "\\n";  break;
+            case '\r': result += "\\r";  break;
+            case '\t': result += "\\t";  break;
 
             default:
                 if (static_cast<unsigned char>(c) < 0x20) {
-                    char buffer[7];
-                    std::snprintf(
-                        buffer,
-                        sizeof(buffer),
-                        "\\u%04x",
+                    result += std::format(
+                        "\\u{:04x}",
                         static_cast<unsigned char>(c));
-
-                    escaped += buffer;
                 }
                 else {
-                    escaped += c;
+                    result += c;
                 }
         }
     }
 
-    return escaped;
+    return result;
 }
 
-static void append_attribute(
-    std::string& json,
-    bool& first_attribute,
-    std::string_view key,
-    std::string_view value_json) {
-    if (!first_attribute) {
-        json += ',';
-    }
+inline static std::string serialize(const log_message& message)
+{
+    const auto level = static_cast<std::size_t>(message.level());
 
-    first_attribute = false;
-
-    json += std::format(
-        "{{\"key\":\"{}\",\"value\":{}}}",
-        key,
-        value_json);
-}
-
-[[maybe_unused]]
-static std::string serialize(const log_message& message) {
     const auto time_nanos =
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             message.timestamp().time_since_epoch()).count();
 
-    std::string json;
-    json.reserve(512);
-
-    json += std::format(
+    std::string json = std::format(
         "{{"
             "\"timeUnixNano\":\"{}\","
             "\"severityNumber\":{},"
@@ -97,61 +61,46 @@ static std::string serialize(const log_message& message) {
             "\"body\":{{\"stringValue\":\"{}\"}},"
             "\"attributes\":[",
         time_nanos,
-        to_otel_severity(message.level()),
-        severity_texts[static_cast<std::size_t>(message.level())],
+        1 + level * 4,
+        severity_texts[level],
         escape_json(message.get_formatted_message()));
 
-    bool first_attribute = true;
+    bool first = true;
 
-    append_attribute(json,first_attribute,
-        "log.format",
-        std::format(
-            "{{\"stringValue\":\"{}\"}}",
-            escape_json(message.format()))
-    );
+    const auto attribute = [&](std::string_view key, std::string_view value) {
+        if (!first) json += ',';
+        first = false;
+        json += std::format("{{\"key\":\"{}\",\"value\":{}}}", key, value);
+    };
 
-    const auto formatted_args = message.get_formatted_args();
+    attribute("log.format",
+        std::format("{{\"stringValue\":\"{}\"}}",
+            escape_json(message.format())));
 
-    if (!formatted_args.empty()) {
-        std::string arguments =
-            "{\"kvlistValue\":{\"values\":[";
+    const auto args = message.get_formatted_args();
 
-        for (std::size_t index = 0; index < formatted_args.size(); ++index) {
-            if (index != 0) {
-                arguments += ',';
-            }
+    if (!args.empty()) {
+        std::string values;
 
-            arguments += std::format(
-                "{{"
-                    "\"key\":\"arg{}\","
-                    "\"value\":{{\"stringValue\":\"{}\"}}"
-                "}}",
-                index,
-                escape_json(formatted_args[index]));
+        for (std::size_t i = 0; i < args.size(); ++i) {
+            if (i) values += ',';
+
+            values += std::format("{{\"key\":\"arg{}\",\"value\":{{\"stringValue\":\"{}\"}}}}",
+                i, escape_json(args[i]));
         }
 
-        arguments += "]}}";
-
-        append_attribute(json, first_attribute,
-            "log.args",
-            arguments
-        );
+        attribute("log.args",
+            std::format("{{\"kvlistValue\":{{\"values\":[{}]}}}}", values));
     }
 
-    append_attribute(json, first_attribute,
-        "code.file.path",
-        std::format(
-            "{{\"stringValue\":\"{}:{}\"}}",
+    attribute("code.file.path",
+        std::format("{{\"stringValue\":\"{}:{}\"}}",
             escape_json(message.location().file_name()),
-            message.location().line())
-    );
+            message.location().line()));
 
-    append_attribute(json, first_attribute,
-        "code.function.name",
-        std::format(
-            "{{\"stringValue\":\"{}\"}}",
-            escape_json(message.location().function_name()))
-    );
+    attribute("code.function.name",
+        std::format("{{\"stringValue\":\"{}\"}}",
+            escape_json(message.location().function_name())));
 
     json += "]}";
 
@@ -160,4 +109,4 @@ static std::string serialize(const log_message& message) {
 
 } // namespace otel_serializer
 
-#endif // OTEL_SERIALIZER_H
+#endif
