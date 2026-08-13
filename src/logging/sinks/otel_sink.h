@@ -1,183 +1,290 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
 
-#include <netdb.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-#include <atomic>
+#include <chrono>
+#include <cerrno>
+#include <ctime>
 #include <cstring>
 #include <format>
+#include <netdb.h>
+#include <print>
 #include <stdexcept>
 #include <string>
-#include <thread>
-#include <utility>
+#include <string_view>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include "log_sink.h"
 
 struct otel_sink_opts {
-    std::string endpoint;
-    std::string auth_token;
-    log_level min_log_level = log_level::information;
-    bool use_local_time = true;
+    std::string endpoint = "http://localhost:5080/api/default/v1/logs";
+    std::string auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=";
+    std::string stream_name = "chatapp";
+    std::string service_name = "chat-app";
+    std::string scope_name = "xtd.logging";
+    std::string user_agent = "log-shipper-v1";
+
+    log_level min_log_level = log_level::trace;
+
+    bool use_local_time = false;
     bool flush_on_write = true;
 };
 
-class otel_sink : public log_sink {
+class otel_sink final : public log_sink {
 private:
-    int m_read_fd = -1;
-    int m_write_fd = -1;
-    std::jthread m_worker;
-    std::string m_endpoint;
     std::string m_host;
     std::string m_path;
-    std::string m_authorization_header;
-    int m_port = 4318;
-    std::atomic_bool m_stopped{false};
+    std::string m_auth_token;
+    std::string m_stream_name;
+    std::string m_service_name;
+    std::string m_scope_name;
+    std::string m_user_agent;
+
+    int m_port = 5080;
 
 public:
-    explicit otel_sink(const otel_sink_opts& opts)
-        : otel_sink(opts, create_socket_pair())
-    {
-    }
-
-private:
-    otel_sink(const otel_sink_opts& opts, std::pair<int, int> fds)
+    explicit otel_sink(const otel_sink_opts& opts = {})
         : log_sink(log_sink_opts{
-              .fd = fds.first,
+              .fd = STDOUT_FILENO,
               .min_log_level = opts.min_log_level,
               .use_local_time = opts.use_local_time,
               .use_structured_log = true,
               .use_colors = false,
               .flush_on_write = opts.flush_on_write,
           })
-        , m_read_fd(fds.second)
-        , m_write_fd(m_fd())
-        , m_worker([this](std::stop_token st) { drain_loop(st); })
-        , m_endpoint(opts.endpoint)
+        , m_auth_token(opts.auth_token)
+        , m_stream_name(opts.stream_name)
+        , m_service_name(opts.service_name)
+        , m_scope_name(opts.scope_name)
+        , m_user_agent(opts.user_agent)
     {
-        if (m_endpoint.empty()) {
+        if (opts.endpoint.empty()) {
             throw std::invalid_argument{"endpoint cannot be empty"};
         }
 
-        if (opts.auth_token.empty()) {
+        if (m_auth_token.empty()) {
             throw std::invalid_argument{"auth_token cannot be empty"};
         }
-        
-        parse_endpoint();
-        if (!opts.auth_token.empty()) {
-            m_authorization_header = std::format("Authorization: {}\r\n", opts.auth_token);
-        }
+
+        parse_endpoint(opts.endpoint);
     }
 
-public:
+protected:
+    void write_all(std::string_view data) const override
+    {
+        // Intentionally ignored for now.
+        // First verify that raw OTLP ingestion works.
+        (void)data;
 
-    ~otel_sink() {
-        m_stopped.store(true, std::memory_order_release);
-        if (m_write_fd >= 0) {
-            ::shutdown(m_write_fd, SHUT_RDWR);
-            ::close(m_write_fd);
-        }
-        if (m_read_fd >= 0) {
-            ::close(m_read_fd);
-        }
-    }
+        const auto now = std::chrono::system_clock::now();
+        const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+        const std::string utc_datetime = current_utc_datetime();
 
-private:
-    static std::pair<int, int> create_socket_pair() {
-        int fds[2] = {-1, -1};
-        if (::socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
-            return {-1, -1};
-        }
-        return {fds[0], fds[1]};
-    }
+        const std::string payload = std::format(
+            R"({{"resourceLogs":[{{"resource":{{"attributes":[{{"key":"service.name","value":{{"stringValue":"{}"}}}}]}},"scopeLogs":[{{"scope":{{"name":"{}"}},"logRecords":[{{"timeUnixNano":"{}","severityNumber":9,"severityText":"INFO","body":{{"stringValue":"Hello from OTLP"}},"attributes":[{{"key":"timestamp.utc","value":{{"stringValue":"{}"}}}}]}}]}}]}}]}})",
+            m_service_name,
+            m_scope_name,
+            nanos,
+            utc_datetime);
 
-    void parse_endpoint() {
-        std::string endpoint = m_endpoint;
-        const std::string prefix = "http://";
-        if (endpoint.rfind(prefix, 0) == 0) {
-            endpoint.erase(0, prefix.size());
-        }
-
-        const std::size_t slash = endpoint.find('/');
-        const std::string authority = slash == std::string::npos ? endpoint : endpoint.substr(0, slash);
-        const std::string path = slash == std::string::npos ? "/v1/logs" : endpoint.substr(slash);
-
-        const std::size_t colon = authority.rfind(':');
-        if (colon == std::string::npos) {
-            m_host = authority;
-            m_port = 4318;
-        } else {
-            m_host = authority.substr(0, colon);
-            m_port = std::stoi(authority.substr(colon + 1));
-        }
-
-        m_path = path.empty() ? "/v1/logs" : path;
-    }
-
-    void drain_loop(std::stop_token stop_token) {
-        char buffer[4096];
-        std::string pending;
-
-        while (!stop_token.stop_requested()) {
-            const ssize_t read_count = ::read(m_read_fd, buffer, sizeof(buffer) - 1);
-            if (read_count <= 0) {
-                break;
-            }
-
-            pending.append(buffer, static_cast<std::size_t>(read_count));
-
-            std::size_t pos = 0;
-            while ((pos = pending.find('\n')) != std::string::npos) {
-                std::string payload = pending.substr(0, pos);
-                pending.erase(0, pos + 1);
-                if (!payload.empty()) {
-                    send_payload(payload);
-                }
-            }
-        }
-    }
-
-    void send_payload(const std::string& payload) const {
-        const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        const int fd = connect_to_host();
         if (fd < 0) {
-            return;
-        }
-
-        struct sockaddr_in address {};
-        address.sin_family = AF_INET;
-        address.sin_port = htons(static_cast<uint16_t>(m_port));
-
-        struct hostent* host = ::gethostbyname(m_host.c_str());
-        if (host == nullptr) {
-            ::close(fd);
-            return;
-        }
-
-        std::memcpy(&address.sin_addr, host->h_addr_list[0], static_cast<std::size_t>(host->h_length));
-
-        if (::connect(fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0) {
-            ::close(fd);
+            std::println("OTEL: failed to connect to {}:{}", m_host, m_port);
             return;
         }
 
         const std::string request = std::format(
             "POST {} HTTP/1.1\r\n"
-            "Host: {}\r\n"
-            "{}"
+            "Host: {}:{}\r\n"
+            "Authorization: {}\r\n"
+            "stream-name: {}\r\n"
             "Content-Type: application/json\r\n"
-            "User-Agent: chat-app-v1\r\n"
+            "User-Agent: {}\r\n"
             "Content-Length: {}\r\n"
-            "Connection: close\r\n\r\n"
+            "Connection: close\r\n"
+            "\r\n"
             "{}",
             m_path,
             m_host,
-            m_authorization_header,
+            m_port,
+            m_auth_token,
+            m_stream_name,
+            m_user_agent,
             payload.size(),
             payload);
 
-        ::send(fd, request.data(), request.size(), 0);
+        std::println("OTEL payload: {}", payload);
+
+        if (!send_all(fd, request)) {
+            std::println("OTEL: failed to send request");
+            ::close(fd);
+            return;
+        }
+
+        std::string response;
+        char buffer[4096];
+
+        while (true) {
+            const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
+
+            if (received > 0) {
+                response.append(
+                    buffer,
+                    static_cast<std::size_t>(received));
+
+                continue;
+            }
+
+            if (received < 0 && errno == EINTR) {
+                continue;
+            }
+
+            break;
+        }
+
         ::close(fd);
+
+        if (!response.empty()) {
+            std::println("OTEL response:\n{}", response);
+        }
+    }
+
+private:
+    static std::string current_utc_datetime()
+    {
+        const auto now = std::chrono::system_clock::now();
+        const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
+
+        const std::time_t time = std::chrono::system_clock::to_time_t(now);
+        std::tm utc_tm{};
+        if (gmtime_r(&time, &utc_tm) == nullptr) {
+            return "1970-01-01T00:00:00.000000Z";
+        }
+
+        char buffer[40];
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &utc_tm);
+        return std::format("{}.{:06}Z", buffer, micros.count());
+    }
+
+    void parse_endpoint(std::string endpoint)
+    {
+        constexpr std::string_view http_prefix = "http://";
+        constexpr std::string_view https_prefix = "https://";
+
+        if (endpoint.starts_with(https_prefix)) {
+            throw std::invalid_argument{
+                "https is not supported by this sink yet"
+            };
+        }
+
+        if (endpoint.starts_with(http_prefix)) {
+            endpoint.erase(0, http_prefix.size());
+        }
+
+        const std::size_t slash = endpoint.find('/');
+
+        const std::string authority =
+            slash == std::string::npos
+                ? endpoint
+                : endpoint.substr(0, slash);
+
+        m_path =
+            slash == std::string::npos
+                ? "/"
+                : endpoint.substr(slash);
+
+        const std::size_t colon = authority.rfind(':');
+
+        if (colon == std::string::npos) {
+            m_host = authority;
+            m_port = 80;
+        }
+        else {
+            m_host = authority.substr(0, colon);
+            m_port = std::stoi(authority.substr(colon + 1));
+        }
+
+        if (m_host.empty()) {
+            throw std::invalid_argument{"invalid endpoint host"};
+        }
+    }
+
+    [[nodiscard]]
+    int connect_to_host() const
+    {
+        addrinfo hints{};
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_protocol = IPPROTO_TCP;
+
+        addrinfo* addresses = nullptr;
+
+        const std::string port = std::to_string(m_port);
+
+        if (::getaddrinfo(
+                m_host.c_str(),
+                port.c_str(),
+                &hints,
+                &addresses) != 0) {
+            return -1;
+        }
+
+        int fd = -1;
+
+        for (addrinfo* address = addresses;
+             address != nullptr;
+             address = address->ai_next) {
+
+            fd = ::socket(
+                address->ai_family,
+                address->ai_socktype,
+                address->ai_protocol);
+
+            if (fd < 0) {
+                continue;
+            }
+
+            if (::connect(
+                    fd,
+                    address->ai_addr,
+                    address->ai_addrlen) == 0) {
+                break;
+            }
+
+            ::close(fd);
+            fd = -1;
+        }
+
+        ::freeaddrinfo(addresses);
+
+        return fd;
+    }
+
+    [[nodiscard]]
+    static bool send_all(int fd, std::string_view data)
+    {
+        while (!data.empty()) {
+            const ssize_t sent = ::send(
+                fd,
+                data.data(),
+                data.size(),
+                MSG_NOSIGNAL);
+
+            if (sent > 0) {
+                data.remove_prefix(
+                    static_cast<std::size_t>(sent));
+
+                continue;
+            }
+
+            if (sent < 0 && errno == EINTR) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 };
 

@@ -65,7 +65,7 @@ public:
 
     virtual ~log_sink() = default;
 
-    virtual void write(const log_message& message) {
+    void write(const log_message& message) {
         if (message.level() < m_min_log_level) {
             return;
         }
@@ -249,7 +249,7 @@ protected:
         return args_json;
     }
 
-    void write_all(std::string_view data) const {
+    virtual void write_all(std::string_view data) const {
         std::size_t offset = 0;
         while (offset < data.size()) {
             const ssize_t written = ::write(m_opts.fd, data.data() + offset, data.size() - offset);
