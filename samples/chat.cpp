@@ -2,7 +2,7 @@
 #include "logging/logging.h"
 #include "logging/sinks/console_sink.h"
 #include "logging/sinks/file_sink.h"
-#include "logging/sinks/otel_sink.h"
+#include "logging/sinks/curl_otel_sink.h"
 #include <filesystem>
 
 /*
@@ -49,7 +49,7 @@ int main(int argc, char** argv)
             .min_log_level = log_level::trace,
         });
 
-        logger::instance().add_sink<otel_sink>(otel_sink_opts {
+        logger::instance().add_sink<curl_otel_sink>(otel_sink_opts {
             .endpoint = "http://localhost:5080/api/default/v1/logs",
             .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
             .stream_name = "chat-app",
@@ -59,6 +59,12 @@ int main(int argc, char** argv)
         });
 
         LOG_TRACE("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_DEBUG("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_INFO("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_WARN("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_ERROR("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_FATAL("Int: {}, Float: {:.2f}", 3, 3.14159);
+        
         LOG_INFO("Starting chat server...");
 
         const int port = std::stoi(argc > 1 ? argv[1] : "9090");
