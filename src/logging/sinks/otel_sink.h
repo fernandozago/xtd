@@ -1,6 +1,6 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
-//#define OTEL_DEBUG
+// #define OTEL_SINK_DEBUG
 
 #include <cerrno>
 #include <format>
@@ -104,7 +104,7 @@ protected:
             body.size(),
             body);
 
-        #ifdef OTEL_DEBUG
+        #ifdef OTEL_SINK_DEBUG
             std::println("OTEL request:\n{}", request);
         #endif
 
@@ -142,7 +142,7 @@ protected:
             }
         }
 
-    #ifdef OTEL_DEBUG
+    #ifdef OTEL_SINK_DEBUG
         std::println("OTEL response:\n{}", response);
     #endif
 
