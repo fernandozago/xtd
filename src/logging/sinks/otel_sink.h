@@ -27,24 +27,27 @@ struct otel_sink_opts {
 class otel_sink final : public log_sink {
 private:
     static constexpr std::string_view instrumentation_library_name = "xtd.logging";
-    static constexpr std::string_view request_payload = "{{\"resourceLogs\":["
-                "{{\"resource\":{{\"attributes\":["
-                    "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
-                "]}},"
-                "\"scopeLogs\":["
-                    "{{\"scope\":{{\"name\":\"{}\"}},"
-                    "\"logRecords\":[{}]}}"
-                "]"
-            "}}]}}";
-    static constexpr std::string_view header_payload = "POST {} HTTP/1.1\r\n"
-            "Host: {}:{}\r\n"
-            "Authorization: {}\r\n"
-            "stream-name: {}\r\n"
-            "Content-Type: application/json\r\n"
-            "Connection: close\r\n"
-            "Content-Length: {}\r\n"
-            "\r\n"
-            "{}";
+    static constexpr std::string_view request_payload = 
+    "{{\"resourceLogs\":["
+        "{{\"resource\":{{\"attributes\":["
+            "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+        "]}},"
+        "\"scopeLogs\":["
+            "{{\"scope\":{{\"name\":\"{}\"}},"
+            "\"logRecords\":[{}]}}"
+        "]"
+    "}}]}}";
+
+    static constexpr std::string_view header_payload = 
+        "POST {} HTTP/1.1\r\n"
+        "Host: {}:{}\r\n"
+        "Authorization: {}\r\n"
+        "stream-name: {}\r\n"
+        "Content-Type: application/json\r\n"
+        "Connection: close\r\n"
+        "Content-Length: {}\r\n"
+        "\r\n"
+        "{}";
 
     otel_sink_opts m_opts;
     std::string m_host;
