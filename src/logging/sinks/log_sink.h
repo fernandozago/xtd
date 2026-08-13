@@ -16,7 +16,6 @@ struct log_sink_opts {
     int fd = STDOUT_FILENO;
     log_level min_log_level = log_level::information;
     bool use_local_time = true;
-    bool show_timezone = true;
     bool use_structured_log = false;
     bool use_colors = true;
     bool flush_on_write = true;
@@ -34,7 +33,6 @@ public:
 private:
     log_level m_min_log_level;
     bool m_use_local_time;
-    bool m_show_timezone;
     bool m_use_structured_log;
     bool m_use_colors;
     bool m_flush_on_write;
@@ -59,16 +57,15 @@ public:
         : m_opts(opts)
         , m_min_log_level(opts.min_log_level)
         , m_use_local_time(opts.use_local_time)
-        , m_show_timezone(opts.show_timezone)
         , m_use_structured_log(opts.use_structured_log)
         , m_use_colors(opts.use_colors)
         , m_flush_on_write(opts.flush_on_write)
     {
     }
 
-    ~log_sink() = default;
+    virtual ~log_sink() = default;
 
-    void write(const log_message& message) {
+    virtual void write(const log_message& message) {
         if (message.level() < m_min_log_level) {
             return;
         }
@@ -81,6 +78,10 @@ public:
     }
 
 protected:
+    bool should_write(log_level level) const noexcept {
+        return level >= m_min_log_level;
+    }
+
     void write_message_log(const log_message& message) const {
         const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_use_local_time);
         const std::string_view& level_str = m_use_colors
@@ -89,7 +90,7 @@ protected:
 
         static constexpr std::string_view log_format = "[{}.{:06}{}] {} <{}:{}> {}\n";
         write_all(std::format(log_format,
-            fmtd_dt_tm, us, m_show_timezone ? tz : "",
+            fmtd_dt_tm, us, tz,
             level_str,
             message.location().file_name(), message.location().line(),
             message.get_formatted_message()

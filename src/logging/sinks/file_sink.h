@@ -23,7 +23,6 @@ public:
               .fd = open_file(opts.file_path),
               .min_log_level = opts.min_log_level,
               .use_local_time = opts.use_local_time,
-              .show_timezone = opts.show_timezone,
               .use_structured_log = opts.use_structured_log,
               .use_colors = false,
               .flush_on_write = opts.flush_on_write,

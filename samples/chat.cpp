@@ -2,6 +2,7 @@
 #include "logging/logging.h"
 #include "logging/sinks/console_sink.h"
 #include "logging/sinks/file_sink.h"
+#include "logging/sinks/otel_sink.h"
 #include <filesystem>
 
 /*
@@ -48,6 +49,11 @@ int main(int argc, char** argv)
             .min_log_level = log_level::trace,
         });
 
+        logger::instance().add_sink<otel_sink>(otel_sink_opts {
+            .endpoint = "http://localhost:5080/api/default/logs",
+            .min_log_level = log_level::information,
+            .use_local_time = false,
+        });
 
         LOG_TRACE("Int: {}, Float: {:.2f}", 3, 3.14159);
         LOG_INFO("Starting chat server...");
