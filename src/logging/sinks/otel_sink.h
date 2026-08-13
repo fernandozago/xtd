@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -16,6 +17,7 @@
 
 struct otel_sink_opts {
     std::string endpoint;
+    std::string auth_token;
     log_level min_log_level = log_level::information;
     bool use_local_time = true;
     bool flush_on_write = true;
@@ -29,6 +31,7 @@ private:
     std::string m_endpoint;
     std::string m_host;
     std::string m_path;
+    std::string m_authorization_header;
     int m_port = 4318;
     std::atomic_bool m_stopped{false};
 
@@ -56,7 +59,15 @@ private:
         if (m_endpoint.empty()) {
             throw std::invalid_argument{"endpoint cannot be empty"};
         }
+
+        if (opts.auth_token.empty()) {
+            throw std::invalid_argument{"auth_token cannot be empty"};
+        }
+        
         parse_endpoint();
+        if (!opts.auth_token.empty()) {
+            m_authorization_header = std::format("Authorization: {}\r\n", opts.auth_token);
+        }
     }
 
 public:
@@ -153,12 +164,15 @@ private:
         const std::string request = std::format(
             "POST {} HTTP/1.1\r\n"
             "Host: {}\r\n"
+            "{}"
             "Content-Type: application/json\r\n"
+            "User-Agent: chat-app-v1\r\n"
             "Content-Length: {}\r\n"
             "Connection: close\r\n\r\n"
             "{}",
             m_path,
             m_host,
+            m_authorization_header,
             payload.size(),
             payload);
 

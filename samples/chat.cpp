@@ -50,8 +50,9 @@ int main(int argc, char** argv)
         });
 
         logger::instance().add_sink<otel_sink>(otel_sink_opts {
-            .endpoint = "http://localhost:5080/api/default/logs",
-            .min_log_level = log_level::information,
+            .endpoint = "http://localhost:5080/api/default/chatapp/_json",
+            .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
+            .min_log_level = log_level::trace,
             .use_local_time = false,
         });
 
