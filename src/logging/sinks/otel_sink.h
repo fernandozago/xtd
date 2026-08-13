@@ -28,15 +28,15 @@ struct otel_sink_opts {
 class otel_sink final : public log_sink {
 private:
     static constexpr std::string_view instrumentation_library_name = "xtd.logging";
+    static constexpr std::string_view content_length_placeholder = "__CONTENT_LENGTH__";
+    static constexpr std::string_view log_record_placeholder = "__LOG_RECORD__";
 
     std::string m_host;
     std::string m_path;
     std::string m_auth_token;
     std::string m_stream_name;
     std::string m_service_name;
-    std::string m_request_template;
-    std::string m_payload_prefix;
-    std::string m_payload_suffix;
+    std::string m_request_format;
 
     int m_port = 5080;
 
@@ -72,29 +72,30 @@ public:
 
         parse_endpoint(opts.endpoint);
 
-        m_request_template = std::format(
+        m_request_format = std::format(
             "POST {} HTTP/1.1\r\n"
             "Host: {}:{}\r\n"
             "Authorization: {}\r\n"
             "stream-name: {}\r\n"
             "Content-Type: application/json\r\n"
             "Connection: close\r\n"
-            "Content-Length: {{}}\r\n"
+            "Content-Length: {}\r\n"
             "\r\n"
-            "{{}}",
+            "{{\"resourceLogs\":["
+                "{{\"resource\":"
+                    "{{\"attributes\":[{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}]}},\"scopeLogs\":[{{\"scope\":{{\"name\":\"{}\"}},"
+                    "\"logRecords\":[{}]"
+                "}}"
+            "]}}]}}",
             m_path,
             m_host,
             m_port,
             m_auth_token,
-            m_stream_name);
-
-        m_payload_prefix = std::format(
-            "{{\"resourceLogs\":[{{\"resource\":{{\"attributes\":[{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}]}},"
-            "\"scopeLogs\":[{{\"scope\":{{\"name\":\"{}\"}},\"logRecords\":[",
+            m_stream_name,
+            content_length_placeholder,
             m_service_name,
-            instrumentation_library_name);
-
-        m_payload_suffix = R"(]}]}]})";
+            instrumentation_library_name,
+            log_record_placeholder);
     }
 
 protected:
@@ -104,19 +105,23 @@ protected:
             data.remove_suffix(1);
         }
 
-        std::string payload;
-        payload.reserve(m_payload_prefix.size() + data.size() + m_payload_suffix.size());
-        payload += m_payload_prefix;
-        payload += data;
-        payload += m_payload_suffix;
+        std::string request = m_request_format;
+        replace_placeholder(request, log_record_placeholder, data);
+
+        const std::size_t body_start = request.find("\r\n\r\n");
+        if (body_start == std::string::npos) {
+            std::println("OTEL: invalid request format");
+            return;
+        }
+        const std::size_t payload_size = request.size() - (body_start + 4);
+        const std::string content_length = std::to_string(payload_size);
+        replace_placeholder(request, content_length_placeholder, content_length);
 
         const int fd = connect_to_host();
         if (fd < 0) {
             std::println("OTEL: failed to connect to {}:{}", m_host, m_port);
             return;
         }
-
-        const std::string request = build_request(payload);
 
         // std::println("OTEL payload: {}", payload);
 
@@ -276,37 +281,13 @@ private:
         return true;
     }
 
-    [[nodiscard]]
-    std::string build_request(std::string_view payload) const
+    static void replace_placeholder(std::string& target, std::string_view placeholder, std::string_view replacement)
     {
-        static constexpr std::string_view placeholder = "{}";
-
-        const std::size_t first = m_request_template.find(placeholder);
-        if (first == std::string::npos) {
-            return m_request_template;
+        const std::size_t pos = target.find(placeholder);
+        if (pos == std::string::npos) {
+            return;
         }
-
-        const std::size_t second = m_request_template.find(placeholder, first + placeholder.size());
-        if (second == std::string::npos) {
-            return m_request_template;
-        }
-
-        const std::string content_length = std::to_string(payload.size());
-
-        std::string request;
-        request.reserve(
-            m_request_template.size() - (placeholder.size() * 2) + content_length.size() + payload.size());
-
-        request.append(m_request_template, 0, first);
-        request += content_length;
-        request.append(
-            m_request_template,
-            first + placeholder.size(),
-            second - (first + placeholder.size()));
-        request += payload;
-        request.append(m_request_template, second + placeholder.size(), std::string::npos);
-
-        return request;
+        target.replace(pos, placeholder.size(), replacement);
     }
 };
 
