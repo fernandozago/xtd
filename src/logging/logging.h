@@ -1,7 +1,6 @@
 #ifndef LOGGING_H
 #define LOGGING_H
 
-#include <mutex>
 #include <thread>
 #include <vector>
 #include <source_location>
@@ -17,8 +16,7 @@ public:
         : m_channel{}
         , m_writer{m_channel}
         , m_sinks{}
-        , m_sinks_mutex{}
-        , m_worker{std::jthread{process_logs, std::ref(m_channel), std::ref(m_sinks), std::ref(m_sinks_mutex)}}
+        , m_worker{std::jthread{process_logs, std::ref(m_channel), std::ref(m_sinks)}}
     {
     }
 
@@ -39,7 +37,6 @@ public:
 
     template<typename T, typename... Args>
     void add_sink(Args&&... args) {
-        std::lock_guard lock{m_sinks_mutex};
         m_sinks.emplace_back(std::make_unique<T>(std::forward<Args>(args)...));
     }
 
@@ -52,14 +49,12 @@ private:
     xtd::channel<std::unique_ptr<log_message>> m_channel;
     xtd::channel_writer<std::unique_ptr<log_message>> m_writer;
     std::vector<std::unique_ptr<log_sink>> m_sinks;
-    std::mutex m_sinks_mutex;
     std::jthread m_worker;
 
-    static void process_logs(xtd::channel<std::unique_ptr<log_message>>& channel, std::vector<std::unique_ptr<log_sink>>& sinks, std::mutex& sinks_mutex) {
+    static void process_logs(xtd::channel<std::unique_ptr<log_message>>& channel, std::vector<std::unique_ptr<log_sink>>& sinks) {
         xtd::channel_reader<std::unique_ptr<log_message>> reader{channel};
 
         while (auto message = reader.read()) {
-            std::lock_guard lock{sinks_mutex};
             for (const auto& sink : sinks) {
                 sink->write(**message);
             }
