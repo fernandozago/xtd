@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -14,7 +15,7 @@
 #include "log_sink.h"
 
 struct otel_sink_opts {
-    std::string endpoint = "http://localhost:4318/v1/logs";
+    std::string endpoint;
     log_level min_log_level = log_level::information;
     bool use_local_time = true;
     bool flush_on_write = true;
@@ -52,6 +53,9 @@ private:
         , m_worker([this](std::stop_token st) { drain_loop(st); })
         , m_endpoint(opts.endpoint)
     {
+        if (m_endpoint.empty()) {
+            throw std::invalid_argument{"endpoint cannot be empty"};
+        }
         parse_endpoint();
     }
 
