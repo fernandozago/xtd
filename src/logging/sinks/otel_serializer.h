@@ -102,7 +102,7 @@ inline static std::string serialize(const log_message& message)
         std::format("{{\"stringValue\":\"{}\"}}",
             escape_json(message.location().function_name())));
 
-    json += "]}";
+    json += "]}\n";
 
     return json;
 }
