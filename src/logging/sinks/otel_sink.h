@@ -106,7 +106,7 @@ protected:
             payload.size(),
             payload);
 
-        std::println("OTEL payload: {}", payload);
+        // std::println("OTEL payload: {}", payload);
 
         if (!send_all(fd, request)) {
             std::println("OTEL: failed to send request");
@@ -137,9 +137,9 @@ protected:
 
         ::close(fd);
 
-        if (!response.empty()) {
-            std::println("OTEL response:\n{}", response);
-        }
+        // if (!response.empty()) {
+        //     std::println("OTEL response:\n{}", response);
+        // }
     }
 
 private:
