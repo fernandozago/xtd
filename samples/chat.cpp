@@ -35,22 +35,21 @@ int main(int argc, char** argv)
 
         logger::instance().add_sink<file_sink>(file_sink_opts {
             .file_path = exe_fullpath + ".structured.log",
-            .use_local_time = false
+            .use_local_time = false,
+            .use_structured_log = true,
         });
 
         logger::instance().add_sink<file_sink>(file_sink_opts {
             .file_path = exe_fullpath + ".plain.log",
-            .use_structured_log = false,
         });
 
         logger::instance().add_sink<file_sink>(file_sink_opts {
             .file_path = exe_fullpath + ".trace.log",
             .min_log_level = log_level::trace,
-            .use_structured_log = false,
         });
 
 
-        LOG_INFO("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_TRACE("Int: {}, Float: {:.2f}", 3, 3.14159);
         LOG_INFO("Starting chat server...");
 
         const int port = std::stoi(argc > 1 ? argv[1] : "9090");
