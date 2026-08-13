@@ -34,7 +34,7 @@ private:
     std::string m_auth_token;
     std::string m_stream_name;
     std::string m_service_name;
-    std::string m_request_prefix;
+    std::string m_request_template;
     std::string m_payload_prefix;
     std::string m_payload_suffix;
 
@@ -72,14 +72,16 @@ public:
 
         parse_endpoint(opts.endpoint);
 
-        m_request_prefix = std::format(
+        m_request_template = std::format(
             "POST {} HTTP/1.1\r\n"
             "Host: {}:{}\r\n"
             "Authorization: {}\r\n"
             "stream-name: {}\r\n"
             "Content-Type: application/json\r\n"
             "Connection: close\r\n"
-            "Content-Length: ",
+            "Content-Length: {{}}\r\n"
+            "\r\n"
+            "{{}}",
             m_path,
             m_host,
             m_port,
@@ -114,11 +116,7 @@ protected:
             return;
         }
 
-        const std::string request = std::format(
-            "{}{}\r\n\r\n{}",
-            m_request_prefix,
-            payload.size(),
-            payload);
+        const std::string request = build_request(payload);
 
         // std::println("OTEL payload: {}", payload);
 
@@ -276,6 +274,39 @@ private:
         }
 
         return true;
+    }
+
+    [[nodiscard]]
+    std::string build_request(std::string_view payload) const
+    {
+        static constexpr std::string_view placeholder = "{}";
+
+        const std::size_t first = m_request_template.find(placeholder);
+        if (first == std::string::npos) {
+            return m_request_template;
+        }
+
+        const std::size_t second = m_request_template.find(placeholder, first + placeholder.size());
+        if (second == std::string::npos) {
+            return m_request_template;
+        }
+
+        const std::string content_length = std::to_string(payload.size());
+
+        std::string request;
+        request.reserve(
+            m_request_template.size() - (placeholder.size() * 2) + content_length.size() + payload.size());
+
+        request.append(m_request_template, 0, first);
+        request += content_length;
+        request.append(
+            m_request_template,
+            first + placeholder.size(),
+            second - (first + placeholder.size()));
+        request += payload;
+        request.append(m_request_template, second + placeholder.size(), std::string::npos);
+
+        return request;
     }
 };
 
