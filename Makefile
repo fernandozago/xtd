@@ -11,6 +11,7 @@ FLAGS_FILE    := $(ROOT)/compile_flags.txt
 MAKEFILE_SELF := $(lastword $(MAKEFILE_LIST))
 
 COMMON := -pthread -MMD -MP
+LDLIBS := -lcurl
 WARNINGS := \
 	-Werror -Wpedantic -pedantic-errors \
 	-Wconversion -Wsign-conversion -Wshadow \
@@ -266,7 +267,8 @@ $(BIN)/samples/%: samples/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 		@$(FLAGS_FILE) \
 		"$<" \
 		-o "$@" \
-		$(COMMON)
+		$(COMMON) \
+		$(LDLIBS)
 
 $(CATCH_OBJ): $(CATCH_SRC) $(CATCH_HPP) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 	@mkdir -p "$(@D)"
@@ -295,7 +297,8 @@ $(BIN)/tests/%: tests/%.cpp $(CATCH_OBJ) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_
 		-o "$@" \
 		$(COMMON) \
 		$(WARNINGS) \
-		-O3
+		-O3 \
+		$(LDLIBS)
 
 $(BIN)/benchmarks/%: benchmarks/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 	@mkdir -p "$(@D)"
@@ -307,7 +310,8 @@ $(BIN)/benchmarks/%: benchmarks/%.cpp $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CON
 		"$<" \
 		-o "$@" \
 		$(COMMON) \
-		-O3
+		-O3 \
+		$(LDLIBS)
 
 $(COVERAGE_BIN)/tests/%: tests/%.cpp $(CATCH_OBJ) $(FLAGS_FILE) $(MAKEFILE_SELF) $(BUILD_CONFIG)
 	@mkdir -p "$(@D)"
@@ -322,7 +326,8 @@ $(COVERAGE_BIN)/tests/%: tests/%.cpp $(CATCH_OBJ) $(FLAGS_FILE) $(MAKEFILE_SELF)
 		-o "$@" \
 		$(COMMON) \
 		$(WARNINGS) \
-		$(COVERAGE_FLAGS)
+		$(COVERAGE_FLAGS) \
+		$(LDLIBS)
 
 run: $(patsubst %.cpp,$(BIN)/%,$(FILE))
 	@"$(patsubst %.cpp,$(BIN)/%,$(FILE))" $(ARGS)
