@@ -27,11 +27,9 @@ class otel_sink final : public log_sink {
 private:
     static constexpr std::string_view instrumentation_library_name = "xtd.logging";
 
+    otel_sink_opts m_opts;
     std::string m_host;
     std::string m_path;
-    std::string m_auth_token;
-    std::string m_stream_name;
-    std::string m_service_name;
 
     int m_port = 80;
 
@@ -45,27 +43,25 @@ public:
               .use_colors = false,
               .flush_on_write = true,
           })
-        , m_auth_token(opts.auth_token)
-        , m_stream_name(opts.stream_name)
-        , m_service_name(opts.service_name)
+        , m_opts(opts)
     {
-        if (opts.endpoint.empty()) {
+        if (m_opts.endpoint.empty()) {
             throw std::invalid_argument{"endpoint cannot be empty"};
         }
 
-        if (m_auth_token.empty()) {
+        if (m_opts.auth_token.empty()) {
             throw std::invalid_argument{"auth_token cannot be empty"};
         }
 
-        if (m_stream_name.empty()) {
+        if (m_opts.stream_name.empty()) {
             throw std::invalid_argument{"stream_name cannot be empty"};
         }
 
-        if (m_service_name.empty()) {
+        if (m_opts.service_name.empty()) {
             throw std::invalid_argument{"service_name cannot be empty"};
         }
 
-        parse_endpoint(opts.endpoint);
+        parse_endpoint(m_opts.endpoint);
     }
 
 protected:
@@ -81,10 +77,11 @@ protected:
                     "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
                 "]}},"
                 "\"scopeLogs\":["
-                    "{{\"scope\":{{\"name\":\"{}\"}},\"logRecords\":[{}]}}"
+                    "{{\"scope\":{{\"name\":\"{}\"}},"
+                    "\"logRecords\":[{}]}}"
                 "]"
             "}}]}}",
-            m_service_name,
+            m_opts.service_name,
             instrumentation_library_name,
             data);
 
@@ -101,8 +98,8 @@ protected:
             m_path,
             m_host,
             m_port,
-            m_auth_token,
-            m_stream_name,
+            m_opts.auth_token,
+            m_opts.stream_name,
             body.size(),
             body);
 
@@ -180,11 +177,11 @@ private:
     [[nodiscard]]
     int connect_to_host() const
     {
-        addrinfo hints{
-            .ai_family = AF_UNSPEC,
-            .ai_socktype = SOCK_STREAM,
-            .ai_protocol = IPPROTO_TCP,
-        };
+        addrinfo hints{};
+        hints.ai_family = AF_UNSPEC;
+        hints.ai_flags = 0;
+        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_protocol = IPPROTO_TCP;
 
         addrinfo* addresses = nullptr;
         const std::string port = std::to_string(m_port);
