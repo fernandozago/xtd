@@ -74,46 +74,42 @@ public:
         }
 
         if (m_use_structured_log) {
-            write_json(message);
+            write_structured_log(message);
         } else {
-            write_plain(message);
+            write_message_log(message);
         }
     }
 
 protected:
-    void write_plain(const log_message& message) const {
+    void write_message_log(const log_message& message) const {
         const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_use_local_time);
         const std::string_view& level_str = m_use_colors
             ? colored_level_strings[static_cast<std::size_t>(message.level())]
             : plain_level_strings[static_cast<std::size_t>(message.level())];
 
-        write_all(std::format(
-            "[{}.{:06}{}] {} <{}:{}> {}\n",
-            fmtd_dt_tm,
-            us,
-            m_show_timezone ? tz : "",
+        static constexpr std::string_view log_format = "[{}.{:06}{}] {} <{}:{}> {}\n";
+        write_all(std::format(log_format,
+            fmtd_dt_tm, us, m_show_timezone ? tz : "",
             level_str,
-            message.location().file_name(),
-            message.location().line(),
+            message.location().file_name(), message.location().line(),
             message.get_formatted_message()
         ));
     }
 
-    void write_json(const log_message& message) const {
+    void write_structured_log(const log_message& message) const {
         const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_use_local_time);
-        write_all(std::format(
-            "{{\"timestamp\": \"{}.{:06}{}\", "
+        
+        static constexpr std::string_view log_format = "{{\"timestamp\": \"{}.{:06}{}\", "
             "\"level\": \"{}\", "
             "\"location\": \"{}:{}\", "
             "\"format\": \"{}\", "
             "\"message\": \"{}\", "
-            "\"args\": {{{}}}}}\n",
-            fmtd_dt_tm,
-            us,
-            m_show_timezone ? tz : "",
+            "\"args\": {{{}}}}}\n";
+
+        write_all(std::format(log_format,
+            fmtd_dt_tm, us, m_show_timezone ? tz : "",
             structured_level_strings[static_cast<std::size_t>(message.level())],
-            message.location().file_name(),
-            message.location().line(),
+            message.location().file_name(), message.location().line(),
             escape_json(message.format()),
             escape_json(message.get_formatted_message()),
             get_formatted_args(message)
