@@ -52,8 +52,8 @@ int main(int argc, char** argv)
         logger::instance().add_sink<otel_sink>(otel_sink_opts {
             .endpoint = "http://localhost:5080/api/default/v1/logs",
             .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
-            .stream_name = "chatapp",
-            .service_name = "chatapp",
+            .stream_name = "chat-app",
+            .service_name = "chat-app-v1",
             .min_log_level = log_level::trace,
             .use_local_time = false,
         });
