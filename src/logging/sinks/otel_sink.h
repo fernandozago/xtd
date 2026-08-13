@@ -122,29 +122,37 @@ protected:
         }
 
         char buffer[4096];
-        std::string response;
+        #ifdef OTEL_SINK_DEBUG
+            std::string response;
+            while (true) {
+                const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
 
-        while (true) {
-            const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
-
-            if (received >= 0) {
-                if (received == 0) {
-                    break;
+                if (received >= 0) {
+                    if (received == 0) break;
+                    response.append(buffer, static_cast<std::size_t>(received));
+                    continue;
                 }
 
-                response.append(buffer, static_cast<std::size_t>(received));
-
-                continue;
+                if (errno != EINTR) {
+                    break;
+                }
             }
 
-            if (errno != EINTR) {
-                break;
-            }
-        }
+            std::println("OTEL response:\n{}", response);
+        #else
+            while (true) {
+                const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
 
-    #ifdef OTEL_SINK_DEBUG
-        std::println("OTEL response:\n{}", response);
-    #endif
+                if (received >= 0) {
+                    if (received == 0) break;
+                    continue;
+                }
+
+                if (errno != EINTR) {
+                    break;
+                }
+            }
+        #endif
 
         ::close(fd);
     }
