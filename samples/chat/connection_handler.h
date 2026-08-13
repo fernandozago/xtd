@@ -128,11 +128,11 @@ private:
         }
         catch (const std::exception& ex)
         {
-            LOG_INFO("client error: {}", ex.what());
+            LOG_ERROR("client error: {}", ex.what());
         }
         catch (...)
         {
-            LOG_INFO("client error: unknown exception");
+            LOG_ERROR("client error: unknown exception");
         }
 
         reader.complete();
@@ -155,7 +155,7 @@ private:
             {
                 LOG_INFO("client fd {} (AKA: `{}`) requested name change to: {}", m_unique_id, m_name, argument);
                 if (argument.empty() || argument.size() > 32) {
-                    LOG_INFO("client fd {} (AKA: `{}`) name change request failed: invalid name length", m_unique_id, m_name);
+                    LOG_WARN("client fd {} (AKA: `{}`) name change request failed: invalid name length", m_unique_id, m_name);
                     m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
                     break;
                 }
@@ -182,7 +182,7 @@ private:
 
             case command_type::unknown:
             default:
-                LOG_INFO("client fd {} (AKA: `{}`) sent unknown command: {}", m_unique_id, m_name, line_bytes.to_string());
+                LOG_WARN("client fd {} (AKA: `{}`) sent unknown command: {}", m_unique_id, m_name, line_bytes.to_string());
                 m_server.reply(m_unique_id, UNKNOWN_COMMAND_RESPONSE);
                 break;
         }

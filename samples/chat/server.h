@@ -32,9 +32,18 @@ public:
         try {
             m_listenFd = create_listen_socket();
             m_epollFd = ::epoll_create1(EPOLL_CLOEXEC);
-            if (m_epollFd < 0) throw_system_error("failed to create epoll");
-            add_to_epoll(m_listenFd, EPOLLIN);
-            add_to_epoll(STDIN_FILENO, EPOLLIN);
+            if (m_epollFd < 0) {
+                LOG_ERROR("failed to create epoll (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to create epoll");
+            }
+            if (!add_to_epoll(m_listenFd, EPOLLIN)) {
+                LOG_ERROR("failed to add listen socket to epoll (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to add listen socket to epoll");
+            }
+            if (!add_to_epoll(STDIN_FILENO, EPOLLIN)) {
+                LOG_ERROR("failed to add stdin to epoll (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to add stdin to epoll");
+            }
         } catch (...) {
             cleanup();
             throw;
@@ -56,7 +65,8 @@ public:
                 return ::epoll_wait(m_epollFd, events.data(), events.size(), -1);
             });
             if (count < 0) {
-                throw_system_error("epoll_wait failed");
+                LOG_ERROR("epoll_wait failed (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "epoll_wait failed");
             }
 
             LOG_INFO("epoll_wait returned {} events", count);
@@ -183,24 +193,19 @@ private:
         return result;
     }
 
-    [[noreturn]] static void throw_system_error(const std::string& message, int error = errno) {
-        LOG_INFO("system error: {} (errno: {})", message, error);
-        throw std::system_error(error, std::generic_category(), message);
-    }
-
-    [[noreturn]] static void throw_runtime_error(const std::string& message) {
-        LOG_INFO("runtime error: {}", message);
-        throw std::runtime_error(message);
-    }
-
     int create_listen_socket() const {
         const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-        if (fd < 0) throw_system_error("failed to create listen socket");
+        if (fd < 0) {
+            LOG_ERROR("failed to create listen socket (errno: {})", errno);
+            throw std::system_error(errno, std::generic_category(), "failed to create listen socket");
+        }
 
         try {
             const int reuse = 1;
-            if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0)
-                throw_system_error("failed to set SO_REUSEADDR");
+            if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+                LOG_ERROR("failed to set SO_REUSEADDR (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to set SO_REUSEADDR");
+            }
 
             sockaddr_in address{};
             address.sin_family = AF_INET;
@@ -208,10 +213,12 @@ private:
             address.sin_port = htons(m_port);
 
             if (::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
-                throw_system_error("failed to bind on port " + std::to_string(m_port));
+                LOG_ERROR("failed to bind on port {} (errno: {})", m_port, errno);
+                throw std::system_error(errno, std::generic_category(), "failed to bind on port " + std::to_string(m_port));
             }
             if (::listen(fd, EPOLL_MAX_LISTEN_BACKLOG) < 0) {
-                throw_system_error("failed to listen");
+                LOG_ERROR("failed to listen (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to listen");
             }
             return fd;
         } catch (...) {
@@ -220,14 +227,16 @@ private:
         }
     }
 
-    void add_to_epoll(int fd, std::uint32_t flags) const {
+    bool add_to_epoll(int fd, std::uint32_t flags) const {
         epoll_event event{};
         event.events = flags;
         event.data.fd = fd;
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-            throw_system_error("failed to add descriptor to epoll");
+            LOG_ERROR("failed to add descriptor {} to epoll (errno: {})", fd, errno);
+            return false;
         }
         LOG_INFO("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
+        return true;
     }
 
     void handle_incoming_connections() {
@@ -239,19 +248,22 @@ private:
 
             if (fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) return;
-                throw_system_error("failed to accept connection");
+                LOG_ERROR("failed to accept connection (errno: {})", errno);
+                throw std::system_error(errno, std::generic_category(), "failed to accept connection");
             }
 
             try {
-                start_connection_handler(fd);
+                if (!start_connection_handler(fd)) {
+                    continue;
+                }
                 LOG_INFO("accepted client fd: {}", fd);
             } catch (const std::exception& ex) {
-                LOG_INFO("failed to start connection: {}", ex.what());
+                LOG_ERROR("failed to start connection: {}", ex.what());
             }
         }
     }
 
-    void start_connection_handler(int fd)
+    bool start_connection_handler(int fd)
     {
         auto client = std::make_shared<connection_data>();
         client->fd = fd;
@@ -259,8 +271,11 @@ private:
         try
         {
             std::scoped_lock lock(m_clients_mutex);
-            if (!m_clients.emplace(fd, client).second)
-                throw_runtime_error("connection is already registered");
+            if (!m_clients.emplace(fd, client).second) {
+                LOG_WARN("connection already registered for fd {}; ignoring duplicate accept", fd);
+                close_connection(*client);
+                return false;
+            }
         }
         catch (...)
         {
@@ -271,12 +286,16 @@ private:
         try
         {
             client->m_connection = std::make_unique<connection_handler<server>>(fd, *this);
-            add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP );
+            if (!add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
+                LOG_ERROR("failed to register client fd {} with epoll; disconnecting client", fd);
+                disconnect_client(fd);
+                return false;
+            }
+            return true;
         }
-        catch (...)
-        {
+        catch (...) {
             disconnect_client(fd);
-            throw;
+            return false;
         }
     }
 
@@ -290,7 +309,7 @@ private:
             if (alive && !(event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) return;
         }
         catch (const std::exception& ex) {
-            LOG_INFO("client fd {} error: {}", event.data.fd, ex.what());
+            LOG_ERROR("client fd {} error: {}", event.data.fd, ex.what());
         }
         
         disconnect_client(event.data.fd);
@@ -320,7 +339,8 @@ private:
                 LOG_INFO("client fd {} would block on receive, waiting for writable", fd);
                 return true;
             } else {
-                throw_system_error("failed to receive from client");
+                LOG_ERROR("failed to receive from client for fd {} (errno: {}); disconnecting client", fd, errno);
+                return false;
             }
         }
     }
@@ -402,7 +422,8 @@ private:
             return ::read(STDIN_FILENO, m_epoll_buffer.data(), m_epoll_buffer.size());
         });
         if (size < 0)  {
-            throw_system_error("failed to read stdin");
+            LOG_ERROR("failed to read stdin (errno: {})", errno);
+            throw std::system_error(errno, std::generic_category(), "failed to read stdin");
         }
         return size > 0 && std::find(m_epoll_buffer.begin(), m_epoll_buffer.begin() + size, '\n') != m_epoll_buffer.begin() + size;
     }
