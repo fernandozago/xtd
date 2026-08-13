@@ -2,7 +2,6 @@
 #define OTEL_SINK_H
 
 #include <cerrno>
-#include <cstring>
 #include <format>
 #include <netdb.h>
 #include <print>
@@ -21,24 +20,20 @@ struct otel_sink_opts {
     std::string service_name;
 
     log_level min_log_level = log_level::information;
-
     bool use_local_time = false;
 };
 
 class otel_sink final : public log_sink {
 private:
     static constexpr std::string_view instrumentation_library_name = "xtd.logging";
-    static constexpr std::string_view content_length_placeholder = "__CONTENT_LENGTH__";
-    static constexpr std::string_view log_record_placeholder = "__LOG_RECORD__";
 
     std::string m_host;
     std::string m_path;
     std::string m_auth_token;
     std::string m_stream_name;
     std::string m_service_name;
-    std::string m_request_format;
 
-    int m_port = 5080;
+    int m_port = 80;
 
 public:
     explicit otel_sink(const otel_sink_opts& opts)
@@ -71,31 +66,6 @@ public:
         }
 
         parse_endpoint(opts.endpoint);
-
-        m_request_format = std::format(
-            "POST {} HTTP/1.1\r\n"
-            "Host: {}:{}\r\n"
-            "Authorization: {}\r\n"
-            "stream-name: {}\r\n"
-            "Content-Type: application/json\r\n"
-            "Connection: close\r\n"
-            "Content-Length: {}\r\n"
-            "\r\n"
-            "{{\"resourceLogs\":["
-                "{{\"resource\":"
-                    "{{\"attributes\":[{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}]}},\"scopeLogs\":[{{\"scope\":{{\"name\":\"{}\"}},"
-                    "\"logRecords\":[{}]"
-                "}}"
-            "]}}]}}",
-            m_path,
-            m_host,
-            m_port,
-            m_auth_token,
-            m_stream_name,
-            content_length_placeholder,
-            m_service_name,
-            instrumentation_library_name,
-            log_record_placeholder);
     }
 
 protected:
@@ -105,25 +75,43 @@ protected:
             data.remove_suffix(1);
         }
 
-        std::string request = m_request_format;
-        replace_placeholder(request, log_record_placeholder, data);
+        const std::string body = std::format(
+            "{{\"resourceLogs\":["
+                "{{\"resource\":{{\"attributes\":["
+                    "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                "]}},"
+                "\"scopeLogs\":["
+                    "{{\"scope\":{{\"name\":\"{}\"}},\"logRecords\":[{}]}}"
+                "]"
+            "}}]}}",
+            m_service_name,
+            instrumentation_library_name,
+            data);
 
-        const std::size_t body_start = request.find("\r\n\r\n");
-        if (body_start == std::string::npos) {
-            std::println("OTEL: invalid request format");
-            return;
-        }
-        const std::size_t payload_size = request.size() - (body_start + 4);
-        const std::string content_length = std::to_string(payload_size);
-        replace_placeholder(request, content_length_placeholder, content_length);
+        const std::string request = std::format(
+            "POST {} HTTP/1.1\r\n"
+            "Host: {}:{}\r\n"
+            "Authorization: {}\r\n"
+            "stream-name: {}\r\n"
+            "Content-Type: application/json\r\n"
+            "Connection: close\r\n"
+            "Content-Length: {}\r\n"
+            "\r\n"
+            "{}",
+            m_path,
+            m_host,
+            m_port,
+            m_auth_token,
+            m_stream_name,
+            body.size(),
+            body);
 
         const int fd = connect_to_host();
+
         if (fd < 0) {
             std::println("OTEL: failed to connect to {}:{}", m_host, m_port);
             return;
         }
-
-        // std::println("OTEL payload: {}", payload);
 
         if (!send_all(fd, request)) {
             std::println("OTEL: failed to send request");
@@ -131,32 +119,25 @@ protected:
             return;
         }
 
-        std::string response;
         char buffer[4096];
 
         while (true) {
             const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
 
-            if (received > 0) {
-                response.append(
-                    buffer,
-                    static_cast<std::size_t>(received));
+            if (received >= 0) {
+                if (received == 0) {
+                    break;
+                }
 
                 continue;
             }
 
-            if (received < 0 && errno == EINTR) {
-                continue;
+            if (errno != EINTR) {
+                break;
             }
-
-            break;
         }
 
         ::close(fd);
-
-        // if (!response.empty()) {
-        //     std::println("OTEL response:\n{}", response);
-        // }
     }
 
 private:
@@ -166,9 +147,7 @@ private:
         constexpr std::string_view https_prefix = "https://";
 
         if (endpoint.starts_with(https_prefix)) {
-            throw std::invalid_argument{
-                "https is not supported by this sink yet"
-            };
+            throw std::invalid_argument{"https is not supported by this sink yet"};
         }
 
         if (endpoint.starts_with(http_prefix)) {
@@ -176,11 +155,7 @@ private:
         }
 
         const std::size_t slash = endpoint.find('/');
-
-        const std::string authority =
-            slash == std::string::npos
-                ? endpoint
-                : endpoint.substr(0, slash);
+        const std::string authority = endpoint.substr(0, slash);
 
         m_path =
             slash == std::string::npos
@@ -191,7 +166,6 @@ private:
 
         if (colon == std::string::npos) {
             m_host = authority;
-            m_port = 80;
         }
         else {
             m_host = authority.substr(0, colon);
@@ -206,20 +180,16 @@ private:
     [[nodiscard]]
     int connect_to_host() const
     {
-        addrinfo hints{};
-        hints.ai_family = AF_UNSPEC;
-        hints.ai_socktype = SOCK_STREAM;
-        hints.ai_protocol = IPPROTO_TCP;
+        addrinfo hints{
+            .ai_family = AF_UNSPEC,
+            .ai_socktype = SOCK_STREAM,
+            .ai_protocol = IPPROTO_TCP,
+        };
 
         addrinfo* addresses = nullptr;
-
         const std::string port = std::to_string(m_port);
 
-        if (::getaddrinfo(
-                m_host.c_str(),
-                port.c_str(),
-                &hints,
-                &addresses) != 0) {
+        if (::getaddrinfo(m_host.c_str(), port.c_str(), &hints, &addresses) != 0) {
             return -1;
         }
 
@@ -238,10 +208,7 @@ private:
                 continue;
             }
 
-            if (::connect(
-                    fd,
-                    address->ai_addr,
-                    address->ai_addrlen) == 0) {
+            if (::connect(fd, address->ai_addr, address->ai_addrlen) == 0) {
                 break;
             }
 
@@ -265,9 +232,7 @@ private:
                 MSG_NOSIGNAL);
 
             if (sent > 0) {
-                data.remove_prefix(
-                    static_cast<std::size_t>(sent));
-
+                data.remove_prefix(static_cast<std::size_t>(sent));
                 continue;
             }
 
@@ -279,15 +244,6 @@ private:
         }
 
         return true;
-    }
-
-    static void replace_placeholder(std::string& target, std::string_view placeholder, std::string_view replacement)
-    {
-        const std::size_t pos = target.find(placeholder);
-        if (pos == std::string::npos) {
-            return;
-        }
-        target.replace(pos, placeholder.size(), replacement);
     }
 };
 
