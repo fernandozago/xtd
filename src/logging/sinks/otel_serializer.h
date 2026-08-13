@@ -63,6 +63,23 @@ static std::string escape_json(std::string_view value) {
     return escaped;
 }
 
+static void append_attribute(
+    std::string& json,
+    bool& first_attribute,
+    std::string_view key,
+    std::string_view value_json) {
+    if (!first_attribute) {
+        json += ',';
+    }
+
+    first_attribute = false;
+
+    json += std::format(
+        "{{\"key\":\"{}\",\"value\":{}}}",
+        key,
+        value_json);
+}
+
 [[maybe_unused]]
 static std::string serialize(const log_message& message) {
     const auto time_nanos =
@@ -86,27 +103,12 @@ static std::string serialize(const log_message& message) {
 
     bool first_attribute = true;
 
-    const auto append_attribute = [&](
-        std::string_view key,
-        std::string_view value_json) {
-
-        if (!first_attribute) {
-            json += ',';
-        }
-
-        first_attribute = false;
-
-        json += std::format(
-            "{{\"key\":\"{}\",\"value\":{}}}",
-            key,
-            value_json);
-    };
-
-    append_attribute(
+    append_attribute(json,first_attribute,
         "log.format",
         std::format(
             "{{\"stringValue\":\"{}\"}}",
-            escape_json(message.format())));
+            escape_json(message.format()))
+    );
 
     const auto formatted_args = message.get_formatted_args();
 
@@ -130,28 +132,26 @@ static std::string serialize(const log_message& message) {
 
         arguments += "]}}";
 
-        append_attribute(
+        append_attribute(json, first_attribute,
             "log.args",
-            arguments);
+            arguments
+        );
     }
 
-    append_attribute(
+    append_attribute(json, first_attribute,
         "code.file.path",
         std::format(
-            "{{\"stringValue\":\"{}\"}}",
-            escape_json(message.location().file_name())));
+            "{{\"stringValue\":\"{}:{}\"}}",
+            escape_json(message.location().file_name()),
+            message.location().line())
+    );
 
-    append_attribute(
-        "code.line.number",
-        std::format(
-            "{{\"intValue\":\"{}\"}}",
-            message.location().line()));
-
-    append_attribute(
+    append_attribute(json, first_attribute,
         "code.function.name",
         std::format(
             "{{\"stringValue\":\"{}\"}}",
-            escape_json(message.location().function_name())));
+            escape_json(message.location().function_name()))
+    );
 
     json += "]}";
 

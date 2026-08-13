@@ -27,6 +27,24 @@ struct otel_sink_opts {
 class otel_sink final : public log_sink {
 private:
     static constexpr std::string_view instrumentation_library_name = "xtd.logging";
+    static constexpr std::string_view request_payload = "{{\"resourceLogs\":["
+                "{{\"resource\":{{\"attributes\":["
+                    "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                "]}},"
+                "\"scopeLogs\":["
+                    "{{\"scope\":{{\"name\":\"{}\"}},"
+                    "\"logRecords\":[{}]}}"
+                "]"
+            "}}]}}";
+    static constexpr std::string_view header_payload = "POST {} HTTP/1.1\r\n"
+            "Host: {}:{}\r\n"
+            "Authorization: {}\r\n"
+            "stream-name: {}\r\n"
+            "Content-Type: application/json\r\n"
+            "Connection: close\r\n"
+            "Content-Length: {}\r\n"
+            "\r\n"
+            "{}";
 
     otel_sink_opts m_opts;
     std::string m_host;
@@ -37,7 +55,7 @@ private:
 public:
     explicit otel_sink(const otel_sink_opts& opts)
         : log_sink(log_sink_opts{
-              .fd = STDOUT_FILENO,
+              .fd = -1, /* UNUSED */
               .min_log_level = opts.min_log_level,
               .use_local_time = opts.use_local_time,
               .use_structured_log = true,
@@ -72,37 +90,8 @@ protected:
             data.remove_suffix(1);
         }
 
-        const std::string body = std::format(
-            "{{\"resourceLogs\":["
-                "{{\"resource\":{{\"attributes\":["
-                    "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
-                "]}},"
-                "\"scopeLogs\":["
-                    "{{\"scope\":{{\"name\":\"{}\"}},"
-                    "\"logRecords\":[{}]}}"
-                "]"
-            "}}]}}",
-            m_opts.service_name,
-            instrumentation_library_name,
-            data);
-
-        const std::string request = std::format(
-            "POST {} HTTP/1.1\r\n"
-            "Host: {}:{}\r\n"
-            "Authorization: {}\r\n"
-            "stream-name: {}\r\n"
-            "Content-Type: application/json\r\n"
-            "Connection: close\r\n"
-            "Content-Length: {}\r\n"
-            "\r\n"
-            "{}",
-            m_path,
-            m_host,
-            m_port,
-            m_opts.auth_token,
-            m_opts.stream_name,
-            body.size(),
-            body);
+        const std::string body = std::format(request_payload, m_opts.service_name, instrumentation_library_name, data);
+        const std::string request = std::format(header_payload, m_path, m_host, m_port, m_opts.auth_token, m_opts.stream_name, body.size(), body);
 
         #ifdef OTEL_SINK_DEBUG
             std::println("OTEL request:\n{}", request);
@@ -242,11 +231,7 @@ private:
     static bool send_all(int fd, std::string_view data)
     {
         while (!data.empty()) {
-            const ssize_t sent = ::send(
-                fd,
-                data.data(),
-                data.size(),
-                MSG_NOSIGNAL);
+            const ssize_t sent = ::send(fd, data.data(), data.size(), MSG_NOSIGNAL);
 
             if (sent > 0) {
                 data.remove_prefix(static_cast<std::size_t>(sent));
