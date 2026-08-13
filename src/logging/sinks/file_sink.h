@@ -6,6 +6,7 @@
 #include <format>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include "log_sink.h"
 
 struct file_sink_opts {
@@ -86,15 +87,14 @@ public:
 
 private:
     void write_plain(const log_message& message) {
-        static constexpr std::string_view plain_format = "[{}.{:06}] {} <{}:{}> {}\n";
+        static constexpr std::string_view plain_format = "[{}.{:06}{}] {} <{}:{}> {}\n";
         const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_opts.use_local_time);
         const std::string_view& level_str = plain_level_strings[static_cast<std::size_t>(message.level())];
 
-        m_file << std::format(
-            plain_format, fmtd_dt_tm, us,
+        m_file << std::format(plain_format,
+            fmtd_dt_tm, us, m_opts.show_timezone ? tz : "",
             level_str,
-            message.location().file_name(),
-            message.location().line(),
+            message.location().file_name(), message.location().line(),
             message.get_formatted_message()
         );
 

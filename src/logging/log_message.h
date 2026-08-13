@@ -29,28 +29,44 @@ struct log_message {
     std::chrono::system_clock::time_point timestamp() const { return m_timestamp; }
 
     std::tuple<std::string, int, std::string> get_timestamp(bool use_local_time) const {
-        std::time_t time_t_timestamp = std::chrono::system_clock::to_time_t(m_timestamp);
-        std::tm tm_timestamp{};
+        const auto time_t_timestamp = std::chrono::system_clock::to_time_t(m_timestamp);
 
-        if (use_local_time) {
-            localtime_r(&time_t_timestamp, &tm_timestamp);
-        } else {
-            gmtime_r(&time_t_timestamp, &tm_timestamp);
+        std::tm local_tm{};
+        std::tm utc_tm{};
+
+        if (localtime_r(&time_t_timestamp, &local_tm) == nullptr) {
+            local_tm = {};
         }
 
+        if (gmtime_r(&time_t_timestamp, &utc_tm) == nullptr) {
+            utc_tm = {};
+        }
+
+        std::tm selected_tm = use_local_time ? local_tm : utc_tm;
         char buffer[32];
-        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &tm_timestamp);
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &selected_tm);
 
         const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(m_timestamp.time_since_epoch()) % 1000000;
 
-        char timezone_buffer[16];
+        std::string timezone = "+00:00";
         if (use_local_time) {
-            std::strftime(timezone_buffer, sizeof(timezone_buffer), "%z", &tm_timestamp);
-        } else {
-            std::snprintf(timezone_buffer, sizeof(timezone_buffer), "+0000");
+            const std::time_t local_epoch = std::mktime(&local_tm);
+            const std::time_t utc_epoch = std::mktime(&utc_tm);
+            const std::time_t offset_seconds = local_epoch - utc_epoch;
+            const bool is_negative = offset_seconds < 0;
+            const auto abs_offset = std::abs(offset_seconds);
+            const int total_minutes = static_cast<int>(abs_offset / 60);
+            const int hours = total_minutes / 60;
+            const int minutes = total_minutes % 60;
+
+            char timezone_buffer[16];
+            std::snprintf(timezone_buffer, sizeof(timezone_buffer), "%s%02d:%02d",
+                is_negative ? "-" : "+",
+                hours, minutes);
+            timezone = timezone_buffer;
         }
 
-        return {std::string{buffer}, static_cast<int>(microseconds.count()), std::string{timezone_buffer}};
+        return {std::string{buffer}, static_cast<int>(microseconds.count()), timezone};
     }
 
     
