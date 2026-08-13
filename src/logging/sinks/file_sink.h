@@ -122,6 +122,9 @@ private:
             get_formatted_args(message)
         );
         
+        if (m_opts.flush_on_write) {
+            m_file.flush();
+        }
     }
 
     static std::string escape_json(std::string_view value) {
