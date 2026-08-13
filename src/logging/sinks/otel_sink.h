@@ -1,5 +1,6 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
+//#define OTEL_DEBUG
 
 #include <cerrno>
 #include <format>
@@ -103,6 +104,10 @@ protected:
             body.size(),
             body);
 
+        #ifdef OTEL_DEBUG
+            std::println("OTEL request:\n{}", request);
+        #endif
+
         const int fd = connect_to_host();
 
         if (fd < 0) {
@@ -117,6 +122,7 @@ protected:
         }
 
         char buffer[4096];
+        std::string response;
 
         while (true) {
             const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
@@ -126,6 +132,8 @@ protected:
                     break;
                 }
 
+                response.append(buffer, static_cast<std::size_t>(received));
+
                 continue;
             }
 
@@ -133,6 +141,10 @@ protected:
                 break;
             }
         }
+
+    #ifdef OTEL_DEBUG
+        std::println("OTEL response:\n{}", response);
+    #endif
 
         ::close(fd);
     }
