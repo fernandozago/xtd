@@ -25,7 +25,6 @@ struct otel_sink_opts {
     log_level min_log_level = log_level::trace;
 
     bool use_local_time = false;
-    bool flush_on_write = true;
 };
 
 class otel_sink final : public log_sink {
@@ -48,7 +47,7 @@ public:
               .use_local_time = opts.use_local_time,
               .use_structured_log = true,
               .use_colors = false,
-              .flush_on_write = opts.flush_on_write,
+              .flush_on_write = true,
           })
         , m_auth_token(opts.auth_token)
         , m_stream_name(opts.stream_name)
