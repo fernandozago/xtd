@@ -44,11 +44,11 @@ struct log_message {
 
         std::tm selected_tm = use_local_time ? local_tm : utc_tm;
         char buffer[32];
-        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &selected_tm);
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &selected_tm);
 
         const auto microseconds = std::chrono::duration_cast<std::chrono::microseconds>(m_timestamp.time_since_epoch()) % 1000000;
 
-        std::string timezone = "+00:00";
+        std::string timezone = "Z";
         if (use_local_time) {
             const std::time_t local_epoch = std::mktime(&local_tm);
             const std::time_t utc_epoch = std::mktime(&utc_tm);

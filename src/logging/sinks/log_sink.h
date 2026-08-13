@@ -44,9 +44,9 @@ private:
         "WARN.", "ERROR", "FATAL"
     };
 
-    static constexpr std::array<std::string_view, 6> structured_level_strings {
-        "trace", "debug", "info",
-        "warning", "error", "critical"
+    static constexpr std::array<std::string_view, 6> severity_texts {
+        "TRACE", "DEBUG", "INFO",
+        "WARN", "ERROR", "FATAL"
     };
 
     static constexpr std::array<std::string_view, 6> colored_level_strings {
@@ -96,24 +96,115 @@ protected:
         ));
     }
 
+    static constexpr int to_otel_severity(log_level level) {
+        switch (level) {
+            case log_level::trace: return 1;
+            case log_level::debug: return 5;
+            case log_level::information: return 9;
+            case log_level::warning: return 13;
+            case log_level::error: return 17;
+            case log_level::critical: return 21;
+            default: return 0;
+        }
+    }
+
+    static std::string json_value(std::string_view value) {
+        if (value.empty()) {
+            return "\"\"";
+        }
+
+        if (value == "true" || value == "false" || value == "null") {
+            return std::string{value};
+        }
+
+        bool has_sign = false;
+        bool has_digit = false;
+        bool has_decimal = false;
+        bool has_exponent = false;
+        bool has_only_numeric = true;
+
+        for (char c : value) {
+            if (c == '+' || c == '-') {
+                if (has_sign || has_digit || has_decimal || has_exponent) {
+                    has_only_numeric = false;
+                    break;
+                }
+                has_sign = true;
+                continue;
+            }
+
+            if (c >= '0' && c <= '9') {
+                has_digit = true;
+                continue;
+            }
+
+            if (c == '.') {
+                if (has_decimal || has_exponent) {
+                    has_only_numeric = false;
+                    break;
+                }
+                has_decimal = true;
+                continue;
+            }
+
+            if (c == 'e' || c == 'E') {
+                if (!has_digit || has_exponent) {
+                    has_only_numeric = false;
+                    break;
+                }
+                has_exponent = true;
+                continue;
+            }
+
+            has_only_numeric = false;
+            break;
+        }
+
+        if (has_only_numeric && has_digit) {
+            return std::string{value};
+        }
+
+        return std::format("\"{}\"", escape_json(value));
+    }
+
+    static std::string get_attribute_entries(const log_message& message) {
+        std::string result;
+        const auto formatted_args = message.get_formatted_args();
+
+        result += std::format("\"message.template\": \"{}\"", escape_json(message.format()));
+
+        for (std::size_t index = 0; index < formatted_args.size(); ++index) {
+            result += std::format(", \"arg{}\": {}", index, json_value(formatted_args[index]));
+        }
+
+        result += std::format(", \"code.file.path\": \"{}\", \"code.line.number\": {}, \"code.function.name\": \"{}\"",
+            escape_json(message.location().file_name()),
+            message.location().line(),
+            escape_json(message.location().function_name()));
+
+        return result;
+    }
+
     void write_structured_log(const log_message& message) const {
         const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_use_local_time);
-        
-        static constexpr std::string_view log_format = "{{\"timestamp\": \"{}.{:06}{}\", "
-            "\"level\": \"{}\", "
-            "\"location\": \"{}:{}\", "
-            "\"format\": \"{}\", "
-            "\"message\": \"{}\", "
-            "\"args\": {{{}}}}}\n";
+        std::string timestamp = std::string{fmtd_dt_tm};
+        timestamp[10] = 'T';
+        const std::string offset = m_use_local_time ? std::string{tz} : "Z";
 
-        write_all(std::format(log_format,
-            fmtd_dt_tm, us, m_show_timezone ? tz : "",
-            structured_level_strings[static_cast<std::size_t>(message.level())],
-            message.location().file_name(), message.location().line(),
-            escape_json(message.format()),
-            escape_json(message.get_formatted_message()),
-            get_formatted_args(message)
-        ));
+        std::string json = std::format(
+            "{{\"timestamp\": \"{}.{:06}{}\", \"severity_text\": \"{}\", \"severity_number\": {}, \"body\": \"{}\", \"attributes\": {{",
+            timestamp,
+            us,
+            offset,
+            severity_texts[static_cast<std::size_t>(message.level())],
+            to_otel_severity(message.level()),
+            escape_json(message.get_formatted_message())
+        );
+
+        json += get_attribute_entries(message);
+        json += "}}\n";
+
+        write_all(json);
     }
 
     static std::string escape_json(std::string_view value) {
