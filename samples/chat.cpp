@@ -2,7 +2,7 @@
 #include "logging/logging.h"
 #include "logging/sinks/console_sink.h"
 #include "logging/sinks/file_sink.h"
-#include "logging/sinks/curl_otel_sink.h"
+#include "logging/sinks/otel_sink.h"
 #include <filesystem>
 
 /*
