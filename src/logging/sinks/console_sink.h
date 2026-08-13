@@ -1,8 +1,6 @@
 #ifndef CONSOLE_SINK_H
 #define CONSOLE_SINK_H
 
-#include <unistd.h>
-
 #include "log_sink.h"
 
 struct console_sink_opts {
@@ -11,6 +9,7 @@ struct console_sink_opts {
     bool show_timezone = true;
     bool use_structured_log = false;
     bool use_colors = true;
+    bool flush_on_write = true;
 };
 
 class console_sink : public log_sink {
@@ -23,6 +22,7 @@ public:
               .show_timezone = opts.show_timezone,
               .use_structured_log = opts.use_structured_log,
               .use_colors = opts.use_colors,
+              .flush_on_write = opts.flush_on_write,
           })
     {
     }

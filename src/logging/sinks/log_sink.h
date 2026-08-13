@@ -19,6 +19,7 @@ struct log_sink_opts {
     bool show_timezone = true;
     bool use_structured_log = false;
     bool use_colors = true;
+    bool flush_on_write = true;
 };
 
 class log_sink {
@@ -36,6 +37,7 @@ private:
     bool m_show_timezone;
     bool m_use_structured_log;
     bool m_use_colors;
+    bool m_flush_on_write;
 
     static constexpr std::array<std::string_view, 6> plain_level_strings {
         "TRACE", "DEBUG", "INFO.",
@@ -60,6 +62,7 @@ public:
         , m_show_timezone(opts.show_timezone)
         , m_use_structured_log(opts.use_structured_log)
         , m_use_colors(opts.use_colors)
+        , m_flush_on_write(opts.flush_on_write)
     {
     }
 
@@ -169,6 +172,10 @@ protected:
                 return;
             }
             offset += static_cast<std::size_t>(written);
+        }
+
+        if (m_flush_on_write) {
+            ::fsync(m_opts.fd);
         }
     }
 };

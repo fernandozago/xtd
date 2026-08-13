@@ -2,18 +2,15 @@
 #define FILE_SINK_H
 
 #include <filesystem>
-#include <fcntl.h>
-#include <string>
-#include <unistd.h>
-
 #include "log_sink.h"
 
 struct file_sink_opts {
     std::string file_path;
     log_level min_log_level = log_level::information;
-    bool show_timezone = true;
     bool use_local_time = true;
+    bool show_timezone = true;
     bool use_structured_log = false;
+    bool flush_on_write = true;
 };
 
 class file_sink : public log_sink {
@@ -29,6 +26,7 @@ public:
               .show_timezone = opts.show_timezone,
               .use_structured_log = opts.use_structured_log,
               .use_colors = false,
+              .flush_on_write = opts.flush_on_write,
           })
         , m_file_path(opts.file_path)
     {
