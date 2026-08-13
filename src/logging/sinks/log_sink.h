@@ -187,23 +187,39 @@ protected:
     }
 
     void write_structured_log(const log_message& message) const {
-        const auto [fmtd_dt_tm, us, tz] = message.get_timestamp(m_use_local_time);
-        std::string timestamp = std::string{fmtd_dt_tm};
-        timestamp[10] = 'T';
-        const std::string offset = m_use_local_time ? std::string{tz} : "Z";
+        const auto time_nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            message.timestamp().time_since_epoch()).count();
 
         std::string json = std::format(
-            "{{\"timestamp\": \"{}.{:06}{}\", \"severity_text\": \"{}\", \"severity_number\": {}, \"body\": \"{}\", \"attributes\": {{",
-            timestamp,
-            us,
-            offset,
-            severity_texts[static_cast<std::size_t>(message.level())],
+            "{{\"timeUnixNano\":\"{}\",\"severityNumber\":{},\"severityText\":\"{}\",\"body\":{{\"stringValue\":\"{}\"}},\"attributes\":[",
+            time_nanos,
             to_otel_severity(message.level()),
-            escape_json(message.get_formatted_message())
-        );
+            severity_texts[static_cast<std::size_t>(message.level())],
+            escape_json(message.get_formatted_message()));
 
-        json += get_attribute_entries(message);
-        json += "}}\n";
+        json += std::format(
+            "{{\"key\":\"message.template\",\"value\":{{\"stringValue\":\"{}\"}}}}",
+            escape_json(message.format()));
+
+        const auto formatted_args = message.get_formatted_args();
+        for (std::size_t index = 0; index < formatted_args.size(); ++index) {
+            json += std::format(
+                ",{{\"key\":\"arg{}\",\"value\":{{\"stringValue\":\"{}\"}}}}",
+                index,
+                escape_json(formatted_args[index]));
+        }
+
+        json += std::format(
+            ",{{\"key\":\"code.file.path\",\"value\":{{\"stringValue\":\"{}\"}}}}",
+            escape_json(message.location().file_name()));
+        json += std::format(
+            ",{{\"key\":\"code.line.number\",\"value\":{{\"intValue\":{}}}}}",
+            message.location().line());
+        json += std::format(
+            ",{{\"key\":\"code.function.name\",\"value\":{{\"stringValue\":\"{}\"}}}}",
+            escape_json(message.location().function_name()));
+
+        json += "]}\n";
 
         write_all(json);
     }

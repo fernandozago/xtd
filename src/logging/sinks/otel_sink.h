@@ -1,9 +1,7 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
 
-#include <chrono>
 #include <cerrno>
-#include <ctime>
 #include <cstring>
 #include <format>
 #include <netdb.h>
@@ -72,20 +70,15 @@ public:
 protected:
     void write_all(std::string_view data) const override
     {
-        // Intentionally ignored for now.
-        // First verify that raw OTLP ingestion works.
-        (void)data;
-
-        const auto now = std::chrono::system_clock::now();
-        const auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        const std::string utc_datetime = current_utc_datetime();
+        if (!data.empty() && data.back() == '\n') {
+            data.remove_suffix(1);
+        }
 
         const std::string payload = std::format(
-            R"({{"resourceLogs":[{{"resource":{{"attributes":[{{"key":"service.name","value":{{"stringValue":"{}"}}}}]}},"scopeLogs":[{{"scope":{{"name":"{}"}},"logRecords":[{{"timeUnixNano":"{}","severityNumber":9,"severityText":"INFO","body":{{"stringValue":"Hello from OTLP"}},"attributes":[{{"key":"timestamp.utc","value":{{"stringValue":"{}"}}}}]}}]}}]}}]}})",
+            R"({{"resourceLogs":[{{"resource":{{"attributes":[{{"key":"service.name","value":{{"stringValue":"{}"}}}}]}},"scopeLogs":[{{"scope":{{"name":"{}"}},"logRecords":[{}]}}]}}]}})",
             m_service_name,
             m_scope_name,
-            nanos,
-            utc_datetime);
+            data);
 
         const int fd = connect_to_host();
         if (fd < 0) {
@@ -150,22 +143,6 @@ protected:
     }
 
 private:
-    static std::string current_utc_datetime()
-    {
-        const auto now = std::chrono::system_clock::now();
-        const auto micros = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
-
-        const std::time_t time = std::chrono::system_clock::to_time_t(now);
-        std::tm utc_tm{};
-        if (gmtime_r(&time, &utc_tm) == nullptr) {
-            return "1970-01-01T00:00:00.000000Z";
-        }
-
-        char buffer[40];
-        std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &utc_tm);
-        return std::format("{}.{:06}Z", buffer, micros.count());
-    }
-
     void parse_endpoint(std::string endpoint)
     {
         constexpr std::string_view http_prefix = "http://";
