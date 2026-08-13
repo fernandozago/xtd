@@ -49,7 +49,14 @@ int main(int argc, char** argv)
             .min_log_level = log_level::trace,
         });
 
-        logger::instance().add_sink<otel_sink>();
+        logger::instance().add_sink<otel_sink>(otel_sink_opts {
+            .endpoint = "http://localhost:5080/api/default/v1/logs",
+            .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
+            .stream_name = "chatapp",
+            .service_name = "chatapp",
+            .min_log_level = log_level::trace,
+            .use_local_time = false,
+        });
 
         LOG_TRACE("Int: {}, Float: {:.2f}", 3, 3.14159);
         LOG_INFO("Starting chat server...");

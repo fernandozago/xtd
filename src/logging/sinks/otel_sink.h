@@ -15,32 +15,33 @@
 #include "log_sink.h"
 
 struct otel_sink_opts {
-    std::string endpoint = "http://localhost:5080/api/default/v1/logs";
-    std::string auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=";
-    std::string stream_name = "chatapp";
-    std::string service_name = "chat-app";
-    std::string scope_name = "xtd.logging";
-    std::string user_agent = "log-shipper-v1";
+    std::string endpoint;
+    std::string auth_token;
+    std::string stream_name;
+    std::string service_name;
 
-    log_level min_log_level = log_level::trace;
+    log_level min_log_level = log_level::information;
 
     bool use_local_time = false;
 };
 
 class otel_sink final : public log_sink {
 private:
+    static constexpr std::string_view instrumentation_library_name = "xtd.logging";
+
     std::string m_host;
     std::string m_path;
     std::string m_auth_token;
     std::string m_stream_name;
     std::string m_service_name;
-    std::string m_scope_name;
-    std::string m_user_agent;
+    std::string m_request_prefix;
+    std::string m_payload_prefix;
+    std::string m_payload_suffix;
 
     int m_port = 5080;
 
 public:
-    explicit otel_sink(const otel_sink_opts& opts = {})
+    explicit otel_sink(const otel_sink_opts& opts)
         : log_sink(log_sink_opts{
               .fd = STDOUT_FILENO,
               .min_log_level = opts.min_log_level,
@@ -52,8 +53,6 @@ public:
         , m_auth_token(opts.auth_token)
         , m_stream_name(opts.stream_name)
         , m_service_name(opts.service_name)
-        , m_scope_name(opts.scope_name)
-        , m_user_agent(opts.user_agent)
     {
         if (opts.endpoint.empty()) {
             throw std::invalid_argument{"endpoint cannot be empty"};
@@ -63,7 +62,37 @@ public:
             throw std::invalid_argument{"auth_token cannot be empty"};
         }
 
+        if (m_stream_name.empty()) {
+            throw std::invalid_argument{"stream_name cannot be empty"};
+        }
+
+        if (m_service_name.empty()) {
+            throw std::invalid_argument{"service_name cannot be empty"};
+        }
+
         parse_endpoint(opts.endpoint);
+
+        m_request_prefix = std::format(
+            "POST {} HTTP/1.1\r\n"
+            "Host: {}:{}\r\n"
+            "Authorization: {}\r\n"
+            "stream-name: {}\r\n"
+            "Content-Type: application/json\r\n"
+            "Connection: close\r\n"
+            "Content-Length: ",
+            m_path,
+            m_host,
+            m_port,
+            m_auth_token,
+            m_stream_name);
+
+        m_payload_prefix = std::format(
+            "{{\"resourceLogs\":[{{\"resource\":{{\"attributes\":[{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}]}},"
+            "\"scopeLogs\":[{{\"scope\":{{\"name\":\"{}\"}},\"logRecords\":[",
+            m_service_name,
+            instrumentation_library_name);
+
+        m_payload_suffix = R"(]}]}]})";
     }
 
 protected:
@@ -73,11 +102,11 @@ protected:
             data.remove_suffix(1);
         }
 
-        const std::string payload = std::format(
-            R"({{"resourceLogs":[{{"resource":{{"attributes":[{{"key":"service.name","value":{{"stringValue":"{}"}}}}]}},"scopeLogs":[{{"scope":{{"name":"{}"}},"logRecords":[{}]}}]}}]}})",
-            m_service_name,
-            m_scope_name,
-            data);
+        std::string payload;
+        payload.reserve(m_payload_prefix.size() + data.size() + m_payload_suffix.size());
+        payload += m_payload_prefix;
+        payload += data;
+        payload += m_payload_suffix;
 
         const int fd = connect_to_host();
         if (fd < 0) {
@@ -86,22 +115,8 @@ protected:
         }
 
         const std::string request = std::format(
-            "POST {} HTTP/1.1\r\n"
-            "Host: {}:{}\r\n"
-            "Authorization: {}\r\n"
-            "stream-name: {}\r\n"
-            "Content-Type: application/json\r\n"
-            "User-Agent: {}\r\n"
-            "Content-Length: {}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-            "{}",
-            m_path,
-            m_host,
-            m_port,
-            m_auth_token,
-            m_stream_name,
-            m_user_agent,
+            "{}{}\r\n\r\n{}",
+            m_request_prefix,
             payload.size(),
             payload);
 
