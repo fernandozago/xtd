@@ -36,7 +36,8 @@ jobs:
 
           apt-get install -y --no-install-recommends \
             lcov \
-            make
+            make \
+            libcurl4-openssl-dev
 
           rm -rf /var/lib/apt/lists/*
 
@@ -114,7 +115,9 @@ jobs:
           apt-get update
 
           apt-get install -y --no-install-recommends \
-            locales
+            lcov \
+            make \
+            libcurl4-openssl-dev
 
           rm -rf /var/lib/apt/lists/*
 
