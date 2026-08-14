@@ -35,7 +35,7 @@ jobs:
           apt-get update
 
           apt-get install -y --no-install-recommends \
-            locale \
+            locales \
             lcov \
             make \
             libcurl4-openssl-dev
@@ -116,7 +116,7 @@ jobs:
           apt-get update
 
           apt-get install -y --no-install-recommends \
-            locale \
+            locales \
             lcov \
             make \
             libcurl4-openssl-dev
