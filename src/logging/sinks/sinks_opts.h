@@ -32,6 +32,7 @@ namespace xtd
         std::string service_version;
         std::string service_instance_id;
         std::string environment_name;
+        std::size_t batch_size = 100;
 
         bool use_local_time = false;
     };

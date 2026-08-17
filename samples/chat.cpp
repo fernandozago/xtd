@@ -1,7 +1,7 @@
 #include "chat/server.h"
 #include "logging/logging.h"
 #include "logging/sinks/file_sink.h"
-#include "logging/sinks/curl_otel_sink.h"
+#include "logging/sinks/otel_sink.h"
 #include <filesystem>
 
 /*
@@ -41,10 +41,10 @@ int main(int argc, char** argv)
             .use_local_time = false
         });
 
-        xtd::logger::instance().add_sink<xtd::curl_otel_sink>(xtd::otel_sink_opts {
+        xtd::logger::instance().add_sink<xtd::otel_sink>(xtd::otel_sink_opts {
             .min_log_level = xtd::log_level::trace,
             .endpoint = "http://localhost:5080/api/default/v1/logs",
-            .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
+            .auth_token = "Basic cm9vdEBleGFtcGxlLmNvbTpBZG1pbiMxMjM0",
             .service_namespace = "chat-app",
             .service_name = "chat-app",
             .service_version = "1.0.0",
