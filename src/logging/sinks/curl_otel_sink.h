@@ -67,15 +67,20 @@ namespace xtd
         xtd::channel_writer<std::shared_ptr<log_message>> m_writer;
         std::jthread m_worker;
 
+        static size_t discard_response(char*, size_t size, size_t count, void*)
+        {
+            return size * count;
+        }
+
+    #ifdef OTEL_SINK_DEBUG
         static size_t write_response(char* data, size_t size, size_t count, void* user_data)
         {
             const size_t data_size = size * count;
             auto& response = *static_cast<std::string*>(user_data);
-
             response.append(data, data_size);
-
             return data_size;
         }
+    #endif
 
         static void process_messages(xtd::channel<std::shared_ptr<log_message>>& channel, curl_otel_sink& sink)
         {
@@ -143,7 +148,7 @@ namespace xtd
             // For http:// where the server supports h2c directly.
             curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
 
-            curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &write_response);
+            curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &discard_response);
 
             // Do not let logging block indefinitely.
             curl_easy_setopt(m_curl, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
@@ -176,29 +181,30 @@ namespace xtd
 
         void write_to_output(std::string_view data) const override
         {
-            #ifdef OTEL_SINK_DEBUG
-                std::println("OTEL request:\n{}", data);
-            #endif
-
+    #ifdef OTEL_SINK_DEBUG
+            std::println("-> Request: {}", data);
             std::string response;
-
+            curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &write_response);
             curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
+    #endif
+
             curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, data.data());
             curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(data.size()));
 
             const CURLcode result = curl_easy_perform(m_curl);
 
+    #ifdef OTEL_SINK_DEBUG
             if (result != CURLE_OK) {
-                #ifdef OTEL_SINK_DEBUG
-                    std::println("OTEL: curl error: {}", curl_easy_strerror(result));
-                #endif
-
+                std::println("<- Response [Error: {}]", curl_easy_strerror(result));
                 return;
             }
 
-            #ifdef OTEL_SINK_DEBUG
-                std::println("OTEL response:\n{}", response);
-            #endif
+            long status_code = 0;
+            curl_easy_getinfo(m_curl, CURLINFO_RESPONSE_CODE, &status_code);
+            std::println("<- Response [StatusCode={}] -> {}", status_code, response);
+    #else
+            (void)result;
+    #endif
         }
     };
 

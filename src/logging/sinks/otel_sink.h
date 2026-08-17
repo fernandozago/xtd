@@ -1,7 +1,7 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
 
-#define OTEL_SINK_DEBUG
+//#define OTEL_SINK_DEBUG
 
 #include <cerrno>
 #include <fcntl.h>
@@ -162,30 +162,32 @@ namespace xtd
         void write_to_output(std::string_view data) const override
         {
     #ifdef OTEL_SINK_DEBUG
-            std::println("OTEL request:\n{}", data);
+            std::println("-> Request: {}", data);
     #endif
 
             const int fd = connect_to_host();
 
             if (fd < 0) {
     #ifdef OTEL_SINK_DEBUG
-                std::println(
-                    "OTEL: failed to connect to {}:{}",
-                    m_host,
-                    m_port);
+                std::println("<- Response [Error: failed to connect to {}:{}]", m_host, m_port);
     #endif
                 return;
             }
 
             if (!send_all(fd, data)) {
     #ifdef OTEL_SINK_DEBUG
-                std::println("OTEL: failed to send request");
+                std::println("<- Response [Error: send failed]");
     #endif
                 ::close(fd);
                 return;
             }
 
+    #ifdef OTEL_SINK_DEBUG
+            const std::string response = read_response(fd);
+            std::println("<- Response [StatusCode={}] -> {}", parse_status_code(response), response);
+    #else
             discard_response(fd);
+    #endif
             ::close(fd);
         }
 
@@ -392,32 +394,41 @@ namespace xtd
         static void discard_response(int fd)
         {
             char buffer[4096];
-
-        #ifdef OTEL_SINK_DEBUG
-            std::string response;
-        #endif
-
             while (true) {
                 const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
-
-                if (received > 0) {
-        #ifdef OTEL_SINK_DEBUG
-                    response.append(buffer, static_cast<std::size_t>(received));
-        #endif
-                    continue;
-                }
-
-                if (received < 0 && errno == EINTR) {
-                    continue;
-                }
-
+                if (received > 0) continue;
+                if (received < 0 && errno == EINTR) continue;
                 break;
             }
-
-        #ifdef OTEL_SINK_DEBUG
-            std::println("OTEL response:\n{}", response);
-        #endif
         }
+
+    #ifdef OTEL_SINK_DEBUG
+        static int parse_status_code(std::string_view response)
+        {
+            const auto sp1 = response.find(' ');
+            if (sp1 == std::string_view::npos) return 0;
+            const auto sp2 = response.find_first_of(" \r\n", sp1 + 1);
+            int code = 0;
+            for (char c : response.substr(sp1 + 1, sp2 == std::string_view::npos ? sp2 : sp2 - sp1 - 1)) {
+                if (c < '0' || c > '9') return 0;
+                code = code * 10 + (c - '0');
+            }
+            return code;
+        }
+
+        static std::string read_response(int fd)
+        {
+            std::string response;
+            char buffer[4096];
+            while (true) {
+                const ssize_t received = ::recv(fd, buffer, sizeof(buffer), 0);
+                if (received > 0) { response.append(buffer, static_cast<std::size_t>(received)); continue; }
+                if (received < 0 && errno == EINTR) continue;
+                break;
+            }
+            return response;
+        }
+    #endif
     };
 
 }
