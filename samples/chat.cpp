@@ -1,6 +1,5 @@
 #include "chat/server.h"
 #include "logging/logging.h"
-#include "logging/sinks/console_sink.h"
 #include "logging/sinks/file_sink.h"
 #include "logging/sinks/otel_sink.h"
 #include <filesystem>
@@ -28,7 +27,7 @@ int main(int argc, char** argv)
     try
     {
         const std::string exe_fullpath = std::filesystem::read_symlink("/proc/self/exe").string();
-        logger::instance().add_sink<console_sink>(console_sink_opts {
+        logger::instance().add_sink<log_sink>(log_sink_opts {
             .min_log_level = log_level::information,
         });
 

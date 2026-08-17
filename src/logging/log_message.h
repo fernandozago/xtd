@@ -58,19 +58,19 @@ struct log_message {
         const auto microseconds =
             std::chrono::duration_cast<std::chrono::microseconds>(m_timestamp.time_since_epoch()).count() % 1'000'000;
 
-        std::string timezone = "Z";
+        std::string tz = "Z";
 
         if (use_local_time) {
             char timezone_buffer[8];
             std::strftime(timezone_buffer, sizeof(timezone_buffer), "%z", &tm);
 
-            timezone = timezone_buffer;
-            if (timezone.size() == 5) {
-                timezone.insert(3, ":");
+            tz = timezone_buffer;
+            if (tz.size() == 5) {
+                tz.insert(3, ":");
             }
         }
 
-        return {buffer, static_cast<int>(microseconds), timezone};
+        return {buffer, static_cast<int>(microseconds), tz};
     }
 
     

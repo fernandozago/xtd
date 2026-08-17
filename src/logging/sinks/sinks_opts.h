@@ -20,14 +20,6 @@ struct file_sink_opts {
     bool flush_on_write = true;
 };
 
-struct console_sink_opts {
-    log_level min_log_level = log_level::information;
-    int fd = STDOUT_FILENO;
-    bool use_local_time = true;
-    bool use_colors = true;
-    bool flush_on_write = true;
-};
-
 struct otel_sink_opts {
     log_level min_log_level = log_level::information;
     std::string endpoint;
