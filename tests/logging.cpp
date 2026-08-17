@@ -1,5 +1,6 @@
 #include "logging/log_message.h"
 #include "logging/logging.h"
+#include "logging/sinks/log_sink.h"
 #include "logging/sinks/sinks_opts.h"
 #include "third_party/catch2/catch_amalgamated.hpp"
 
@@ -8,10 +9,7 @@
 #include <string>
 #include <unistd.h>
 
-//#define DEBUG_TEST
-#ifdef DEBUG_TEST
-#include "logging/sinks/console_sink.h"
-#endif
+#define DEBUG_TEST
 
 namespace xtd_logging_tests {
     struct LoggingTests {};
@@ -54,7 +52,7 @@ namespace xtd_logging_tests {
             });
 
             #ifdef DEBUG_TEST
-            _logger.add_sink<console_sink>(console_sink_opts {
+            _logger.add_sink<log_sink>(log_sink_opts {
                 .min_log_level = log_level::trace,
                 .use_local_time = use_local_time,
                 .use_colors = use_colors,
