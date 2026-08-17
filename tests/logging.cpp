@@ -13,24 +13,24 @@
 
 namespace xtd_logging_tests {
     struct LoggingTests {
-        static std::string_view get_plain_level_strings(log_level level) {
-            return log_sink::plain_level_strings[static_cast<size_t>(level)];
+        static std::string_view get_plain_level_strings(xtd::log_level level) {
+            return xtd::log_sink::plain_level_strings[static_cast<size_t>(level)];
         }
 
-        static std::string_view get_colored_level_strings(log_level level) {
-            return log_sink::colored_level_strings[static_cast<size_t>(level)];
+        static std::string_view get_colored_level_strings(xtd::log_level level) {
+            return xtd::log_sink::colored_level_strings[static_cast<size_t>(level)];
         }
     };
 
     TEST_CASE_METHOD(LoggingTests, "console sink writes formatted message")
     {
         const auto level = GENERATE(
-            log_level::trace,
-            log_level::debug,
-            log_level::information,
-            log_level::warning,
-            log_level::error,
-            log_level::critical
+            xtd::log_level::trace,
+            xtd::log_level::debug,
+            xtd::log_level::information,
+            xtd::log_level::warning,
+            xtd::log_level::error,
+            xtd::log_level::critical
         );
 
         const std::string value = GENERATE("a", "b");
@@ -51,8 +51,8 @@ namespace xtd_logging_tests {
         {
             xtd::logger _logger;
 
-            _logger.add_sink<log_sink>(log_sink_opts {
-                .min_log_level = log_level::trace,
+            _logger.add_sink<xtd::log_sink>(xtd::log_sink_opts {
+                .min_log_level = xtd::log_level::trace,
                 .fd = write_fd,
                 .use_local_time = use_local_time,
                 .use_colors = use_colors,
@@ -60,8 +60,8 @@ namespace xtd_logging_tests {
             });
 
             #ifdef DEBUG_TEST
-            _logger.add_sink<log_sink>(log_sink_opts {
-                .min_log_level = log_level::trace,
+            _logger.add_sink<xtd::log_sink>(xtd::log_sink_opts {
+                .min_log_level = xtd::log_level::trace,
                 .use_local_time = use_local_time,
                 .use_colors = use_colors,
                 .flush_on_write = flush_on_write

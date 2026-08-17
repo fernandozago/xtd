@@ -95,35 +95,35 @@ namespace xtd {
 
     #define LOG_EX(ex, level, format, ...) \
         logger::instance().log( \
-            std::make_optional(exception_info{ex}), std::source_location::current(), level, format, ##__VA_ARGS__ \
+            std::make_optional(xtd::exception_info{ex}), std::source_location::current(), level, format, ##__VA_ARGS__ \
         )
 
     #define LOG_TRACE(...) \
-        LOG(log_level::trace, __VA_ARGS__)
+        LOG(xtd::log_level::trace, __VA_ARGS__)
 
     #define LOG_DEBUG(...) \
-        LOG(log_level::debug, __VA_ARGS__)
+        LOG(xtd::log_level::debug, __VA_ARGS__)
 
     #define LOG_INFO(...) \
-        LOG(log_level::information, __VA_ARGS__)
+        LOG(xtd::log_level::information, __VA_ARGS__)
 
     #define LOG_WARN(...) \
-        LOG(log_level::warning, __VA_ARGS__)
+        LOG(xtd::log_level::warning, __VA_ARGS__)
 
     #define LOG_WARN_EX(ex, ...) \
-        LOG_EX(ex, log_level::warning, __VA_ARGS__)
+        LOG_EX(ex, xtd::log_level::warning, __VA_ARGS__)
 
     #define LOG_ERROR(...) \
-        LOG(log_level::error, __VA_ARGS__)
+        LOG(xtd::log_level::error, __VA_ARGS__)
 
     #define LOG_ERROR_EX(ex, ...) \
-        LOG_EX(ex, log_level::error, __VA_ARGS__)
+        LOG_EX(ex, xtd::log_level::error, __VA_ARGS__)
 
     #define LOG_FATAL(...) \
-        LOG(log_level::critical, __VA_ARGS__)
+        LOG(xtd::log_level::critical, __VA_ARGS__)
 
     #define LOG_FATAL_EX(ex, ...) \
-        LOG_EX(ex, log_level::critical, __VA_ARGS__)
+        LOG_EX(ex, xtd::log_level::critical, __VA_ARGS__)
 
 }
 

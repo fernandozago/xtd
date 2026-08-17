@@ -1,7 +1,7 @@
 #include "chat/server.h"
 #include "logging/logging.h"
 #include "logging/sinks/file_sink.h"
-#include "logging/sinks/otel_sink.h"
+#include "logging/sinks/curl_otel_sink.h"
 #include <filesystem>
 
 /*
@@ -27,42 +27,28 @@ int main(int argc, char** argv)
     try
     {
         const std::string exe_fullpath = std::filesystem::read_symlink("/proc/self/exe").string();
-        xtd::logger::instance().add_sink<log_sink>(log_sink_opts {
-            .min_log_level = log_level::information,
+        xtd::logger::instance().add_sink<xtd::log_sink>(xtd::log_sink_opts {
+            .min_log_level = xtd::log_level::information,
         });
 
-        xtd::logger::instance().add_sink<file_sink>(file_sink_opts {
+        xtd::logger::instance().add_sink<xtd::file_sink>(xtd::file_sink_opts {
             .file_path = exe_fullpath + ".plain.log",
         });
 
-        xtd::logger::instance().add_sink<file_sink>(file_sink_opts {
-            .min_log_level = log_level::trace,
+        xtd::logger::instance().add_sink<xtd::file_sink>(xtd::file_sink_opts {
+            .min_log_level = xtd::log_level::trace,
             .file_path = exe_fullpath + ".trace.log",
             .use_local_time = false
         });
 
-        xtd::logger::instance().add_sink<otel_sink>(otel_sink_opts {
-            .min_log_level = log_level::trace,
+        xtd::logger::instance().add_sink<xtd::curl_otel_sink>(xtd::otel_sink_opts {
+            .min_log_level = xtd::log_level::trace,
             .endpoint = "http://localhost:5080/api/default/v1/logs",
             .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
             .stream_name = "chat-app",
             .service_name = "chat-app-v1",
         });
-
-        xtd::LOG_TRACE("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-        xtd::LOG_DEBUG("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-        xtd::LOG_INFO("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-        xtd::LOG_WARN("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-        xtd::LOG_ERROR("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-        xtd::LOG_FATAL("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
-
-        try {
-            throw std::runtime_error{"This is a test exception"};
-        }
-        catch (const std::exception& ex) {
-            xtd::LOG_WARN_EX(ex, "Caught an exception: {}", ex.what());
-        }
-        
+       
         xtd::LOG_INFO("Starting chat server...");
 
         const int port = std::stoi(argc > 1 ? argv[1] : "9090");

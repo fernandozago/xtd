@@ -10,7 +10,7 @@
 
 #include "../log_message.h"
 
-namespace otel_serializer {
+namespace xtd::otel_serializer {
 
 static constexpr std::array<std::string_view, 6> severity_texts {
     "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
