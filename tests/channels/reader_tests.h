@@ -471,4 +471,78 @@ namespace reader_tests {
         CHECK(*second == 20);
         CHECK(reader.size() == 0);
     }
+
+    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "read_all generator tests", "[channel][reader]",
+    BoundedChannelMode,
+    UnboundedChannelMode)
+    {
+        struct my_data {
+            enum class def { copy, move, consume };
+            def m_definition;
+            int m_value;
+
+            my_data(def definition, int value)
+                : m_definition{definition}
+                , m_value{value}
+            {
+            }
+
+            my_data(const my_data&) = default;
+
+            my_data(my_data&& other) noexcept
+                : m_definition{other.m_definition}
+                , m_value{other.m_value}
+            {
+                other.m_value = 0;
+            }
+
+            my_data& operator=(const my_data&) = default;
+            my_data& operator=(my_data&&) = default;
+        };
+
+        auto channel = make_channel<TestType, my_data>();
+        xtd::channel_writer writer(channel);
+
+        REQUIRE(writer.emplace(my_data::def::copy, 10));
+        REQUIRE(writer.emplace(my_data::def::move, 20));
+        REQUIRE(writer.emplace(my_data::def::consume, 30));
+        writer.complete();
+
+        xtd::channel_reader reader(channel);
+
+        int items_read = 0;
+
+        for (my_data&& val : reader.read_all()) {
+            ++items_read;
+
+            switch (val.m_definition) {
+                case my_data::def::copy: {
+                    CHECK(val.m_value == 10);
+
+                    my_data copy = val;
+
+                    CHECK(copy.m_value == 10);
+                    CHECK(val.m_value == 10);
+                    break;
+                }
+
+                case my_data::def::move: {
+                    CHECK(val.m_value == 20);
+
+                    my_data moved = std::move(val);
+
+                    CHECK(moved.m_value == 20);
+                    CHECK(val.m_value == 0);
+                    break;
+                }
+
+                case my_data::def::consume: {
+                    CHECK(val.m_value == 30);
+                    break;
+                }
+            }
+        }
+
+        CHECK(items_read == 3);
+    }
 }

@@ -6,6 +6,20 @@
 #include <mutex>
 #include <queue>
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
+
+// Workaround for GCC PR 121142:
+// https://gcc.gnu.org/bugzilla/show_bug.cgi?id=121142
+// std::generator may trigger a false-positive -Wnull-dereference warning.
+#include <generator>
+
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 #include "channel_enums.h"
 
 namespace xtd
@@ -164,6 +178,17 @@ namespace xtd
             }
 
             return result;
+        }
+
+        // This function is a generator that yields all items in the channel until the stop_token is requested or the channel is empty.
+        // The improvement avoid moving/copying items out of the channel, instead it yields references to the items in the channel.
+        std::generator<T> read_all(std::stop_token stop_token = {}) {
+            while (!stop_token.stop_requested())
+            {
+                std::expected<T, channel_read_errors> result = read(stop_token, block_strategy::WAIT);
+                if (!result) break;
+                co_yield std::move(*result);
+            }
         }
 
         [[nodiscard]]

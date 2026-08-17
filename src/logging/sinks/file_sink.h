@@ -4,15 +4,6 @@
 #include <filesystem>
 #include "log_sink.h"
 
-struct file_sink_opts {
-    std::string file_path;
-    log_level min_log_level = log_level::information;
-    bool use_local_time = true;
-    bool show_timezone = true;
-    bool use_structured_log = false;
-    bool flush_on_write = true;
-};
-
 class file_sink : public log_sink {
 private:
     std::string m_file_path;
@@ -23,7 +14,6 @@ public:
               .fd = open_file(opts.file_path),
               .min_log_level = opts.min_log_level,
               .use_local_time = opts.use_local_time,
-              .use_structured_log = opts.use_structured_log,
               .use_colors = false,
               .flush_on_write = opts.flush_on_write,
           })

@@ -30,14 +30,6 @@ int main(int argc, char** argv)
         const std::string exe_fullpath = std::filesystem::read_symlink("/proc/self/exe").string();
         logger::instance().add_sink<console_sink>(console_sink_opts {
             .min_log_level = log_level::information,
-            .use_local_time = true,
-            .use_colors = true,
-        });
-
-        logger::instance().add_sink<file_sink>(file_sink_opts {
-            .file_path = exe_fullpath + ".structured.log",
-            .use_local_time = false,
-            .use_structured_log = true,
         });
 
         logger::instance().add_sink<file_sink>(file_sink_opts {
@@ -45,25 +37,32 @@ int main(int argc, char** argv)
         });
 
         logger::instance().add_sink<file_sink>(file_sink_opts {
-            .file_path = exe_fullpath + ".trace.log",
             .min_log_level = log_level::trace,
+            .file_path = exe_fullpath + ".trace.log",
+            .use_local_time = false
         });
 
-        logger::instance().add_sink<curl_otel_sink>(otel_sink_opts {
+        logger::instance().add_sink<otel_sink>(otel_sink_opts {
+            .min_log_level = log_level::trace,
             .endpoint = "http://localhost:5080/api/default/v1/logs",
             .auth_token = "Basic cm9vdEBvdGVsLmNvbTpyb290cHc=",
             .stream_name = "chat-app",
             .service_name = "chat-app-v1",
-            .min_log_level = log_level::trace,
-            .use_local_time = false,
         });
 
-        LOG_TRACE("Int: {}, Float: {:.2f}", 3, 3.14159);
-        LOG_DEBUG("Int: {}, Float: {:.2f}", 3, 3.14159);
-        LOG_INFO("Int: {}, Float: {:.2f}", 3, 3.14159);
-        LOG_WARN("Int: {}, Float: {:.2f}", 3, 3.14159);
-        LOG_ERROR("Int: {}, Float: {:.2f}", 3, 3.14159);
-        LOG_FATAL("Int: {}, Float: {:.2f}", 3, 3.14159);
+        LOG_TRACE("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+        LOG_DEBUG("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+        LOG_INFO("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+        LOG_WARN("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+        LOG_ERROR("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+        LOG_FATAL("Int: {0}, Float: {1:.2f} -- {1}", 3, 3.14159);
+
+        try {
+            throw std::runtime_error{"This is a test exception"};
+        }
+        catch (const std::exception& ex) {
+            LOG_WARN_EX(ex, "Caught an exception: {}", ex.what());
+        }
         
         LOG_INFO("Starting chat server...");
 
@@ -84,7 +83,7 @@ int main(int argc, char** argv)
     }
     catch (const std::exception& ex)
     {
-        LOG_ERROR("error: {}", ex.what());
+        LOG_FATAL_EX(ex, "Error on main");
         return 1;
     }
 }

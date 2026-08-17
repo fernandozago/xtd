@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <format>
+#include <source_location>
 #include <string>
 #include <string_view>
 
@@ -45,7 +46,7 @@ static std::string escape_json(std::string_view value)
     return result;
 }
 
-inline static std::string serialize(const log_message& message)
+inline static std::string serialize_record(const log_message& message)
 {
     const auto level = static_cast<std::size_t>(message.level());
 
@@ -93,16 +94,30 @@ inline static std::string serialize(const log_message& message)
             std::format("{{\"kvlistValue\":{{\"values\":[{}]}}}}", values));
     }
 
-    attribute("code.file.path",
-        std::format("{{\"stringValue\":\"{}:{}\"}}",
-            escape_json(message.location().file_name()),
-            message.location().line()));
+    {
+        const std::source_location& location = message.location();
+        attribute("code.file.path",
+            std::format("{{\"stringValue\":\"{}:{}\"}}",
+                escape_json(location.file_name()),
+                location.line()));
 
-    attribute("code.function.name",
-        std::format("{{\"stringValue\":\"{}\"}}",
-            escape_json(message.location().function_name())));
+        attribute("code.function.name",
+            std::format("{{\"stringValue\":\"{}\"}}",
+                escape_json(location.function_name())));
+    }
 
-    json += "]}\n";
+    if (message.has_exception()) {
+        const exception_info& ex = message.exception();
+        attribute("exception.type",
+            std::format("{{\"stringValue\":\"{}\"}}",
+                escape_json(ex.type)));
+
+        attribute("exception.message",
+            std::format("{{\"stringValue\":\"{}\"}}",
+                escape_json(ex.message)));
+    }
+
+    json += "]}";
 
     return json;
 }

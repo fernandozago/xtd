@@ -23,7 +23,12 @@ private:
     void consume()
     {
         m_latch.count_down();
-        while (const auto value = m_reader.read()) {
+        // while (const auto value = m_reader.read()) { // Direct access
+        //     (void)value; // suppress unused variable warning
+        //     ++m_received_items;
+        // }
+        for (const int& value : m_reader.read_all()) { // Generator
+            (void)value; // suppress unused variable warning
             ++m_received_items;
         }
     }

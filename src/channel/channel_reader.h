@@ -1,7 +1,11 @@
 #ifndef CHANNEL_READER_H
 #define CHANNEL_READER_H
 
+#include "channel/channel_enums.h"
 #include "channel_impl.h"
+#include <expected>
+#include <stop_token>
+#include <generator>
 
 namespace xtd
 {
@@ -25,15 +29,19 @@ namespace xtd
         }
 
         [[nodiscard]]
-        std::expected<T, channel_read_errors> read(std::stop_token stopToken = {})
+        std::expected<T, channel_read_errors> read(std::stop_token stop_token = {})
         {
-            return m_channel.read(stopToken, block_strategy::WAIT);
+            return m_channel.read(stop_token, block_strategy::WAIT);
+        }
+
+        std::generator<T> read_all(std::stop_token stop_token = {}) {
+            return m_channel.read_all(stop_token);
         }
 
         [[nodiscard]]
-        bool wait_to_read(std::stop_token stopToken = {})
+        bool wait_to_read(std::stop_token stop_token = {})
         {
-            return m_channel.wait_to_read(stopToken);
+            return m_channel.wait_to_read(stop_token);
         }
 
         [[nodiscard]]
