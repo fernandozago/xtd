@@ -12,7 +12,6 @@
 #include "otel_serializer.h"
 #include "log_sink.h"
 
-//#define OTEL_DEBUG_TRANSPORT
 //#define OTEL_NATIVE_REQUEST
 #ifdef OTEL_NATIVE_REQUEST
 #include "otel_transports/native.h"

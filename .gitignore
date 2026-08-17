@@ -1,4 +1,5 @@
 bin/
+docker_compose/data/
 coverage/
 test-results/
 

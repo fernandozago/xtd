@@ -1,6 +1,8 @@
 #ifndef OTEL_TRANSPORT_BASE_H
 #define OTEL_TRANSPORT_BASE_H
 
+//#define OTEL_DEBUG_TRANSPORT
+
 #include <format>
 #include <string>
 #include <string_view>

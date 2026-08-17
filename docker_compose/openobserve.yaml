@@ -1,0 +1,15 @@
+services:
+  openobserve:
+    image: openobserve/openobserve:latest
+    container_name: otel
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+    environment:
+      ZO_DATA_DIR: /data
+      ZO_ROOT_USER_EMAIL: "root@example.com"
+      ZO_ROOT_USER_PASSWORD: "Admin#1234"
+      ZO_COMPACT_DATA_RETENTION_DAYS: "3"
+      ZO_DEFAULT_MAX_QUERY_RANGE_DAYS: "1"
+    volumes:
+      - ./data/openobserve:/data

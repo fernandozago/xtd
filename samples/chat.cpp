@@ -43,8 +43,17 @@ int main(int argc, char** argv)
 
         xtd::logger::instance().add_sink<xtd::otel_sink>(xtd::otel_sink_opts {
             .min_log_level = xtd::log_level::trace,
-            .endpoint = "http://localhost:5080/api/default/v1/logs",
-            .auth_token = "Basic cm9vdEBleGFtcGxlLmNvbTpBZG1pbiMxMjM0",
+
+            
+            // Grafana Loki -- ./docker-compose/grafana.yaml
+            // RUN -> docker compose -f grafana.yaml up
+            .endpoint = "http://localhost:4318/v1/logs", 
+
+            // OpenObserve -- ./docker-compose/openobserve.yaml
+            // RUN -> docker compose -f openobserve.yaml up
+            //.endpoint = "http://localhost:5080/api/default/v1/logs", 
+            //.auth_token = "Basic cm9vdEBleGFtcGxlLmNvbTpBZG1pbiMxMjM0",
+
             .service_namespace = "chat-app",
             .service_name = "chat-app",
             .service_version = "1.0.0",

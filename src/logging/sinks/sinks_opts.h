@@ -26,7 +26,7 @@ namespace xtd
     struct otel_sink_opts {
         log_level min_log_level = log_level::information;
         std::string endpoint;
-        std::string auth_token;
+        std::string auth_token = "";
         std::string service_namespace;
         std::string service_name;
         std::string service_version;
