@@ -1,8 +1,6 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
 
-//#define OTEL_SINK_DEBUG
-
 #include <format>
 #include <memory>
 #include <string>
@@ -14,7 +12,7 @@
 #include "otel_serializer.h"
 #include "log_sink.h"
 
-#define OTEL_DEBUG_TRANSPORT
+//#define OTEL_DEBUG_TRANSPORT
 //#define OTEL_NATIVE_REQUEST
 #ifdef OTEL_NATIVE_REQUEST
 #include "otel_transports/native.h"
