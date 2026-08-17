@@ -70,7 +70,7 @@ public:
             m_thread.join();
         }
         m_server.broadcast(std::format("[📣: `{}` has left the chat.]\n", m_name));
-        LOG_INFO("handler for client fd {} (AKA: `{}`) destroyed", m_unique_id, m_name);
+        xtd::LOG_INFO("handler for client fd {} (AKA: `{}`) destroyed", m_unique_id, m_name);
     }
 
     std::string& name() noexcept { return m_name; }
@@ -128,11 +128,11 @@ private:
         }
         catch (const std::exception& ex)
         {
-            LOG_ERROR("client error: {}", ex.what());
+            xtd::LOG_ERROR_EX(ex, "client error");
         }
         catch (...)
         {
-            LOG_ERROR("client error: unknown exception");
+            xtd::LOG_ERROR("client error: unknown exception");
         }
 
         reader.complete();
@@ -147,32 +147,32 @@ private:
         switch (cmd_type)
         {
             case command_type::message:
-                LOG_INFO("client fd {} (AKA: `{}`) sent message: {}", m_unique_id, m_name, argument);
+                xtd::LOG_INFO("client fd {} (AKA: `{}`) sent message: {}", m_unique_id, m_name, argument);
                 m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
                 break;
 
             case command_type::name:
             {
-                LOG_INFO("client fd {} (AKA: `{}`) requested name change to: {}", m_unique_id, m_name, argument);
+                xtd::LOG_INFO("client fd {} (AKA: `{}`) requested name change to: {}", m_unique_id, m_name, argument);
                 if (argument.empty() || argument.size() > 32) {
-                    LOG_WARN("client fd {} (AKA: `{}`) name change request failed: invalid name length", m_unique_id, m_name);
+                    xtd::LOG_WARN("client fd {} (AKA: `{}`) name change request failed: invalid name length", m_unique_id, m_name);
                     m_server.reply(m_unique_id, "[⚠️: Name must be between 1 and 32 characters.]\n");
                     break;
                 }
 
                 std::string old_name = std::exchange(m_name, std::move(argument));
-                LOG_INFO("client fd {} (AKA: `{}`) changed name to: {}", m_unique_id, old_name, m_name);
+                xtd::LOG_INFO("client fd {} (AKA: `{}`) changed name to: {}", m_unique_id, old_name, m_name);
                 m_server.broadcast(std::format("[📣: `{}` is now known as `{}`]\n", old_name, m_name));
                 break;
             }
 
             case command_type::help:
-                LOG_INFO("client fd {} (AKA: `{}`) requested help", m_unique_id, m_name);
+                xtd::LOG_INFO("client fd {} (AKA: `{}`) requested help", m_unique_id, m_name);
                 m_server.reply(m_unique_id, HELP_RESPONSE);
                 break;
 
             case command_type::quit:
-                LOG_INFO("client fd {} (AKA: `{}`) requested to quit", m_unique_id, m_name);
+                xtd::LOG_INFO("client fd {} (AKA: `{}`) requested to quit", m_unique_id, m_name);
                 if (!argument.empty()) {
                     m_server.broadcast(std::format("[💬 {}]: {}\n", m_name, argument));
                 }
@@ -182,7 +182,7 @@ private:
 
             case command_type::unknown:
             default:
-                LOG_WARN("client fd {} (AKA: `{}`) sent unknown command: {}", m_unique_id, m_name, line_bytes.to_string());
+                xtd::LOG_WARN("client fd {} (AKA: `{}`) sent unknown command: {}", m_unique_id, m_name, line_bytes.to_string());
                 m_server.reply(m_unique_id, UNKNOWN_COMMAND_RESPONSE);
                 break;
         }

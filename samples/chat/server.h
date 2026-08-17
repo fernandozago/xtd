@@ -33,16 +33,19 @@ public:
             m_listenFd = create_listen_socket();
             m_epollFd = ::epoll_create1(EPOLL_CLOEXEC);
             if (m_epollFd < 0) {
-                LOG_ERROR("failed to create epoll (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to create epoll");
+                std::system_error err(errno, std::generic_category(), "failed to create epoll");
+                xtd::LOG_ERROR_EX(err, "failed to create epoll");
+                throw err;
             }
             if (!add_to_epoll(m_listenFd, EPOLLIN)) {
-                LOG_ERROR("failed to add listen socket to epoll (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to add listen socket to epoll");
+                std::system_error err(errno, std::generic_category(), "failed to add listen socket to epoll");
+                xtd::LOG_ERROR_EX(err, "failed to add listen socket to epoll");
+                throw err;
             }
             if (!add_to_epoll(STDIN_FILENO, EPOLLIN)) {
-                LOG_ERROR("failed to add stdin to epoll (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to add stdin to epoll");
+                std::system_error err(errno, std::generic_category(), "failed to add stdin to epoll");
+                xtd::LOG_ERROR_EX(err, "failed to add stdin to epoll");
+                throw err;
             }
         } catch (...) {
             cleanup();
@@ -56,8 +59,8 @@ public:
     server& operator=(const server&) = delete;
 
     void run() {
-        LOG_INFO("Server is listening on port: {}", m_port);
-        LOG_INFO("Press Enter to stop the server.");
+        xtd::LOG_INFO("Server is listening on port: {}", m_port);
+        xtd::LOG_INFO("Press Enter to stop the server.");
 
         std::array<epoll_event, EPOLL_MAX_EVENTS> events{};
         while(true) {
@@ -65,16 +68,16 @@ public:
                 return ::epoll_wait(m_epollFd, events.data(), events.size(), -1);
             });
             if (count < 0) {
-                LOG_ERROR("epoll_wait failed (errno: {})", errno);
+                xtd::LOG_ERROR("epoll_wait failed (errno: {})", errno);
                 throw std::system_error(errno, std::generic_category(), "epoll_wait failed");
             }
 
-            LOG_INFO("epoll_wait returned {} events", count);
+            xtd::LOG_INFO("epoll_wait returned {} events", count);
 
             for (int i = 0; i < count; ++i) {
                 const auto& event = events[i];
 
-                LOG_INFO("processing event for fd {}: events = {} ({})", event.data.fd, event.events, epoll_events_to_string(event.events));
+                xtd::LOG_INFO("processing event for fd {}: events = {} ({})", event.data.fd, event.events, epoll_events_to_string(event.events));
 
                 if (event.data.fd == m_listenFd) {
                     handle_incoming_connections();
@@ -196,15 +199,17 @@ private:
     int create_listen_socket() const {
         const int fd = ::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
         if (fd < 0) {
-            LOG_ERROR("failed to create listen socket (errno: {})", errno);
-            throw std::system_error(errno, std::generic_category(), "failed to create listen socket");
+            const std::system_error err(errno, std::generic_category(), "failed to create listen socket");
+            xtd::LOG_ERROR_EX(err, "failed to create listen socket");
+            throw err;
         }
 
         try {
             const int reuse = 1;
             if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
-                LOG_ERROR("failed to set SO_REUSEADDR (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to set SO_REUSEADDR");
+                const std::system_error err(errno, std::generic_category(), "failed to set SO_REUSEADDR");
+                xtd::LOG_ERROR_EX(err, "failed to set SO_REUSEADDR");
+                throw err;
             }
 
             sockaddr_in address{};
@@ -213,12 +218,14 @@ private:
             address.sin_port = htons(m_port);
 
             if (::bind(fd, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) < 0) {
-                LOG_ERROR("failed to bind on port {} (errno: {})", m_port, errno);
-                throw std::system_error(errno, std::generic_category(), "failed to bind on port " + std::to_string(m_port));
+                const std::system_error err(errno, std::generic_category(), "failed to bind on port " + std::to_string(m_port));
+                xtd::LOG_ERROR_EX(err, "failed to bind on port {}", m_port);
+                throw err;
             }
             if (::listen(fd, EPOLL_MAX_LISTEN_BACKLOG) < 0) {
-                LOG_ERROR("failed to listen (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to listen");
+                const std::system_error err(errno, std::generic_category(), "failed to listen");
+                xtd::LOG_ERROR_EX(err, "failed to listen");
+                throw err;
             }
             return fd;
         } catch (...) {
@@ -232,10 +239,10 @@ private:
         event.events = flags;
         event.data.fd = fd;
         if (::epoll_ctl(m_epollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-            LOG_ERROR("failed to add descriptor {} to epoll (errno: {})", fd, errno);
+            xtd::LOG_ERROR("failed to add descriptor {} to epoll (errno: {})", fd, errno);
             return false;
         }
-        LOG_INFO("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
+        xtd::LOG_INFO("added fd {} to epoll with flags: {} ({})", fd, flags, epoll_events_to_string(flags));
         return true;
     }
 
@@ -244,21 +251,22 @@ private:
             const int fd = retry([&] {
                 return ::accept4(m_listenFd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
             });
-            LOG_INFO("accept4 returned fd: {}", fd);
+            xtd::LOG_INFO("accept4 returned fd: {}", fd);
 
             if (fd < 0) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) return;
-                LOG_ERROR("failed to accept connection (errno: {})", errno);
-                throw std::system_error(errno, std::generic_category(), "failed to accept connection");
+                const std::system_error err(errno, std::generic_category(), "failed to accept connection");
+                xtd::LOG_ERROR_EX(err, "failed to accept connection");
+                throw err;
             }
 
             try {
                 if (!start_connection_handler(fd)) {
                     continue;
                 }
-                LOG_INFO("accepted client fd: {}", fd);
+                xtd::LOG_INFO("accepted client fd: {}", fd);
             } catch (const std::exception& ex) {
-                LOG_ERROR("failed to start connection: {}", ex.what());
+                xtd::LOG_ERROR_EX(ex, "failed to start connection");
             }
         }
     }
@@ -272,7 +280,7 @@ private:
         {
             std::scoped_lock lock(m_clients_mutex);
             if (!m_clients.emplace(fd, client).second) {
-                LOG_WARN("connection already registered for fd {}; ignoring duplicate accept", fd);
+                xtd::LOG_WARN("connection already registered for fd {}; ignoring duplicate accept", fd);
                 close_connection(*client);
                 return false;
             }
@@ -287,7 +295,7 @@ private:
         {
             client->m_connection = std::make_unique<connection_handler<server>>(fd, *this);
             if (!add_to_epoll(fd, EPOLLIN | EPOLLRDHUP | EPOLLERR | EPOLLHUP)) {
-                LOG_ERROR("failed to register client fd {} with epoll; disconnecting client", fd);
+                xtd::LOG_ERROR("failed to register client fd {} with epoll; disconnecting client", fd);
                 disconnect_client(fd);
                 return false;
             }
@@ -309,7 +317,7 @@ private:
             if (alive && !(event.events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) return;
         }
         catch (const std::exception& ex) {
-            LOG_ERROR("client fd {} error: {}", event.data.fd, ex.what());
+            xtd::LOG_ERROR_EX(ex, "client fd {}", event.data.fd);
         }
         
         disconnect_client(event.data.fd);
@@ -332,14 +340,14 @@ private:
 
             if (size > 0) {
                 client.m_connection->receive_data(reinterpret_cast<std::byte*>(m_epoll_buffer.data()), static_cast<std::size_t>(size));
-                LOG_INFO("recv returned {} bytes for client fd {}", size, fd);
+                xtd::LOG_INFO("recv returned {} bytes for client fd {}", size, fd);
             } else if (size == 0) {
                 return false;
             } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                LOG_INFO("client fd {} would block on receive, waiting for writable", fd);
+                xtd::LOG_INFO("client fd {} would block on receive, waiting for writable", fd);
                 return true;
             } else {
-                LOG_ERROR("failed to receive from client for fd {} (errno: {}); disconnecting client", fd, errno);
+                xtd::LOG_ERROR("failed to receive from client for fd {} (errno: {}); disconnecting client", fd, errno);
                 return false;
             }
         }
@@ -359,7 +367,7 @@ private:
                 return ::send(fd, message.data(), message.size(), MSG_NOSIGNAL);
             });
 
-            LOG_INFO("sent {} bytes for client fd {}", sent, fd);
+            xtd::LOG_INFO("sent {} bytes for client fd {}", sent, fd);
 
             if (sent > 0) {
                 message.remove_prefix(static_cast<std::size_t>(sent));
@@ -412,7 +420,7 @@ private:
         }
 
         if (client.m_connection) {
-            LOG_INFO("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
+            xtd::LOG_INFO("client fd {} (AKA: `{}`) disconnected", fd, client.m_connection->name());
             client.m_connection->close();
         }
     }
@@ -422,14 +430,15 @@ private:
             return ::read(STDIN_FILENO, m_epoll_buffer.data(), m_epoll_buffer.size());
         });
         if (size < 0)  {
-            LOG_ERROR("failed to read stdin (errno: {})", errno);
-            throw std::system_error(errno, std::generic_category(), "failed to read stdin");
+            const std::system_error err(errno, std::generic_category(), "failed to read stdin");
+            xtd::LOG_ERROR_EX(err, "failed to read stdin");
+            throw err;
         }
         return size > 0 && std::find(m_epoll_buffer.begin(), m_epoll_buffer.begin() + size, '\n') != m_epoll_buffer.begin() + size;
     }
 
     void cleanup() noexcept {
-        LOG_INFO("server is shutting down, cleaning up resources...");
+        xtd::LOG_INFO("server is shutting down, cleaning up resources...");
         decltype(m_clients) clients;
         {
             std::scoped_lock lock(m_clients_mutex);
@@ -437,7 +446,7 @@ private:
         }
 
         for (auto& [fd, client] : clients) {
-            LOG_INFO("closing client fd {} (AKA: `{}`)", fd, client->m_connection ? client->m_connection->name() : "unknown");
+            xtd::LOG_INFO("closing client fd {} (AKA: `{}`)", fd, client->m_connection ? client->m_connection->name() : "unknown");
             if (m_epollFd >= 0)  {
                 ::epoll_ctl(m_epollFd, EPOLL_CTL_DEL, fd, nullptr);
             }

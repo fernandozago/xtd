@@ -37,9 +37,9 @@ namespace xtd_logging_tests {
         const bool use_colors = GENERATE(true, false);
         const bool use_local_time = GENERATE(true, false);
         const bool flush_on_write = GENERATE(true, false);
-        const std::optional<std::runtime_error> exception = GENERATE(
-            std::optional<std::runtime_error>{std::nullopt},
-            std::optional<std::runtime_error>{std::runtime_error{"exception_test_what"}}
+        const std::optional<std::system_error> exception = GENERATE(
+            std::optional<std::system_error>{std::nullopt},
+            std::optional<std::system_error>{{EPERM, std::generic_category(), "some generic error"}}
         );
 
         int fds[2];
@@ -49,7 +49,7 @@ namespace xtd_logging_tests {
         const int write_fd = fds[1];
 
         {
-            logger _logger;
+            xtd::logger _logger;
 
             _logger.add_sink<log_sink>(log_sink_opts {
                 .min_log_level = log_level::trace,
@@ -99,8 +99,8 @@ namespace xtd_logging_tests {
         CHECK(output.find("<tests/logging.cpp:") != std::string::npos);
         if (exception) {
             CHECK(output.find("-> [Exception]") != std::string::npos);
-            CHECK(output.find("runtime_error") != std::string::npos);
-            CHECK(output.find("exception_test_what") != std::string::npos);
+            CHECK(output.find("system_error") != std::string::npos);
+            CHECK(output.find("some generic error: Operation not permitted") != std::string::npos);
         }
 
         CHECK(output.find(LoggingTests::get_plain_level_strings(level)) != std::string::npos);

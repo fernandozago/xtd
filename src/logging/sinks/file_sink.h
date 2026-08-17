@@ -11,12 +11,12 @@ private:
 public:
     explicit file_sink(const file_sink_opts& opts)
         : log_sink(log_sink_opts{
-              .fd = open_file(opts.file_path),
-              .min_log_level = opts.min_log_level,
-              .use_local_time = opts.use_local_time,
-              .use_colors = false,
-              .flush_on_write = opts.flush_on_write,
-          })
+            .min_log_level = opts.min_log_level,
+            .fd = open_file(opts.file_path),
+            .use_local_time = opts.use_local_time,
+            .use_colors = false,
+            .flush_on_write = opts.flush_on_write,
+        })
         , m_file_path(opts.file_path)
     {
     }
