@@ -9,10 +9,18 @@
 #include <string>
 #include <unistd.h>
 
-#define DEBUG_TEST
+//#define DEBUG_TEST
 
 namespace xtd_logging_tests {
-    struct LoggingTests {};
+    struct LoggingTests {
+        static std::string_view get_plain_level_strings(log_level level) {
+            return log_sink::plain_level_strings[static_cast<size_t>(level)];
+        }
+
+        static std::string_view get_colored_level_strings(log_level level) {
+            return log_sink::colored_level_strings[static_cast<size_t>(level)];
+        }
+    };
 
     TEST_CASE_METHOD(LoggingTests, "console sink writes formatted message")
     {
@@ -95,30 +103,9 @@ namespace xtd_logging_tests {
             CHECK(output.find("exception_test_what") != std::string::npos);
         }
 
-        switch (level) {
-            case log_level::trace:
-                CHECK(output.find("TRACE") != std::string::npos);
-                break;
-
-            case log_level::debug:
-                CHECK(output.find("DEBUG") != std::string::npos);
-                break;
-
-            case log_level::information:
-                CHECK(output.find("INFO.") != std::string::npos);
-                break;
-
-            case log_level::warning:
-                CHECK(output.find("WARN.") != std::string::npos);
-                break;
-
-            case log_level::error:
-                CHECK(output.find("ERROR") != std::string::npos);
-                break;
-
-            case log_level::critical:
-                CHECK(output.find("FATAL") != std::string::npos);
-                break;
+        CHECK(output.find(LoggingTests::get_plain_level_strings(level)) != std::string::npos);
+        if (use_colors) {
+            CHECK(output.find(LoggingTests::get_colored_level_strings(level)) != std::string::npos);
         }
     }
 }

@@ -13,30 +13,22 @@
 #include "../log_message.h"
 #include "sinks_opts.h"
 
+namespace xtd_logging_tests {
+    struct LoggingTests;
+}
+
 class log_sink {
 private:
     log_sink_opts m_opts;
-
-public:
-    int m_fd() const noexcept {
-        return m_opts.fd;
-    }
-
-private:
     log_level m_min_log_level;
     bool m_use_local_time;
     bool m_use_colors;
     bool m_flush_on_write;
     bool m_own_channel;
-
+   
     static constexpr std::array<std::string_view, 6> plain_level_strings {
         "TRACE", "DEBUG", "INFO.",
         "WARN.", "ERROR", "FATAL"
-    };
-
-    static constexpr std::array<std::string_view, 6> severity_texts {
-        "TRACE", "DEBUG", "INFO",
-        "WARN", "ERROR", "FATAL"
     };
 
     static constexpr std::array<std::string_view, 6> colored_level_strings {
@@ -45,6 +37,8 @@ private:
     };
 
 public:
+    friend struct xtd_logging_tests::LoggingTests;
+    
     explicit log_sink(const log_sink_opts& opts, bool own_channel = false)
         : m_opts(opts)
         , m_min_log_level(opts.min_log_level)
@@ -56,6 +50,10 @@ public:
     }
 
     virtual ~log_sink() = default;
+
+    int m_fd() const noexcept {
+        return m_opts.fd;
+    }
 
     bool own_channel() const noexcept {
         return m_own_channel;
