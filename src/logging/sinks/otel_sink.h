@@ -1,7 +1,7 @@
 #ifndef OTEL_SINK_H
 #define OTEL_SINK_H
 
-//#define OTEL_SINK_DEBUG
+#define OTEL_SINK_DEBUG
 
 #include <cerrno>
 #include <fcntl.h>
@@ -28,34 +28,41 @@ namespace xtd
 
     class otel_sink final : public log_sink {
     private:
-        static constexpr std::string_view instrumentation_library_name = "xtd.logging";
+        static std::string get_hostname() {
+            static const std::string hostname = []() {
+                char buffer[256];
+                if (::gethostname(buffer, sizeof(buffer)) == 0) {
+                    return std::string{buffer};
+                }
+                return std::string{"unknown"};
+            }();
 
-        static constexpr std::string_view request_payload =
+            return hostname;
+        }
+
+        static constexpr std::string_view request_header =
             "{{\"resourceLogs\":["
                 "{{\"resource\":{{\"attributes\":["
-                    "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    "{{\"key\":\"service.namespace\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"service.version\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"service.instance.id\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"host.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"deployment.environment.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                    ",{{\"key\":\"telemetry.sdk.name\",\"value\":{{\"stringValue\":\"xtd.logging\"}}}}"
+                    ",{{\"key\":\"telemetry.sdk.language\",\"value\":{{\"stringValue\":\"cpp\"}}}}"
                 "]}},"
                 "\"scopeLogs\":["
-                    "{{\"scope\":{{\"name\":\"{}\"}},"
-                    "\"logRecords\":[{}]}}"
-                "]"
-            "}}]}}";
+                    "{{\"scope\":{{\"name\":\"xtd.logging\",\"version\":\"1.0.0\"}},"
+                    "\"logRecords\":[";
 
-        static constexpr std::string_view header_payload =
-            "POST {} HTTP/1.1\r\n"
-            "Host: {}:{}\r\n"
-            "Authorization: {}\r\n"
-            "stream-name: {}\r\n"
-            "Content-Type: application/json\r\n"
-            "Connection: close\r\n"
-            "Content-Length: {}\r\n"
-            "\r\n"
-            "{}";
+        static constexpr std::string_view request_footer = "]}]}]}";
 
         otel_sink_opts m_opts;
         std::string m_host;
         std::string m_path;
-        std::string m_body;
+        std::string m_request_prefix;
+        mutable std::string m_body;
 
         int m_port = 80;
 
@@ -63,29 +70,45 @@ namespace xtd
         xtd::channel_writer<std::shared_ptr<log_message>> m_writer;
         std::jthread m_worker;
 
-        static void process_messages(xtd::channel<std::shared_ptr<log_message>>& channel, otel_sink* const sink)
+        static void process_messages(xtd::channel<std::shared_ptr<log_message>>& channel, otel_sink& sink)
         {
             xtd::channel_reader<std::shared_ptr<log_message>> reader{channel};
 
-            while (const auto& message = reader.read()) {
-                sink->m_body.clear();
-                sink->process_message(*message);
+            while (auto message = reader.read()) {
+                // Append Request Data
+                std::format_to(std::back_inserter(sink.m_body), request_header,
+                    sink.m_opts.service_namespace, sink.m_opts.service_name, sink.m_opts.service_version,
+                    sink.m_opts.service_instance_id, get_hostname(), sink.m_opts.environment_name);
 
-                while (auto next_message = reader.try_read()) {
-                    sink->process_message(*next_message);
+                sink.m_body += otel_serializer::serialize_record(**message);
+
+                size_t msg_count = 1;
+
+                // Append Records
+                while (msg_count < 100) {
+                    auto next_message = reader.try_read();
+                    if (!next_message) break;
+
+                    sink.m_body += ',';
+                    sink.m_body += otel_serializer::serialize_record(**next_message);
+
+                    ++msg_count;
                 }
 
-                sink->write_to_output(sink->m_body);
-            }
-        }
+                // Append Footer
+                sink.m_body += request_footer;
 
-        void process_message(const std::shared_ptr<log_message>& message)
-        {
-            if (!m_body.empty()) {
-                m_body += ',';
-            }
+                const size_t content_length = sink.m_body.size();
 
-            m_body += otel_serializer::serialize_record(*message);
+                // Prepend HTTP Headers
+                sink.m_body.insert(0, "\r\n\r\n");
+                sink.m_body.insert(0, std::to_string(content_length));
+                sink.m_body.insert(0, "Content-Length: ");
+                sink.m_body.insert(0, sink.m_request_prefix);
+
+                sink.write_to_output(sink.m_body);
+                sink.m_body.clear();
+            }
         }
 
     public:
@@ -107,11 +130,17 @@ namespace xtd
 
             parse_endpoint(m_opts.endpoint);
 
-            m_worker = std::jthread{
-                process_messages,
-                std::ref(m_channel),
-                this
-            };
+            m_request_prefix = std::format(
+                "POST {} HTTP/1.1\r\n"
+                "Host: {}:{}\r\n"
+                "Authorization: {}\r\n"
+                "stream-name: {}\r\n"
+                "Content-Type: application/json\r\n"
+                "Connection: close\r\n",
+                m_path, m_host, m_port,
+                m_opts.auth_token, m_opts.service_namespace);
+
+            m_worker = std::jthread{process_messages, std::ref(m_channel), std::ref(*this)};
         }
 
         ~otel_sink() override
@@ -132,24 +161,8 @@ namespace xtd
 
         void write_to_output(std::string_view data) const override
         {
-            const std::string body = std::format(
-                request_payload,
-                m_opts.service_name,
-                instrumentation_library_name,
-                data);
-
-            const std::string request = std::format(
-                header_payload,
-                m_path,
-                m_host,
-                m_port,
-                m_opts.auth_token,
-                m_opts.stream_name,
-                body.size(),
-                body);
-
     #ifdef OTEL_SINK_DEBUG
-            std::println("OTEL request:\n{}", request);
+            std::println("OTEL request:\n{}", data);
     #endif
 
             const int fd = connect_to_host();
@@ -164,7 +177,7 @@ namespace xtd
                 return;
             }
 
-            if (!send_all(fd, request)) {
+            if (!send_all(fd, data)) {
     #ifdef OTEL_SINK_DEBUG
                 std::println("OTEL: failed to send request");
     #endif

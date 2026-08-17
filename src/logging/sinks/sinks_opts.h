@@ -27,8 +27,11 @@ namespace xtd
         log_level min_log_level = log_level::information;
         std::string endpoint;
         std::string auth_token;
-        std::string stream_name;
+        std::string service_namespace;
         std::string service_name;
+        std::string service_version;
+        std::string service_instance_id;
+        std::string environment_name;
 
         bool use_local_time = false;
     };

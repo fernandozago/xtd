@@ -21,20 +21,41 @@
 
 namespace xtd 
 {
-
     class curl_otel_sink final : public log_sink {
-    private:
-        static constexpr std::string_view instrumentation_library_name = "xtd.logging";
-        static constexpr std::string_view request_payload =
+        private:
+
+        static std::string get_hostname() {
+            static const std::string hostname = []() {
+                char buffer[256];
+                if (::gethostname(buffer, sizeof(buffer)) == 0) {
+                    return std::string{buffer};
+                }
+                return std::string{"unknown"};
+            }();
+    
+            return hostname;
+        }
+
+        static constexpr std::string_view request_header =
         "{{\"resourceLogs\":["
             "{{\"resource\":{{\"attributes\":["
-                "{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                "{{\"key\":\"service.namespace\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"service.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"service.version\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"service.instance.id\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"host.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"deployment.environment.name\",\"value\":{{\"stringValue\":\"{}\"}}}}"
+                ",{{\"key\":\"telemetry.sdk.name\",\"value\":{{\"stringValue\":\"xtd.logging\"}}}}"
+                ",{{\"key\":\"telemetry.sdk.language\",\"value\":{{\"stringValue\":\"cpp\"}}}}"
             "]}},"
             "\"scopeLogs\":["
-                "{{\"scope\":{{\"name\":\"{}\"}},"
-                "\"logRecords\":[{}]}}"
-            "]"
-        "}}]}}";
+                "{{\"scope\":{{"
+                    "\"name\":\"xtd.logging\","
+                    "\"version\":\"1.0.0\""
+                "}},"
+                "\"logRecords\":[";
+
+        static constexpr std::string_view request_footer = "]}]}]}";
 
         CURL* m_curl = nullptr;
         curl_slist* m_headers = nullptr;
@@ -46,34 +67,46 @@ namespace xtd
         xtd::channel_writer<std::shared_ptr<log_message>> m_writer;
         std::jthread m_worker;
 
-        static size_t discard_response(char*, size_t size, size_t count, void*)
+        static size_t write_response(char* data, size_t size, size_t count, void* user_data)
         {
-            return size * count;
+            const size_t data_size = size * count;
+            auto& response = *static_cast<std::string*>(user_data);
+
+            response.append(data, data_size);
+
+            return data_size;
         }
 
-        static void process_messages(xtd::channel<std::shared_ptr<log_message>>& channel, curl_otel_sink* const sink)
+        static void process_messages(xtd::channel<std::shared_ptr<log_message>>& channel, curl_otel_sink& sink)
         {
             xtd::channel_reader<std::shared_ptr<log_message>> reader{channel};
 
             while (auto message = reader.read()) {
-                sink->m_body.clear();
-                sink->process_message(*message);
+                // Append Request Data
+                std::format_to(std::back_inserter(sink.m_body), request_header,
+                    sink.m_opts.service_namespace, sink.m_opts.service_name, sink.m_opts.service_version,
+                    sink.m_opts.service_instance_id, get_hostname(), sink.m_opts.environment_name);
 
-                while (auto next_message = reader.try_read()) {
-                    sink->process_message(*next_message);
+                sink.m_body += otel_serializer::serialize_record(**message);
+
+                size_t msg_count = 1;
+
+                // Append Records
+                while (msg_count < 100) {
+                    auto next_message = reader.try_read();
+                    if (!next_message) break;
+
+                    sink.m_body += ',';
+                    sink.m_body += otel_serializer::serialize_record(**next_message);
+
+                    ++msg_count;
                 }
 
-                sink->write_to_output(sink->m_body);
+                // Append Footer
+                sink.m_body += request_footer;
+                sink.write_to_output(sink.m_body);
+                sink.m_body.clear();
             }
-        }
-
-        void process_message(const std::shared_ptr<log_message>& message)
-        {
-            if (!m_body.empty()) {
-                m_body += ',';
-            }
-
-            m_body += otel_serializer::serialize_record(*message);
         }
 
     public:
@@ -88,7 +121,6 @@ namespace xtd
             }, true)
             , m_opts(opts)
             , m_writer{m_channel}
-            , m_worker{std::jthread{process_messages, std::ref(m_channel), this}}
         {
             if (m_opts.endpoint.empty()) {
                 throw std::invalid_argument{"endpoint cannot be empty"};
@@ -99,7 +131,7 @@ namespace xtd
             if (!m_curl) throw std::runtime_error{"curl_easy_init failed"};
 
             const std::string auth = std::format("Authorization: {}", m_opts.auth_token);
-            const std::string stream = std::format("stream-name: {}", m_opts.stream_name);
+            const std::string stream = std::format("stream-name: {}", m_opts.service_namespace);
             m_headers = curl_slist_append(m_headers, "Content-Type: application/json");
             m_headers = curl_slist_append(m_headers, auth.c_str());
             m_headers = curl_slist_append(m_headers, stream.c_str());
@@ -111,12 +143,13 @@ namespace xtd
             // For http:// where the server supports h2c directly.
             curl_easy_setopt(m_curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE);
 
-            // We don't care about the response payload.
-            curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &discard_response);
+            curl_easy_setopt(m_curl, CURLOPT_WRITEFUNCTION, &write_response);
 
             // Do not let logging block indefinitely.
             curl_easy_setopt(m_curl, CURLOPT_CONNECTTIMEOUT_MS, 1000L);
             curl_easy_setopt(m_curl, CURLOPT_TIMEOUT_MS, 3000L);
+
+            m_worker = std::jthread{process_messages, std::ref(m_channel), std::ref(*this)};
         }
 
         ~curl_otel_sink() override
@@ -143,20 +176,29 @@ namespace xtd
 
         void write_to_output(std::string_view data) const override
         {
-            const std::string body = std::format(request_payload, m_opts.service_name, instrumentation_library_name, data);
-
             #ifdef OTEL_SINK_DEBUG
-                std::println("OTEL request:\n{}", body);
+                std::println("OTEL request:\n{}", data);
             #endif
 
-            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, body.data());
-            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
+            std::string response;
+
+            curl_easy_setopt(m_curl, CURLOPT_WRITEDATA, &response);
+            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDS, data.data());
+            curl_easy_setopt(m_curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(data.size()));
+
             const CURLcode result = curl_easy_perform(m_curl);
+
             if (result != CURLE_OK) {
                 #ifdef OTEL_SINK_DEBUG
                     std::println("OTEL: curl error: {}", curl_easy_strerror(result));
                 #endif
+
+                return;
             }
+
+            #ifdef OTEL_SINK_DEBUG
+                std::println("OTEL response:\n{}", response);
+            #endif
         }
     };
 
