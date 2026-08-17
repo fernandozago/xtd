@@ -4,9 +4,6 @@
 #include <cerrno>
 #include <fcntl.h>
 #include <format>
-#ifdef OTEL_DEBUG_TRANSPORT
-    #include <print>
-#endif
 #include <netdb.h>
 #include <poll.h>
 #include <stdexcept>
@@ -16,6 +13,10 @@
 #include <unistd.h>
 
 #include "logging/sinks/otel_transports/transport_base.h"
+#include "logging/sinks/sinks_opts.h"
+#ifdef OTEL_DEBUG_TRANSPORT
+    #include <print>
+#endif
 
 namespace xtd {
 
@@ -29,6 +30,37 @@ struct otel_native_transport : otel_transport_base {
 
         parse_endpoint(opts.endpoint);
         build_request_prefix(opts);
+    }
+
+    static std::string host_header_for(std::string_view host, bool is_ipv6, int port)
+    {
+        return is_ipv6
+            ? std::format("[{}]:{}", host, port)
+            : std::format("{}:{}", host, port);
+    }
+
+    void build_request_prefix(const otel_sink_opts& opts)
+    {
+        const std::string host_header = host_header_for(m_host, m_ipv6, m_port);
+
+        std::string request_prefix = std::format(
+            "POST {} HTTP/1.1\r\n"
+            "Host: {}\r\n",
+            m_path, host_header);
+
+        if (!opts.auth_token.empty()) {
+            request_prefix += std::format("Authorization: {}\r\n", opts.auth_token);
+        }
+
+        if (!opts.service_namespace.empty()) {
+            request_prefix += std::format("stream-name: {}\r\n", opts.service_namespace);
+        }
+
+        request_prefix +=
+            "Content-Type: application/json\r\n"
+            "Connection: close\r\n";
+
+        m_request_prefix = std::move(request_prefix);
     }
 
     void send(std::string_view json_body) const override

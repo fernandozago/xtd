@@ -14,11 +14,11 @@
 
 //#define OTEL_NATIVE_REQUEST
 #ifdef OTEL_NATIVE_REQUEST
-#include "otel_transports/native.h"
-using transport_impl = xtd::otel_native_transport;
+    #include "otel_transports/native.h"
+    using transport_impl = xtd::otel_native_transport;
 #else
-#include "otel_transports/curl.h"
-using transport_impl = xtd::otel_curl_transport;
+    #include "otel_transports/curl.h"
+    using transport_impl = xtd::otel_curl_transport;
 #endif
 
 

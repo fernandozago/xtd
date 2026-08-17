@@ -2,16 +2,18 @@
 #define OTEL_CURL_TRANSPORT_H
 
 #include <format>
-#ifdef OTEL_DEBUG_TRANSPORT
-    #include <print>
-#endif
 #include <stdexcept>
 #include <string>
 #include <string_view>
 
 #include <curl/curl.h>
-
 #include "logging/sinks/otel_transports/transport_base.h"
+#include "logging/sinks/sinks_opts.h"
+
+#ifdef OTEL_DEBUG_TRANSPORT
+#include <print>
+#endif
+
 
 namespace xtd {
 
