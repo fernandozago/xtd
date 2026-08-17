@@ -27,14 +27,18 @@ namespace xtd
 {
     class otel_sink final : public log_sink {
     private:
-        static std::string get_hostname() {
+        static const std::string& get_hostname()
+        {
             static const std::string hostname = []() {
                 char buffer[256];
+
                 if (::gethostname(buffer, sizeof(buffer)) == 0) {
                     return std::string{buffer};
                 }
+
                 return std::string{"unknown"};
             }();
+
             return hostname;
         }
 
