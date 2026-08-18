@@ -1,8 +1,12 @@
+#include "third_party/catch2/catch_amalgamated.hpp"
+
+#define OTEL_DEBUG_TRANSPORT
+
 #include "logging/log_message.h"
 #include "logging/logging.h"
 #include "logging/sinks/log_sink.h"
+#include "logging/sinks/otel_sink.h"
 #include "logging/sinks/sinks_opts.h"
-#include "third_party/catch2/catch_amalgamated.hpp"
 
 #include <cstdio>
 #include <source_location>
@@ -155,5 +159,40 @@ namespace xtd_logging_tests {
         if (use_colors) {
             CHECK(output.find(LoggingTests::get_colored_level_strings(level)) != std::string::npos);
         }
+    }
+
+    TEST_CASE_METHOD(LoggingTests, "otel sink test") {
+        const auto level = GENERATE(
+            xtd::log_level::trace,
+            xtd::log_level::debug,
+            xtd::log_level::information,
+            xtd::log_level::warning,
+            xtd::log_level::error,
+            xtd::log_level::critical
+        );
+        const std::string value = GENERATE("a", "b");
+        const std::optional<std::system_error> exception = GENERATE(
+            std::optional<std::system_error>{std::nullopt},
+            std::optional<std::system_error>{{EPERM, std::generic_category(), "some generic error"}}
+        );
+
+        {
+            xtd::logger _logger;
+
+            _logger.add_sink<xtd::otel_sink>(xtd::otel_sink_opts {
+                .min_log_level = xtd::log_level::trace,
+                .endpoint = "http://localhost:4318/v1/logs", 
+                .service_namespace = "test-app",
+                .service_name = "test-app",
+                .service_version = "1.0.0",
+                .service_instance_id = "instance-test",
+                .environment_name = "test",
+            });
+
+            
+            _logger.log(exception, std::source_location::current(), level, "otel test {}", value);
+        }
+
+        CHECK(true);
     }
 }
