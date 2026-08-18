@@ -71,10 +71,7 @@ int main(int argc, char** argv)
 
             while (!token.stop_requested()) {
                 cv.wait_for(lock, token, 1s, [] { return false; });
-
-                if (token.stop_requested())
-                    break;
-
+                if (token.stop_requested()) break;
                 xtd::LOG_INFO("Heartbeat -- DateTime: {}", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
             }
         }};
