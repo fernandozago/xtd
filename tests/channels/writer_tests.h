@@ -9,24 +9,12 @@
 using namespace std::chrono_literals;
 
 namespace writer_tests {
-    template <typename T>
     struct WriterTests {};
 
-    struct BoundedChannelMode {};
-    struct UnboundedChannelMode {};
-
-    template <typename Mode, typename T>
-    xtd::channel<T> make_channel(std::size_t capacity = 8)
-    {
-        if constexpr (std::is_same_v<Mode, BoundedChannelMode>)
-        {
-            return xtd::channel<T>(capacity);
-        }
-        else
-        {
-            return xtd::channel<T>();
-        }
-    }
+    enum class ChannelMode : std::size_t {
+        Bounded = 8,
+        Unbounded = 0
+    };
 
     namespace channel_tests
     {
@@ -100,11 +88,11 @@ namespace writer_tests {
         };
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "channel copies an lvalue", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "channel copies an lvalue", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, channel_tests::Probe>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<channel_tests::Probe> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
 
         SECTION("channel push copies an lvalue")
@@ -113,7 +101,6 @@ namespace writer_tests {
 
             CHECK(writer.push(data));
 
-            // Verify push copied the value without moving from the source.
             CHECK_FALSE(data.moved_from());
             CHECK(data.counters().copies == 1);
             CHECK(data.counters().moves == 0);
@@ -125,18 +112,17 @@ namespace writer_tests {
 
             CHECK(writer.try_push(data));
 
-            // Verify try_push copied the value without moving from the source.
             CHECK_FALSE(data.moved_from());
             CHECK(data.counters().copies == 1);
             CHECK(data.counters().moves == 0);
         }
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "channel moves a rvalue", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "channel moves a rvalue", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, channel_tests::Probe>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<channel_tests::Probe> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
 
         SECTION("push moves an rvalue")
@@ -162,19 +148,19 @@ namespace writer_tests {
         }
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests,"channel constructs a value", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "channel constructs a value", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, channel_tests::Probe>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<channel_tests::Probe> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
 
         SECTION("push constructs a value")
         {
             auto counters = channel_tests::Probe::make_counters();
-    
+
             REQUIRE(writer.emplace(44, counters));
-    
+
             CHECK(counters->constructions == 1);
             CHECK(counters->copies == 0);
             CHECK(counters->moves == 0);
@@ -192,11 +178,11 @@ namespace writer_tests {
         }
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "try_emplace succeeds while open and fails after completion", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "try_emplace succeeds while open and fails after completion", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -210,10 +196,9 @@ namespace writer_tests {
         CHECK_FALSE(writer.try_emplace(43));
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "try operations fail without consuming values when bounded channel is full", "[channel][writer]",
-        BoundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "try operations fail without consuming values when bounded channel is full", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, channel_tests::Probe>(1);
+        xtd::channel<channel_tests::Probe> channel(1);
         xtd::channel_writer writer(channel);
 
         REQUIRE(writer.emplace(1));
@@ -247,15 +232,15 @@ namespace writer_tests {
         }
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "writer operations reject values after completion", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "writer operations reject values after completion", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, channel_tests::Probe>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<channel_tests::Probe> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
 
         writer.complete();
-        writer.complete(); // Should be harmless, assuming completion is idempotent.
+        writer.complete();
 
         channel_tests::Probe lvalue{1};
         CHECK_FALSE(writer.push(lvalue));
@@ -274,10 +259,9 @@ namespace writer_tests {
         CHECK(counters->constructions == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "stop token cancels a blocked push", "[channel][writer]",
-        BoundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "stop token cancels a blocked push", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, int>(1);
+        xtd::channel<int> channel(1);
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -303,11 +287,11 @@ namespace writer_tests {
         CHECK(*value == 1);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "completion preserves queued values", "[channel][writer]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "completion preserves queued values", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -321,14 +305,12 @@ namespace writer_tests {
         CHECK_FALSE(reader.read().has_value());
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "cancel while waiting to push", "[channel][writer]", 
-        BoundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "cancel while waiting to push", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, int>(1);
+        xtd::channel<int> channel(1);
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
-        // Fill the bounded channel so the next push must wait.
         REQUIRE(writer.push(42));
         REQUIRE(reader.size() == 1);
 
@@ -344,15 +326,12 @@ namespace writer_tests {
             });
 
         started.wait();
-
-        // Verify the second push is still blocked before cancelling it.
         REQUIRE(result.wait_for(50ms) == std::future_status::timeout);
 
         write_thread.request_stop();
 
         const auto status = result.wait_for(1s);
 
-        // Avoid hanging during cleanup if cancellation is broken.
         if (status != std::future_status::ready)
         {
             writer.complete();
@@ -363,7 +342,6 @@ namespace writer_tests {
 
         write_thread.join();
 
-        // The cancelled value must not have been inserted.
         CHECK(reader.size() == 1);
 
         auto value = reader.read();
@@ -372,7 +350,6 @@ namespace writer_tests {
         CHECK(*value == 42);
         CHECK(reader.size() == 0);
 
-        // Cancelling one push must not complete or damage the channel.
         REQUIRE(writer.push(44));
 
         auto subsequent_value = reader.read();
@@ -381,14 +358,12 @@ namespace writer_tests {
         CHECK(*subsequent_value == 44);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(WriterTests, "read while waiting to push", "[channel][writer]",
-        BoundedChannelMode)
+    TEST_CASE_METHOD(WriterTests, "read while waiting to push", "[channel][writer]")
     {
-        auto channel = make_channel<TestType, int>(1);
+        xtd::channel<int> channel(1);
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
-        // Fill the bounded channel.
         REQUIRE(writer.push(42));
         REQUIRE(reader.size() == 1);
 
@@ -404,11 +379,8 @@ namespace writer_tests {
             });
 
         started.wait();
-
-        // The second push must block while the channel is full.
         REQUIRE(result.wait_for(50ms) == std::future_status::timeout);
 
-        // Reading the first value releases capacity.
         auto first = reader.read();
 
         REQUIRE(first.has_value());
@@ -416,7 +388,6 @@ namespace writer_tests {
 
         const auto status = result.wait_for(1s);
 
-        // Ensure cleanup does not hang if the blocked writer was not awakened.
         if (status != std::future_status::ready)
         {
             writer.complete();
@@ -427,7 +398,6 @@ namespace writer_tests {
 
         write_thread.join();
 
-        // The previously blocked value must now be queued.
         CHECK(reader.size() == 1);
 
         auto second = reader.read();

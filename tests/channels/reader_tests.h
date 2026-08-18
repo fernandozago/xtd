@@ -10,7 +10,7 @@ using namespace std::chrono_literals;
 
 namespace reader_tests {
 
-    struct ReaderTests2 {};
+    struct ReaderTests {};
 
     enum class ChannelMode : std::size_t {
         Bounded = 8,
@@ -33,7 +33,7 @@ namespace reader_tests {
         int m_value;
     };
 
-    TEST_CASE_METHOD(ReaderTests2, "try_read returns empty when channel is open and empty", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "try_read returns empty when channel is open and empty", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -49,7 +49,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "try_read returns values in FIFO order", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "try_read returns values in FIFO order", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -91,7 +91,7 @@ namespace reader_tests {
         CHECK(reader.try_read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "read returns a queued value", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "read returns a queued value", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -109,7 +109,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "read and try_read support move-only values", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "read and try_read support move-only values", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -137,7 +137,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "size reflects the number of queued values", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "size reflects the number of queued values", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -166,7 +166,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "completion preserves queued values", "[channel][reader]",
+    TEST_CASE_METHOD(ReaderTests, "completion preserves queued values", "[channel][reader]",
         )
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
@@ -199,7 +199,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "reads return empty after completion and draining", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "reads return empty after completion and draining", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -221,7 +221,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "reads return empty when channel is completed and empty", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "reads return empty when channel is completed and empty", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -236,7 +236,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "a blocked read receives a subsequently pushed value", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "a blocked read receives a subsequently pushed value", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -278,7 +278,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "completion wakes a blocked reader", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "completion wakes a blocked reader", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -314,7 +314,7 @@ namespace reader_tests {
         read_thread.join();
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "should wait to read when channel is empty and open", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "should wait to read when channel is empty and open", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -349,7 +349,7 @@ namespace reader_tests {
         read_thread.join();
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "an already requested stop token cancels read", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "an already requested stop token cancels read", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -374,7 +374,7 @@ namespace reader_tests {
         CHECK(*subsequent_value == 42);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "requesting stop wakes a blocked reader", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "requesting stop wakes a blocked reader", "[channel][reader]")
     {
         const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
         CAPTURE(mode);
@@ -418,7 +418,7 @@ namespace reader_tests {
         CHECK(*subsequent_value == 42);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "reading from a full bounded channel releases capacity", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "reading from a full bounded channel releases capacity", "[channel][reader]")
     {
         xtd::channel<int> channel(1);
         xtd::channel_writer writer(channel);
@@ -464,7 +464,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEST_CASE_METHOD(ReaderTests2, "read_all generator tests", "[channel][reader]")
+    TEST_CASE_METHOD(ReaderTests, "read_all generator tests", "[channel][reader]")
     {
         struct my_data {
             enum class def { copy, move, consume };
