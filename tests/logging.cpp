@@ -1,7 +1,6 @@
 #include "logging/log_message.h"
 #include "logging/logging.h"
 #include "logging/sinks/log_sink.h"
-#include "logging/sinks/otel_sink.h"
 #include "logging/sinks/sinks_opts.h"
 #include "third_party/catch2/catch_amalgamated.hpp"
 
@@ -23,14 +22,53 @@ namespace xtd_logging_tests {
         }
     };
 
-    TEST_CASE("otel sink rejects empty endpoint")
+    TEST_CASE("file sink options reject empty file path")
     {
-        xtd::otel_sink_opts opts;
-        opts.endpoint = "";
+        xtd::file_sink_opts opts;
+        opts.file_path = "";
 
         REQUIRE_THROWS_AS(
-            xtd::otel_sink{opts},
+            opts.validate(),
             std::invalid_argument);
+    }
+
+    TEST_CASE("otel sink options reject invalid combinations")
+    {
+        const auto valid_opts = []() {
+            xtd::otel_sink_opts opts;
+            opts.endpoint = "http://localhost:4318/v1/logs";
+            opts.auth_token = "Bearer token";
+            opts.service_namespace = "chat-app";
+            opts.service_name = "chat-app";
+            opts.service_version = "1.0.0";
+            opts.service_instance_id = "instance-1";
+            opts.environment_name = "development";
+            opts.batch_size = 10;
+            return opts;
+        };
+
+        const auto invalid_cases = std::vector<std::function<void(xtd::otel_sink_opts&)>>{
+            [](xtd::otel_sink_opts& opts) { opts.endpoint = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.endpoint = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.auth_token = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.service_namespace = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.service_namespace = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.service_name = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.service_name = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.service_version = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.service_version = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.service_instance_id = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.service_instance_id = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.environment_name = ""; },
+            [](xtd::otel_sink_opts& opts) { opts.environment_name = "   "; },
+            [](xtd::otel_sink_opts& opts) { opts.batch_size = 0; },
+        };
+
+        for (const auto& mutate : invalid_cases) {
+            auto opts = valid_opts();
+            mutate(opts);
+            REQUIRE_THROWS_AS(opts.validate(), std::invalid_argument);
+        }
     }
 
     TEST_CASE_METHOD(LoggingTests, "console sink writes formatted message")

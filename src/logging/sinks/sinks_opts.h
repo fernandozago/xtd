@@ -2,11 +2,50 @@
 #define SINKS_OPTS
 
 #include "logging/log_message.h"
+#include <cctype>
 #include <stdexcept>
+#include <string_view>
 #include <unistd.h>
 
 namespace xtd 
 {
+    namespace utils {
+        static void validate_required_string(std::string_view name, const std::string& value) {
+            if (value.empty()) {
+                throw std::invalid_argument{std::string{name} + " cannot be empty"};
+            }
+
+            bool has_non_whitespace = false;
+            for (const char ch : value) {
+                if (!std::isspace(static_cast<unsigned char>(ch))) {
+                    has_non_whitespace = true;
+                    break;
+                }
+            }
+
+            if (!has_non_whitespace) {
+                throw std::invalid_argument{std::string{name} + " cannot be empty or whitespace"};
+            }
+        }
+
+        static void validate_optional_non_whitespace_string(std::string_view name, const std::string& value) {
+            if (value.empty()) {
+                return;
+            }
+
+            bool has_non_whitespace = false;
+            for (const char ch : value) {
+                if (!std::isspace(static_cast<unsigned char>(ch))) {
+                    has_non_whitespace = true;
+                    break;
+                }
+            }
+
+            if (!has_non_whitespace) {
+                throw std::invalid_argument{std::string{name} + " cannot be empty or whitespace"};
+            }
+        }
+    }
 
     struct log_sink_opts {
         log_level min_log_level = log_level::information;
@@ -27,9 +66,7 @@ namespace xtd
         bool flush_on_write = true;
 
         void validate() const {
-            if (file_path.empty()) {
-                throw std::invalid_argument{"file path cannot be empty"};
-            }
+            utils::validate_required_string("file_path", file_path);
         }
     };
 
@@ -47,29 +84,13 @@ namespace xtd
         bool use_local_time = false;
 
         void validate() const {
-            if (endpoint.empty()) {
-                throw std::invalid_argument{"endpoint cannot be empty"};
-            }
-
-            if (service_namespace.empty()) {
-                throw std::invalid_argument{"service_namespace cannot be empty"};
-            }
-
-            if (service_name.empty()) {
-                throw std::invalid_argument{"service_name cannot be empty"};
-            }
-
-            if (service_version.empty()) {
-                throw std::invalid_argument{"service_version cannot be empty"};
-            }
-
-            if (service_instance_id.empty()) {
-                throw std::invalid_argument{"service_instance_id cannot be empty"};
-            }
-
-            if (environment_name.empty()) {
-                throw std::invalid_argument{"environment_name cannot be empty"};
-            }
+            utils::validate_required_string("endpoint", endpoint);
+            utils::validate_required_string("service_namespace", service_namespace);
+            utils::validate_required_string("service_name", service_name);
+            utils::validate_required_string("service_version", service_version);
+            utils::validate_required_string("service_instance_id", service_instance_id);
+            utils::validate_required_string("environment_name", environment_name);
+            utils::validate_optional_non_whitespace_string("auth_token", auth_token);
 
             if (batch_size == 0) {
                 throw std::invalid_argument{"batch_size must be greater than zero"};
