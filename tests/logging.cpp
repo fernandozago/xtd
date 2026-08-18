@@ -179,7 +179,7 @@ namespace xtd_logging_tests {
 
             _logger.add_sink<xtd::otel_sink>(xtd::otel_sink_opts {
                 .min_log_level = xtd::log_level::trace,
-                .endpoint = "http://localhost:4318/v1/logs", 
+                .endpoint = "http://otel-lgtm:4318/v1/logs", 
                 .service_namespace = "test-app",
                 .service_name = "test-app",
                 .service_version = "1.0.0",
