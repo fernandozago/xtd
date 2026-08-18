@@ -22,6 +22,8 @@ namespace xtd_pipeline_tests {
 template <typename T>
 struct PipelineTests {};
 
+struct PipelineTests2{};
+
 struct FixedAllocatorMode {};
 struct ArenaAllocatorMode {};
 struct UnsynchronizedAllocatorMode {};
@@ -71,7 +73,7 @@ inline std::size_t readCurrentRssKb()
     throw std::runtime_error("VmRSS not found in /proc/self/status");
 }
 
-TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines", "[pipeline]")
+TEST_CASE_METHOD(PipelineTests2, "pipeline: multiple c_str writes are parsed into complete lines", "[pipeline]")
 {
     const auto mode = GENERATE(
         xtd::allocator_kind::unsynchronized_pool_resource,
