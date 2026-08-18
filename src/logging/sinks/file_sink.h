@@ -15,13 +15,14 @@ namespace xtd
         explicit file_sink(const file_sink_opts& opts)
             : log_sink(log_sink_opts{
                 .min_log_level = opts.min_log_level,
-                .fd = open_file(opts.file_path),
                 .use_local_time = opts.use_local_time,
                 .use_colors = false,
                 .flush_on_write = opts.flush_on_write,
             })
             , m_file_path(opts.file_path)
         {
+            opts.validate();
+            open_file();
         }
 
         file_sink(const file_sink&) = delete;
@@ -30,30 +31,25 @@ namespace xtd
         file_sink& operator=(file_sink&&) = default;
 
         ~file_sink() {
-            const int fd = m_fd();
-            if (fd >= 0) {
-                ::close(fd);
+            if (m_fd >= 0) {
+                ::close(m_fd);
             }
         }
 
     private:
-        static int open_file(const std::string& file_path) {
-            if (file_path.empty()) {
-                throw std::invalid_argument{"file path cannot be empty"};
-            }
-
-            std::filesystem::path path{file_path};
+        void open_file() {
+            std::filesystem::path path{m_file_path};
             std::filesystem::path parent_path = path.parent_path();
             if (!parent_path.empty() && !std::filesystem::exists(parent_path)) {
                 std::filesystem::create_directories(parent_path);
             }
 
-            const int fd = ::open(file_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            const int fd = ::open(m_file_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) {
-                throw std::runtime_error{"failed to open log file: " + file_path};
+                throw std::runtime_error{"failed to open log file: " + m_file_path};
             }
 
-            return fd;
+            m_fd = fd;
         }
     };
 

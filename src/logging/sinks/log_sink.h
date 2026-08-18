@@ -49,14 +49,12 @@ namespace xtd
             , m_use_colors(opts.use_colors)
             , m_flush_on_write(opts.flush_on_write)
             , m_own_channel(own_channel)
+            , m_fd(opts.fd)
         {
+            m_opts.validate();
         }
 
         virtual ~log_sink() = default;
-
-        int m_fd() const noexcept {
-            return m_opts.fd;
-        }
 
         bool own_channel() const noexcept {
             return m_own_channel;
@@ -71,6 +69,8 @@ namespace xtd
         }
 
     protected:
+        int m_fd = -1;
+
         void write_message_log(const std::shared_ptr<log_message>& message) const {
             const auto [fmtd_dt_tm, us, tz] = message->get_timestamp(m_use_local_time);
             const std::string_view& level_str = m_use_colors
@@ -104,7 +104,7 @@ namespace xtd
         virtual void write_to_output(std::string_view data) const {
             std::size_t offset = 0;
             while (offset < data.size()) {
-                const ssize_t written = ::write(m_opts.fd, data.data() + offset, data.size() - offset);
+                const ssize_t written = ::write(m_fd, data.data() + offset, data.size() - offset);
                 if (written < 0) {
                     if (errno == EINTR) {
                         continue;
@@ -115,7 +115,7 @@ namespace xtd
             }
 
             if (m_flush_on_write) {
-                ::fsync(m_opts.fd);
+                ::fsync(m_fd);
             }
         }
     };
