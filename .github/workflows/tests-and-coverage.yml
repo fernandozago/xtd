@@ -46,6 +46,12 @@ jobs:
           gcov --version
           lcov --version
           genhtml --version
+      
+      - name: Run Grafana Docker Compose
+        run: |
+          docker compose \
+            -f docker_compose/test-ci-grafana.yaml \
+            up --wait --wait-timeout 60
 
       - name: Run tests and generate coverage
         env:
