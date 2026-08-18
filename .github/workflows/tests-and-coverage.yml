@@ -22,6 +22,15 @@ jobs:
     container:
       image: gcc:15
 
+    services:
+        otel-lgtm:
+          image: grafana/otel-lgtm:latest
+          options: >-
+            --health-cmd "curl -fsS http://localhost:13133/ready"
+            --health-interval 2s
+            --health-timeout 5s
+            --health-retries 30
+
     defaults:
       run:
         shell: bash
@@ -47,12 +56,6 @@ jobs:
           lcov --version
           genhtml --version
       
-      - name: Run Grafana Docker Compose
-        run: |
-          docker compose \
-            -f docker_compose/test-ci-grafana.yaml \
-            up --wait --wait-timeout 60
-
       - name: Run tests and generate coverage
         env:
           CI: "true"
