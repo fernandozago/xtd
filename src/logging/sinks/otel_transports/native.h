@@ -24,10 +24,6 @@ struct otel_native_transport : otel_transport_base {
 
     explicit otel_native_transport(const otel_sink_opts& opts)
     {
-        if (opts.endpoint.empty()) {
-            throw std::invalid_argument{"endpoint cannot be empty"};
-        }
-
         parse_endpoint(opts.endpoint);
         build_request_prefix(opts);
     }
@@ -52,10 +48,7 @@ struct otel_native_transport : otel_transport_base {
             request_prefix += std::format("Authorization: {}\r\n", opts.auth_token);
         }
 
-        if (!opts.service_namespace.empty()) {
-            request_prefix += std::format("stream-name: {}\r\n", opts.service_namespace);
-        }
-
+        request_prefix += std::format("stream-name: {}\r\n", opts.service_namespace);
         request_prefix +=
             "Content-Type: application/json\r\n"
             "Connection: close\r\n";

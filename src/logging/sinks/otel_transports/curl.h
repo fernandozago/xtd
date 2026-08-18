@@ -23,10 +23,6 @@ struct otel_curl_transport : otel_transport_base {
 
     explicit otel_curl_transport(const otel_sink_opts& opts)
     {
-        if (opts.endpoint.empty()) {
-            throw std::invalid_argument{"endpoint cannot be empty"};
-        }
-
         m_curl = curl_easy_init();
         if (!m_curl) {
             throw std::runtime_error{"curl_easy_init failed"};
@@ -49,10 +45,8 @@ struct otel_curl_transport : otel_transport_base {
                 append_header(auth.c_str());
             }
 
-            if (!opts.service_namespace.empty()) {
-                const std::string stream = std::format("stream-name: {}", opts.service_namespace);
-                append_header(stream.c_str());
-            }
+            const std::string stream = std::format("stream-name: {}", opts.service_namespace);
+            append_header(stream.c_str());
 
             check_setopt(curl_easy_setopt(m_curl, CURLOPT_URL, opts.endpoint.c_str()), "CURLOPT_URL");
             check_setopt(curl_easy_setopt(m_curl, CURLOPT_HTTPHEADER, m_headers), "CURLOPT_HTTPHEADER");

@@ -3,6 +3,8 @@
 #include "logging/sinks/file_sink.h"
 #include "logging/sinks/otel_sink.h"
 #include <filesystem>
+#include <stop_token>
+#include <thread>
 
 /*
  Simple chat server
@@ -60,7 +62,23 @@ int main(int argc, char** argv)
             .service_instance_id = "instance-1",
             .environment_name = "development",
         });
-       
+
+        std::jthread hb{[](std::stop_token token) {
+            using namespace std::chrono_literals;
+            std::mutex mutex;
+            std::condition_variable_any cv;
+            std::unique_lock lock{mutex};
+
+            while (!token.stop_requested()) {
+                cv.wait_for(lock, token, 1s, [] { return false; });
+
+                if (token.stop_requested())
+                    break;
+
+                xtd::LOG_INFO("Heartbeat -- DateTime: {}", std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
+            }
+        }};
+
         xtd::LOG_INFO("Starting chat server...");
 
         const int port = std::stoi(argc > 1 ? argv[1] : "9090");
@@ -72,6 +90,7 @@ int main(int argc, char** argv)
         {
             server server(static_cast<std::uint16_t>(port));
             server.run();
+            hb.request_stop();
         }
 
         xtd::LOG_INFO("Server stopped");

@@ -3,6 +3,7 @@
 
 #include <format>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -113,7 +114,35 @@ namespace xtd
             , m_writer{m_channel}
             , m_transport{std::make_unique<transport_impl>(opts)}
             , m_worker{process_messages, std::ref(m_channel), std::ref(*this)}
-        {}
+        {
+            if (m_opts.endpoint.empty()) {
+                throw std::invalid_argument{"endpoint cannot be empty"};
+            }
+
+            if (m_opts.service_namespace.empty()) {
+                throw std::invalid_argument{"service_namespace cannot be empty"};
+            }
+
+            if (m_opts.service_name.empty()) {
+                throw std::invalid_argument{"service_name cannot be empty"};
+            }
+
+            if (m_opts.service_version.empty()) {
+                throw std::invalid_argument{"service_version cannot be empty"};
+            }
+
+            if (m_opts.service_instance_id.empty()) {
+                throw std::invalid_argument{"service_instance_id cannot be empty"};
+            }
+
+            if (m_opts.environment_name.empty()) {
+                throw std::invalid_argument{"environment_name cannot be empty"};
+            }
+
+            if (m_opts.batch_size == 0) {
+                throw std::invalid_argument{"batch_size must be greater than zero"};
+            }
+        }
 
         ~otel_sink() override
         {

@@ -1,6 +1,7 @@
 #include "logging/log_message.h"
 #include "logging/logging.h"
 #include "logging/sinks/log_sink.h"
+#include "logging/sinks/otel_sink.h"
 #include "logging/sinks/sinks_opts.h"
 #include "third_party/catch2/catch_amalgamated.hpp"
 
@@ -21,6 +22,16 @@ namespace xtd_logging_tests {
             return xtd::log_sink::colored_level_strings[static_cast<size_t>(level)];
         }
     };
+
+    TEST_CASE("otel sink rejects empty endpoint")
+    {
+        xtd::otel_sink_opts opts;
+        opts.endpoint = "";
+
+        REQUIRE_THROWS_AS(
+            xtd::otel_sink{opts},
+            std::invalid_argument);
+    }
 
     TEST_CASE_METHOD(LoggingTests, "console sink writes formatted message")
     {
