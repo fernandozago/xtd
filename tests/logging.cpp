@@ -22,7 +22,7 @@ namespace xtd_logging_tests {
         }
     };
 
-    TEST_CASE("file sink options reject empty file path")
+    TEST_CASE_METHOD(LoggingTests, "file sink options reject empty file path")
     {
         xtd::file_sink_opts opts;
         opts.file_path = "";
@@ -30,7 +30,7 @@ namespace xtd_logging_tests {
         REQUIRE_THROWS_AS(opts.validate(), std::invalid_argument);
     }
 
-    TEST_CASE("otel sink options reject invalid combinations")
+    TEST_CASE_METHOD(LoggingTests, "otel sink options reject invalid combinations")
     {
         const auto valid_opts = []() {
             xtd::otel_sink_opts opts;

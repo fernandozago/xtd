@@ -71,20 +71,18 @@ inline std::size_t readCurrentRssKb()
     throw std::runtime_error("VmRSS not found in /proc/self/status");
 }
 
-TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: multiple c_str writes are parsed into complete lines", "[pipeline]", 
-    FixedAllocatorMode, 
-    ArenaAllocatorMode, 
-    UnsynchronizedAllocatorMode)
+TEST_CASE("pipeline: multiple c_str writes are parsed into complete lines", "[pipeline]")
 {
-    const std::byte delimiter = std::byte{'\0'};
-    const std::array<std::string, 3> expected = {
-        "one", 
-        "two", 
-        "three"
-    };
+    const auto mode = GENERATE(
+        xtd::allocator_kind::unsynchronized_pool_resource,
+        xtd::allocator_kind::fixed_pool_resource,
+        xtd::allocator_kind::arena_pool_resource
+    );
 
-    xtd::pipeline pipeline = make_pipeline<TestType>();
-    
+    const std::byte delimiter = std::byte{'\0'};
+    const std::array<std::string, 3> expected = { "one", "two", "three" };
+    xtd::pipeline pipeline(xtd::pipe_options{ .allocator = mode });
+
     std::thread t([&]()
     {
         xtd::pipe_writer writer = xtd::pipe_writer(pipeline);
@@ -93,13 +91,13 @@ TEMPLATE_TEST_CASE_METHOD(PipelineTests, "pipeline: multiple c_str writes are pa
         }
         writer.complete();
     });
-    
+
     std::size_t index = 0;
     xtd::pipe_reader reader = xtd::pipe_reader(pipeline);
     while (const xtd::read_result result = reader.read())
     {
         xtd::segmented_byte_view seq = result.buffer();
-        
+
         while (const xtd::position pos = seq.position_of(delimiter))
         {
             ++index;
