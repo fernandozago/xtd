@@ -9,24 +9,13 @@
 using namespace std::chrono_literals;
 
 namespace reader_tests {
-    template <typename T>
-    struct ReaderTests {};
 
-    struct BoundedChannelMode {};
-    struct UnboundedChannelMode {};
+    struct ReaderTests2 {};
 
-    template <typename Mode, typename T>
-    xtd::channel<T> make_channel(std::size_t capacity = 8)
-    {
-        if constexpr (std::is_same_v<Mode, BoundedChannelMode>)
-        {
-            return xtd::channel<T>(capacity);
-        }
-        else
-        {
-            return xtd::channel<T>();
-        }
-    }
+    enum class ChannelMode : std::size_t {
+        Bounded = 8,
+        Unbounded = 0
+    };
 
     struct MoveOnly
     {
@@ -44,11 +33,12 @@ namespace reader_tests {
         int m_value;
     };
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "try_read returns empty when channel is open and empty", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "try_read returns empty when channel is open and empty", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
+
         xtd::channel_reader reader(channel);
 
         CHECK(reader.size() == 0);
@@ -59,11 +49,12 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "try_read returns values in FIFO order", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "try_read returns values in FIFO order", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
+
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -100,11 +91,12 @@ namespace reader_tests {
         CHECK(reader.try_read().error() == xtd::channel_read_errors::CHANNEL_EMPTY);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "read returns a queued value", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "read returns a queued value", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
+
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -117,11 +109,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "read and try_read support move-only values", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "read and try_read support move-only values", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, MoveOnly>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<MoveOnly> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -145,11 +137,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "size reflects the number of queued values", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "size reflects the number of queued values", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -174,11 +166,12 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "completion preserves queued values", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "completion preserves queued values", "[channel][reader]",
+        )
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -206,11 +199,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "reads return empty after completion and draining", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "reads return empty after completion and draining", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -228,11 +221,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "reads return empty when channel is completed and empty", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "reads return empty when channel is completed and empty", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -243,11 +236,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "a blocked read receives a subsequently pushed value", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "a blocked read receives a subsequently pushed value", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -285,11 +278,11 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "completion wakes a blocked reader", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "completion wakes a blocked reader", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -321,11 +314,11 @@ namespace reader_tests {
         read_thread.join();
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "should wait to read when channel is empty and open", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "should wait to read when channel is empty and open", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -356,11 +349,11 @@ namespace reader_tests {
         read_thread.join();
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "an already requested stop token cancels read", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "an already requested stop token cancels read", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -381,11 +374,11 @@ namespace reader_tests {
         CHECK(*subsequent_value == 42);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "requesting stop wakes a blocked reader", "[channel][reader]",
-        BoundedChannelMode,
-        UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "requesting stop wakes a blocked reader", "[channel][reader]")
     {
-        auto channel = make_channel<TestType, int>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+        xtd::channel<int> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -425,10 +418,9 @@ namespace reader_tests {
         CHECK(*subsequent_value == 42);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "reading from a full bounded channel releases capacity", "[channel][reader]",
-        BoundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "reading from a full bounded channel releases capacity", "[channel][reader]")
     {
-        auto channel = make_channel<BoundedChannelMode, int>(1);
+        xtd::channel<int> channel(1);
         xtd::channel_writer writer(channel);
         xtd::channel_reader reader(channel);
 
@@ -472,9 +464,7 @@ namespace reader_tests {
         CHECK(reader.size() == 0);
     }
 
-    TEMPLATE_TEST_CASE_METHOD(ReaderTests, "read_all generator tests", "[channel][reader]",
-    BoundedChannelMode,
-    UnboundedChannelMode)
+    TEST_CASE_METHOD(ReaderTests2, "read_all generator tests", "[channel][reader]")
     {
         struct my_data {
             enum class def { copy, move, consume };
@@ -500,7 +490,10 @@ namespace reader_tests {
             my_data& operator=(my_data&&) = default;
         };
 
-        auto channel = make_channel<TestType, my_data>();
+        const ChannelMode mode = GENERATE(ChannelMode::Bounded, ChannelMode::Unbounded);
+        CAPTURE(mode);
+
+        xtd::channel<my_data> channel(static_cast<size_t>(mode));
         xtd::channel_writer writer(channel);
 
         REQUIRE(writer.emplace(my_data::def::copy, 10));
