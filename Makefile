@@ -11,6 +11,11 @@ FLAGS_FILE    := $(ROOT)/compile_flags.txt
 MAKEFILE_SELF := $(lastword $(MAKEFILE_LIST))
 
 COMMON := -pthread -MMD -MP
+
+ifneq ($(CI),)
+COMMON += -DOTEL_DEBUG_TRANSPORT
+endif
+
 LDLIBS := -lcurl
 WARNINGS := \
 	-Werror -Wpedantic -pedantic-errors \

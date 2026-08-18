@@ -1,7 +1,5 @@
 #include "third_party/catch2/catch_amalgamated.hpp"
 
-#define OTEL_DEBUG_TRANSPORT
-
 #include "logging/log_message.h"
 #include "logging/logging.h"
 #include "logging/sinks/log_sink.h"
