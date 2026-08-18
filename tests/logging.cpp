@@ -27,9 +27,7 @@ namespace xtd_logging_tests {
         xtd::file_sink_opts opts;
         opts.file_path = "";
 
-        REQUIRE_THROWS_AS(
-            opts.validate(),
-            std::invalid_argument);
+        REQUIRE_THROWS_AS(opts.validate(), std::invalid_argument);
     }
 
     TEST_CASE("otel sink options reject invalid combinations")
@@ -144,6 +142,7 @@ namespace xtd_logging_tests {
         CAPTURE(use_colors);
         CAPTURE(use_local_time);
         CAPTURE(flush_on_write);
+        CAPTURE(exception);
         CHECK(output.find(std::format("teste {}\n", value)) != std::string::npos);
         CHECK(output.find("<tests/logging.cpp:") != std::string::npos);
         if (exception) {
