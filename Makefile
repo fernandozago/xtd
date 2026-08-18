@@ -578,12 +578,14 @@ genhtml "$$final" \
 	--title 'XTD Test Coverage' \
 	--header-title 'XTD Code Coverage' \
 	--description-file "$$desc" \
-	--output-directory "$(COVERAGE_HTML)"
+	--output-directory "$(COVERAGE_HTML)" \
+	--ignore-errors inconsistent
 
 lcov \
 	--summary "$$final" \
 	--branch-coverage \
-	--rc no_exception_branch=1
+	--rc no_exception_branch=1 \
+	--ignore-errors inconsistent
 
 echo "Coverage report: tests/coverage/html/index.html"
 
