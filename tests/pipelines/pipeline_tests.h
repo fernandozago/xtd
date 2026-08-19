@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <future>
 #include <print>
+#include <sstream>
 #include <type_traits>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -1134,9 +1135,9 @@ TEST_CASE_METHOD(PipelineTests, "Utility: pipeline can write random text to a sl
     std::ifstream in(path, std::ios::binary);
     REQUIRE(static_cast<bool>(in));
 
-    const std::string actual{
-        std::istreambuf_iterator<char>(in),
-        std::istreambuf_iterator<char>()};
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    const std::string actual = buffer.str();
 
     CHECK(actual == expected);
     std::remove(path.c_str());
